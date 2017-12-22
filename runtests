@@ -1,0 +1,94 @@
+#!/bin/bash
+
+help() {
+    cat - <<EOF
+Run a set of relay tests.
+
+  usage: runtests [options] [<small|medium|large> ...]
+
+At least one test size class must be provided.
+
+Options:
+
+   -b  Run benchmarks as well as tests
+   -c  Produce coverage profile files for each package
+   -v  Generate verbose test output
+   -r  Detect races
+   -h  Show help
+
+EOF
+    exit 0
+}
+
+fatal() {
+    echo $1
+    exit 1
+}
+
+get_script_dir() {
+    dirname ${BASH_SOURCE[0]}
+}
+
+
+bench=0
+cover=0
+verbose=0
+race=0
+while getopts ":bchrv" opt; do
+    case $opt in
+        b)  bench=1 ;;
+        c)  cover=1 ;;
+        v)  verbose=1 ;;
+	r)  race=1 ;;
+        h)  help ;;
+        \?) fatal "invalid option: -$OPTARG" ;;
+    esac
+done
+
+# Shift options away to get to the remaining positional arguments
+shifts=$(( $OPTIND - 1 ))
+for i in `seq $shifts`; do
+    shift
+done
+
+# Validate test sizes
+test_sizes=$@
+if [[ $test_sizes == "" ]]; then
+    fatal "at least one size of tests must be selected ('small', 'medium' or 'large')"
+fi
+for test_size in $test_sizes; do
+    case $test_size in
+        small) ;; medium) ;; large) ;;
+        *) fatal "invalid test size (value must be 'small', 'medium' or 'large')" ;;
+    esac
+done
+
+# Ensure the tests are run from the correct directory
+cd $(get_script_dir)
+
+# Tests for each package are run separately as -coverprofile only
+# works on a single package.
+exitcode=0
+packages=$(go list ./... | grep -v vendor)
+for package in $packages; do
+    cmd="go test -tags='$test_sizes'"
+    if [[ $verbose -eq 1 ]]; then
+        cmd="$cmd -v"
+    fi
+    if [[ $race -eq 1 ]];  then
+        cmd="$cmd -race"
+    fi
+    if [[ $bench -eq 1 ]]; then
+        cmd="$cmd -bench=."
+    fi
+    if [[ $cover -eq 1 ]]; then
+        cmd="$cmd -coverprofile=$GOPATH/src/$package/cover.out"
+    fi
+    cmd="$cmd $package"
+    eval $cmd
+    if [[ $? -ne 0 ]]; then
+        exitcode=1
+    fi
+done
+
+exit $exitcode

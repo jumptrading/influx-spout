@@ -1,0 +1,73 @@
+#!/bin/bash
+
+GO_PACKAGE=github.com/jump-opensource/influxdb-relay-nova
+REFERENCE_REVISION=${REFERENCE_REVISION:-de96da9a68f6611b6ae10225e13a933d634ef68b}
+
+echo "Comparing working tree against $REFERENCE_REVISION"
+
+fatal() {
+    echo $1
+    exit 1
+}
+
+title() {
+    echo ">>>> $1"
+}
+
+capture_benchmarks() {
+    test_sizes=$1
+    output=$2
+    go test -tags="$test_sizes" -run='^$' -bench=. $(go list ./... | grep -v vendor) &> $output
+    if [[ $? -ne 0 ]]; then
+        cat $output
+        exit 1
+    fi
+}
+
+# Validate test sizes
+test_sizes=$@
+if [[ $test_sizes == "" ]]; then
+    fatal "at least one size of tests must be selected ('small', 'medium' or 'large')"
+fi
+for test_size in $test_sizes; do
+    case $test_size in
+        small) ;; medium) ;; large) ;;
+        *) fatal "invalid test size (value must be 'small', 'medium' or 'large')" ;;
+    esac
+done
+
+out_dir=$PWD
+packages= current_bench_output="$out_dir/current.bench"
+reference_bench_output="$out_dir/reference.bench"
+
+title "Building benchcheck tool"
+go build -o benchcheck/benchcheck ./benchcheck || exit 1
+
+title "Running current benchmarks"
+capture_benchmarks "$test_sizes" $current_bench_output
+
+title "Setting up reference branch"
+
+# Create a temporary GOPATH which gets removed on exit.
+tempdir=`mktemp -d`
+function cleanup() {
+    rm -rf $tempdir
+}
+trap cleanup EXIT
+
+# Clone the repo into the temporary GOPATH
+set -e
+export GOPATH=$tempdir
+clone_dir=$GOPATH/src/$GO_PACKAGE
+echo "Cloning to $clone_dir"
+git clone --quiet . $clone_dir
+pushd $clone_dir > /dev/null
+git checkout --quiet -b perfcheck $REFERENCE_REVISION
+set +e
+
+title "Running reference benchmarks"
+capture_benchmarks "$test_sizes" $reference_bench_output
+
+title "Comparing benchmarks"
+popd > /dev/null
+exec benchcheck/benchcheck $reference_bench_output $current_bench_output

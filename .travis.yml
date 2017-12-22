@@ -1,0 +1,11 @@
+language: go
+
+go:
+  - 1.8.x
+  - 1.9.x
+  - master  # find out if a upcoming change in Go is going to break us
+
+# No need for an install step as all dependencies are vendored.
+install: []
+
+script: ./runtests small medium large
