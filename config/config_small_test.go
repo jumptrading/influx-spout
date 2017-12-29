@@ -24,11 +24,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewConfig(t *testing.T) {
-	conf := NewConfig()
-	assert.NotNil(t, conf)
-}
-
 const validConfigSample = `
 testing_mode = false
 
@@ -68,6 +63,45 @@ func TestCorrectConfigFile(t *testing.T) {
 	assert.Equal(t, "spout", conf.NATSTopic[0], "Topic must match")
 	assert.Equal(t, "spout-monitor", conf.NATSTopicMonitor, "Monitor topic must match")
 	assert.Equal(t, "nats://localhost:4222", conf.NATSAddress, "Address must match")
+}
+
+func TestAllDefaults(t *testing.T) {
+	conf, err := parseConfig(`mode = "writer"`)
+	require.NoError(t, err)
+
+	assert.Equal(t, "nats://localhost:4222", conf.NATSAddress)
+	assert.Equal(t, []string{"influx-spout"}, conf.NATSTopic)
+	assert.Equal(t, "influx-spout-monitor", conf.NATSTopicMonitor)
+	assert.Equal(t, "influx-spout-junk", conf.NATSTopicJunkyard)
+	assert.Equal(t, "localhost", conf.InfluxDBAddress)
+	assert.Equal(t, 8086, conf.InfluxDBPort)
+	assert.Equal(t, "influx-spout-junk", conf.DBName)
+	assert.Equal(t, 10, conf.BatchMessages)
+	assert.Equal(t, false, conf.IsTesting)
+	assert.Equal(t, 0, conf.Port)
+	assert.Equal(t, "writer", conf.Mode)
+	assert.Equal(t, 10, conf.WriterWorkers)
+	assert.Equal(t, 30, conf.WriteTimeoutSecs)
+	assert.Equal(t, 200, conf.NATSPendingMaxMB)
+	assert.Equal(t, false, conf.Debug)
+	assert.Len(t, conf.Rule, 0)
+}
+
+func TestDefaultPortListener(t *testing.T) {
+	conf, err := parseConfig(`mode = "listener"`)
+	require.NoError(t, err)
+	assert.Equal(t, 10001, conf.Port)
+}
+
+func TestDefaultPortHTTPListener(t *testing.T) {
+	conf, err := parseConfig(`mode = "listener_http"`)
+	require.NoError(t, err)
+	assert.Equal(t, 13337, conf.Port)
+}
+
+func TestNoMode(t *testing.T) {
+	_, err := parseConfig("")
+	assert.EqualError(t, err, "mode must be specified")
 }
 
 const invalidConfigSample = `

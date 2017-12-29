@@ -26,50 +26,6 @@ import (
 	"github.com/jumptrading/influx-spout/writer"
 )
 
-const (
-	// DefaultNATSAddress is the default address of the NATS instance.
-	DefaultNATSAddress = "nats://localhost:4222"
-
-	// DefaultNATSTopic is the default topic on which messages are published
-	// by listeners and subscribed to by writers.
-	DefaultNATSTopic = "influx-spout"
-
-	// DefaultNATSTopicMonitor is the topic where diagnostic messages and
-	// metrics are published.
-	DefaultNATSTopicMonitor = "influx-spout-monitor"
-
-	// DefaultInfluxDBAddress is the default InfluxDB location, in case it is not
-	// specified on the command line or in the config file.
-	DefaultInfluxDBAddress = "localhost"
-
-	// DefaultDBName is the default name of the database that metrics are
-	// written to.
-	DefaultDBName = "junk_nats"
-
-	// DefaultInfluxDBPort is the default InfluxDB port used by the writer.
-	DefaultInfluxDBPort = 8086
-
-	// DefaultListenerPort is the default port the listener
-	// (publisher) will listen on.
-	DefaultListenerPort = 10001
-
-	// DefaultHTTPListenerPort is the default port a HTTP listener
-	// (publisher) will listen on.
-	DefaultHTTPListenerPort = 13337
-
-	// DefaultBatchMessages is the default number of messages a writer
-	// will collect before posting them to InfluxDB.
-	DefaultBatchMessages = 10
-
-	// DefaultWriteTimeoutSecs is the default number of seconds a
-	// writer POST will wait before giving up.
-	DefaultWriteTimeoutSecs = 30
-
-	// DefaultNATSPendingMaxMB is the maximum size that a NATS buffer
-	// for a given topic is allowed to be before messages are dropped.
-	DefaultNATSPendingMaxMB = 200
-)
-
 // These are set at build time.
 var version string
 var builtOn string
@@ -109,21 +65,6 @@ func main() {
 	if err != nil {
 		fmt.Printf("FATAL: Error while loading config file: %v\n", err)
 		os.Exit(1)
-	}
-
-	if c.Port == 0 {
-		switch c.Mode {
-		case "listener":
-			c.Port = DefaultListenerPort
-		case "listener_http":
-			c.Port = DefaultHTTPListenerPort
-		}
-	}
-	if c.WriteTimeoutSecs == 0 {
-		c.WriteTimeoutSecs = DefaultWriteTimeoutSecs
-	}
-	if c.NATSPendingMaxMB == 0 {
-		c.NATSPendingMaxMB = DefaultNATSPendingMaxMB
 	}
 
 	switch c.Mode {

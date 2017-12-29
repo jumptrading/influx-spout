@@ -15,6 +15,8 @@
 package config
 
 import (
+	"errors"
+
 	"github.com/BurntSushi/toml"
 	"github.com/spf13/afero"
 )
@@ -45,9 +47,20 @@ type Config struct {
 	Debug             bool      `toml:"debug"`
 }
 
-// NewConfig returns an instance of our config struct
-func NewConfig() *Config {
-	return &Config{}
+func newDefaultConfig() *Config {
+	return &Config{
+		NATSAddress:       "nats://localhost:4222",
+		NATSTopic:         []string{"influx-spout"},
+		NATSTopicMonitor:  "influx-spout-monitor",
+		NATSTopicJunkyard: "influx-spout-junk",
+		InfluxDBAddress:   "localhost",
+		InfluxDBPort:      8086,
+		DBName:            "influx-spout-junk",
+		BatchMessages:     10,
+		WriterWorkers:     10,
+		WriteTimeoutSecs:  30,
+		NATSPendingMaxMB:  200,
+	}
 }
 
 // NewConfig parses the specified configuration file and returns a
@@ -59,11 +72,23 @@ func NewConfigFromFile(fileName string) (*Config, error) {
 	}
 	defer f.Close()
 
-	conf := new(Config)
+	conf := newDefaultConfig()
 	_, err = toml.DecodeReader(f, conf)
 	if err != nil {
 		return nil, err
 	}
+
+	if conf.Mode == "" {
+		return nil, errors.New("mode must be specified")
+	}
+
+	// Set dynamic defaults.
+	if conf.Mode == "listener" && conf.Port == 0 {
+		conf.Port = 10001
+	} else if conf.Mode == "listener_http" && conf.Port == 0 {
+		conf.Port = 13337
+	}
+
 	return conf, nil
 }
 
