@@ -104,27 +104,10 @@ func TestNoMode(t *testing.T) {
 	assert.EqualError(t, err, "mode must be specified")
 }
 
-const invalidConfigSample = `
-testing_mode = false
-
-mode = "listener"
-port = 10001
-
-nats_adress = "nats://localhost:4222"
-nats_toic = ["spout"]
-nat_topic_montor = "spout-monitor"
-
-influxdb_addres = "localhost"
-infuxdb_port = 8086
-inluxdb_dbname = "junk_nats"
-
-bach = aaa
-workers = 95014
-`
-
-func TestInvalidConfigFile(t *testing.T) {
-	_, err := parseConfig(invalidConfigSample)
-	assert.Error(t, err, "invalid config should fail")
+func TestInvalidTOML(t *testing.T) {
+	_, err := parseConfig("mode=\"writer\"\nbatch = abc")
+	require.Error(t, err)
+	assert.Regexp(t, ".+expected value but found.+", err.Error())
 }
 
 const rulesSample = `
