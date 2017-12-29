@@ -12,11 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package main kicks off the NATS-based InfluxDB relay
 package main
 
 import (
-	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -72,81 +70,49 @@ const (
 	DefaultNATSPendingMaxMB = 200
 )
 
-// Flag usage strings are empty because they're not used. Custom usage output is provided.
-var isTestMode = flag.Bool("t", false, "Enable test mode (see README.md)")
-var port = flag.Int("p", 0,
-	"Port to use in either listener/monitor mode (default 10001 (listener), 13337 (listener_http))")
-var backend = flag.String("e", DefaultInfluxDBAddress, "InfluxDB endpoint location")
-var dbPort = flag.Int("s", DefaultInfluxDBPort, "InfluxDB port num to write to")
-var dbName = flag.String("d", DefaultDBName, "InfluxDB database name")
-var batchNumber = flag.Int("b", DefaultBatchMessages, "Batch request together before flushing to InfluxDB. "+
-	"Set to 1 to disable batching.")
-var configFile = flag.String("c", "", "TOML configuration file (other flags are ignored if this is used)")
+// These are set at build time.
 var version string
 var builtOn string
 
-// usageExit will print a formatted output of the usage, then exit
-func usageExit(n int) {
-	fmt.Printf(`
-InfluxDB relay that leverages NATS message bus to receive incoming telegraf metrics and publish to InfluxDB endpoints.
+// getConfigFileName returns the configuration file provided on the
+// command line. It will exit the program if the wrong number of
+// command line arguments have been given.
+func getConfigFileName() string {
+	if len(os.Args) != 2 {
+		usageExit()
+	}
+	return os.Args[1]
+}
 
-Usage:  %s [flags] <mode>
+// usageExit will print a formatted output of the usage, then exit.
+func usageExit() {
+	fmt.Print(`
+influx-spout receives incoming metrics (typically from telegraf),
+filters them and selectively publishes them to one or more InfluxDB
+endpoints. 
 
-  <mode> must be one of "writer", "listener", "listener_http" or "filter".
+It is comprised of a number of components which communicate via a NATS
+bus. This binary can run as any of the components according to the
+supplied configuration.
 
-Flags:
-
-`[1:], os.Args[0])
-	flag.PrintDefaults()
-	fmt.Println(`
-Examples:
-
-  # Run a writer with the given InfluxDB settings
-  relay -e my.influxdb -d mydb writer
-  
-  # Run a listener in test mode on port 10006
-  relay -t -p 10006 listener`)
-	os.Exit(n)
+Usage:  influx-spout <configuration-file>
+`[1:])
+	os.Exit(1)
 }
 
 func main() {
-	flag.Usage = func() { usageExit(0) }
-	flag.Parse()
-	var c *config.Config
-	var mode string
-	var err error
+	configFile := getConfigFileName()
 
 	log.Printf("Running %v version %s, built on %s, %s\n", os.Args[0], version, builtOn, runtime.Version())
 
-	if *configFile != "" {
-		// Using configuration file.
-		c, err = config.NewConfigFromFile(*configFile)
-		if err != nil {
-			fmt.Printf("FATAL: Error while loading config file: %v\n", err)
-			os.Exit(1)
-		}
-		mode = c.Mode
-	} else {
-		// Using command line options.
-		if len(flag.Args()) != 1 {
-			usageExit(1)
-		}
-		mode = flag.Args()[0]
-
-		c = config.NewConfig()
-		c.NATSAddress = DefaultNATSAddress
-		c.NATSTopic = []string{DefaultNATSTopic}
-		c.NATSTopicMonitor = DefaultNATSTopicMonitor
-		c.InfluxDBAddress = *backend
-		c.InfluxDBPort = *dbPort
-		c.BatchMessages = *batchNumber
-		c.IsTesting = *isTestMode
-		c.Port = *port
-		c.DBName = *dbName
+	c, err := config.NewConfigFromFile(configFile)
+	if err != nil {
+		fmt.Printf("FATAL: Error while loading config file: %v\n", err)
+		os.Exit(1)
 	}
 
 	if c.Port == 0 {
-		switch mode {
+		switch c.Mode {
 		case "listener":
 			c.Port = DefaultListenerPort
 		case "listener_http":
@@ -160,7 +126,7 @@ func main() {
 		c.NATSPendingMaxMB = DefaultNATSPendingMaxMB
 	}
 
-	switch mode {
+	switch c.Mode {
 	case "filter":
 		filter.StartFilter(c)
 	case "listener":
@@ -177,7 +143,7 @@ func main() {
 			log.Fatalf("failed to start writer: %v", err)
 		}
 	default:
-		log.Fatalf("unknown mode of operation: [%s]", mode)
+		log.Fatalf("unknown mode of operation: [%s]", c.Mode)
 	}
 
 	runtime.Goexit()
