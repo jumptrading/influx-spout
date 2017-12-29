@@ -21,7 +21,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/jump-opensource/influxdb-relay-nova/config"
+	"github.com/jumptrading/influx-spout/config"
 )
 
 func TestBasicRuleCreation(t *testing.T) {

@@ -22,10 +22,10 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/jump-opensource/influxdb-relay-nova/config"
-	"github.com/jump-opensource/influxdb-relay-nova/filter"
-	"github.com/jump-opensource/influxdb-relay-nova/listener"
-	"github.com/jump-opensource/influxdb-relay-nova/writer"
+	"github.com/jumptrading/influx-spout/config"
+	"github.com/jumptrading/influx-spout/filter"
+	"github.com/jumptrading/influx-spout/listener"
+	"github.com/jumptrading/influx-spout/writer"
 )
 
 const (

@@ -22,7 +22,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/jump-opensource/influxdb-relay-nova/lineformatter"
+	"github.com/jumptrading/influx-spout/lineformatter"
 )
 
 func TestIntField(t *testing.T) {

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-GO_PACKAGE=github.com/jump-opensource/influxdb-relay-nova
+GO_PACKAGE=github.com/jumptrading/influx-spout
 REFERENCE_REVISION=${REFERENCE_REVISION:-de96da9a68f6611b6ae10225e13a933d634ef68b}
 
 echo "Comparing working tree against $REFERENCE_REVISION"

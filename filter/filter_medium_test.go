@@ -26,8 +26,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jump-opensource/influxdb-relay-nova/config"
-	"github.com/jump-opensource/influxdb-relay-nova/relaytest"
+	"github.com/jumptrading/influx-spout/config"
+	"github.com/jumptrading/influx-spout/relaytest"
 )
 
 const natsPort = 44446

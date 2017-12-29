@@ -208,7 +208,7 @@ Comparing working tree against 948733acdff077f0e2910a4334ac8698a480ba81
 >>>> Building benchcheck tool
 >>>> Running current benchmarks
 >>>> Setting up reference branch
-Cloning to /tmp/tmp.uTPpVD1hvD/src/github.com/jump-opensource/influxdb-relay-nova
+Cloning to /tmp/tmp.uTPpVD1hvD/src/github.com/jumptrading/influx-spout
 >>>> Running reference benchmarks
 >>>> Comparing benchmarks
 benchmark                 old ns/op     new ns/op     delta

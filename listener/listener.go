@@ -27,9 +27,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/nats-io/go-nats"
 
-	"github.com/jump-opensource/influxdb-relay-nova/config"
-	"github.com/jump-opensource/influxdb-relay-nova/lineformatter"
-	"github.com/jump-opensource/influxdb-relay-nova/stats"
+	"github.com/jumptrading/influx-spout/config"
+	"github.com/jumptrading/influx-spout/lineformatter"
+	"github.com/jumptrading/influx-spout/stats"
 )
 
 // Listener stats counters
