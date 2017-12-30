@@ -16,10 +16,16 @@ package config
 
 import (
 	"errors"
+	"fmt"
+	"os"
 
 	"github.com/BurntSushi/toml"
 	"github.com/spf13/afero"
 )
+
+// The file here is parsed first. The config file given on the command
+// line is then overlaid on top of it.
+const commonFileName = "/etc/influx-spout.toml"
 
 type RawRule struct {
 	Rtype   string `toml:"type"`
@@ -66,20 +72,16 @@ func newDefaultConfig() *Config {
 // NewConfig parses the specified configuration file and returns a
 // Config.
 func NewConfigFromFile(fileName string) (*Config, error) {
-	f, err := fs.Open(fileName)
-	if err != nil {
+	conf := newDefaultConfig()
+	if err := readConfig(commonFileName, conf); err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
-	defer f.Close()
-
-	conf := newDefaultConfig()
-	_, err = toml.DecodeReader(f, conf)
-	if err != nil {
+	if err := readConfig(fileName, conf); err != nil {
 		return nil, err
 	}
 
 	if conf.Mode == "" {
-		return nil, errors.New("mode must be specified")
+		return nil, errors.New("mode not specified in config")
 	}
 
 	// Set dynamic defaults.
@@ -88,8 +90,21 @@ func NewConfigFromFile(fileName string) (*Config, error) {
 	} else if conf.Mode == "listener_http" && conf.Port == 0 {
 		conf.Port = 13337
 	}
-
 	return conf, nil
+}
+
+func readConfig(fileName string, conf *Config) error {
+	f, err := fs.Open(fileName)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	_, err = toml.DecodeReader(f, conf)
+	if err != nil {
+		return fmt.Errorf("%s: %v", fileName, err)
+	}
+	return nil
 }
 
 var fs = afero.NewOsFs()
