@@ -21,7 +21,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/jump-opensource/influxdb-relay-nova/stats"
+	"github.com/jumptrading/influx-spout/stats"
 )
 
 func TestBasics(t *testing.T) {

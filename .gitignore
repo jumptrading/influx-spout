@@ -76,7 +76,7 @@ dkms.conf
 
 ### Go ###
 # Binaries for programs and plugins
-relay2
+influx-spout
 
 # Test binary, build with `go test -c`
 *.test

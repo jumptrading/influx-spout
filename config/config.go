@@ -15,9 +15,17 @@
 package config
 
 import (
+	"errors"
+	"fmt"
+	"os"
+
 	"github.com/BurntSushi/toml"
 	"github.com/spf13/afero"
 )
+
+// The file here is parsed first. The config file given on the command
+// line is then overlaid on top of it.
+const commonFileName = "/etc/influx-spout.toml"
 
 type RawRule struct {
 	Rtype   string `toml:"type"`
@@ -45,26 +53,58 @@ type Config struct {
 	Debug             bool      `toml:"debug"`
 }
 
-// NewConfig returns an instance of our config struct
-func NewConfig() *Config {
-	return &Config{}
+func newDefaultConfig() *Config {
+	return &Config{
+		NATSAddress:       "nats://localhost:4222",
+		NATSTopic:         []string{"influx-spout"},
+		NATSTopicMonitor:  "influx-spout-monitor",
+		NATSTopicJunkyard: "influx-spout-junk",
+		InfluxDBAddress:   "localhost",
+		InfluxDBPort:      8086,
+		DBName:            "influx-spout-junk",
+		BatchMessages:     10,
+		WriterWorkers:     10,
+		WriteTimeoutSecs:  30,
+		NATSPendingMaxMB:  200,
+	}
 }
 
 // NewConfig parses the specified configuration file and returns a
 // Config.
 func NewConfigFromFile(fileName string) (*Config, error) {
+	conf := newDefaultConfig()
+	if err := readConfig(commonFileName, conf); err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
+	if err := readConfig(fileName, conf); err != nil {
+		return nil, err
+	}
+
+	if conf.Mode == "" {
+		return nil, errors.New("mode not specified in config")
+	}
+
+	// Set dynamic defaults.
+	if conf.Mode == "listener" && conf.Port == 0 {
+		conf.Port = 10001
+	} else if conf.Mode == "listener_http" && conf.Port == 0 {
+		conf.Port = 13337
+	}
+	return conf, nil
+}
+
+func readConfig(fileName string, conf *Config) error {
 	f, err := fs.Open(fileName)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer f.Close()
 
-	conf := new(Config)
 	_, err = toml.DecodeReader(f, conf)
 	if err != nil {
-		return nil, err
+		return fmt.Errorf("%s: %v", fileName, err)
 	}
-	return conf, nil
+	return nil
 }
 
 var fs = afero.NewOsFs()

@@ -17,6 +17,7 @@
 package config
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/spf13/afero"
@@ -24,12 +25,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewConfig(t *testing.T) {
-	conf := NewConfig()
-	assert.NotNil(t, conf)
-}
+const testConfigFileName = "config.toml"
 
-const validConfigSample = `
+func TestCorrectConfigFile(t *testing.T) {
+	const validConfigSample = `
 testing_mode = false
 
 mode = "listener"
@@ -49,8 +48,6 @@ workers = 96
 write_timeout_secs = 32
 nats_pending_max_mb = 100
 `
-
-func TestCorrectConfigFile(t *testing.T) {
 	conf, err := parseConfig(validConfigSample)
 	require.NoError(t, err, "Couldn't parse a valid config: %v\n", err)
 
@@ -70,30 +67,53 @@ func TestCorrectConfigFile(t *testing.T) {
 	assert.Equal(t, "nats://localhost:4222", conf.NATSAddress, "Address must match")
 }
 
-const invalidConfigSample = `
-testing_mode = false
+func TestAllDefaults(t *testing.T) {
+	conf, err := parseConfig(`mode = "writer"`)
+	require.NoError(t, err)
 
-mode = "listener"
-port = 10001
-
-nats_adress = "nats://localhost:4222"
-nats_toic = ["spout"]
-nat_topic_montor = "spout-monitor"
-
-influxdb_addres = "localhost"
-infuxdb_port = 8086
-inluxdb_dbname = "junk_nats"
-
-bach = aaa
-workers = 95014
-`
-
-func TestInvalidConfigFile(t *testing.T) {
-	_, err := parseConfig(invalidConfigSample)
-	assert.Error(t, err, "invalid config should fail")
+	assert.Equal(t, "nats://localhost:4222", conf.NATSAddress)
+	assert.Equal(t, []string{"influx-spout"}, conf.NATSTopic)
+	assert.Equal(t, "influx-spout-monitor", conf.NATSTopicMonitor)
+	assert.Equal(t, "influx-spout-junk", conf.NATSTopicJunkyard)
+	assert.Equal(t, "localhost", conf.InfluxDBAddress)
+	assert.Equal(t, 8086, conf.InfluxDBPort)
+	assert.Equal(t, "influx-spout-junk", conf.DBName)
+	assert.Equal(t, 10, conf.BatchMessages)
+	assert.Equal(t, false, conf.IsTesting)
+	assert.Equal(t, 0, conf.Port)
+	assert.Equal(t, "writer", conf.Mode)
+	assert.Equal(t, 10, conf.WriterWorkers)
+	assert.Equal(t, 30, conf.WriteTimeoutSecs)
+	assert.Equal(t, 200, conf.NATSPendingMaxMB)
+	assert.Equal(t, false, conf.Debug)
+	assert.Len(t, conf.Rule, 0)
 }
 
-const rulesSample = `
+func TestDefaultPortListener(t *testing.T) {
+	conf, err := parseConfig(`mode = "listener"`)
+	require.NoError(t, err)
+	assert.Equal(t, 10001, conf.Port)
+}
+
+func TestDefaultPortHTTPListener(t *testing.T) {
+	conf, err := parseConfig(`mode = "listener_http"`)
+	require.NoError(t, err)
+	assert.Equal(t, 13337, conf.Port)
+}
+
+func TestNoMode(t *testing.T) {
+	_, err := parseConfig("")
+	assert.EqualError(t, err, "mode not specified in config")
+}
+
+func TestInvalidTOML(t *testing.T) {
+	_, err := parseConfig("mode=\"writer\"\nbatch = abc")
+	require.Error(t, err)
+	assert.Regexp(t, ".+expected value but found.+", err.Error())
+}
+
+func TestRulesConfig(t *testing.T) {
+	const rulesConfig = `
 testing_mode = false
 
 mode = "listener"
@@ -120,9 +140,7 @@ type = "basic"
 match = "world"
 channel = "world-chan"
 `
-
-func TestRulesConfig(t *testing.T) {
-	conf, err := parseConfig(rulesSample)
+	conf, err := parseConfig(rulesConfig)
 	require.NoError(t, err, "config should be parsed")
 
 	assert.Len(t, conf.Rule, 2)
@@ -138,6 +156,60 @@ func TestRulesConfig(t *testing.T) {
 	})
 }
 
+func TestCommonOverlay(t *testing.T) {
+	const commonConfig = `
+batch = 50
+influxdb_dbname = "massive"
+`
+	const specificConfig = `
+mode = "listener"
+batch = 100
+debug = true
+`
+	fs = afero.NewMemMapFs()
+	afero.WriteFile(fs, commonFileName, []byte(commonConfig), 0600)
+	afero.WriteFile(fs, "config.toml", []byte(specificConfig), 0600)
+
+	conf, err := NewConfigFromFile("config.toml")
+	require.NoError(t, err)
+
+	assert.Equal(t, "listener", conf.Mode)   // only set in specific config
+	assert.Equal(t, 100, conf.BatchMessages) // overridden in specific config
+	assert.Equal(t, "massive", conf.DBName)  // only set in common config
+}
+
+func TestInvalidTOMLInCommonConfig(t *testing.T) {
+	const commonConfig = `
+wat
+`
+	const specificConfig = `
+mode = "listener"
+batch = 100
+debug = true
+`
+
+	fs = afero.NewMemMapFs()
+	afero.WriteFile(fs, commonFileName, []byte(commonConfig), 0600)
+	afero.WriteFile(fs, "config.toml", []byte(specificConfig), 0600)
+
+	_, err := NewConfigFromFile("config.toml")
+	require.Error(t, err)
+	assert.Regexp(t, "/etc/influx-spout.toml: .+", err)
+}
+
+type failingOpenFs struct{ afero.Fs }
+
+func (*failingOpenFs) Open(string) (afero.File, error) {
+	return nil, errors.New("boom")
+}
+
+func TestErrorOpeningCommonFile(t *testing.T) {
+	fs = new(failingOpenFs)
+
+	_, err := NewConfigFromFile("config.toml")
+	assert.EqualError(t, err, "boom")
+}
+
 func TestOpenError(t *testing.T) {
 	fs = afero.NewMemMapFs()
 
@@ -147,10 +219,8 @@ func TestOpenError(t *testing.T) {
 }
 
 func parseConfig(content string) (*Config, error) {
-	const fileName = "config.toml"
-
 	fs = afero.NewMemMapFs()
-	afero.WriteFile(fs, fileName, []byte(content), 0600)
+	afero.WriteFile(fs, testConfigFileName, []byte(content), 0600)
 
-	return NewConfigFromFile(fileName)
+	return NewConfigFromFile(testConfigFileName)
 }
