@@ -1,167 +1,272 @@
-# InfluxDB Relay
+# influx-spout
 
 ## Overview
 
-Below is a quick overview graph:
+influx-spout consists of a number of components which receive [InfluxDB] [line
+protocol] measurements sent by agents such as [Telegraf], efficiently filter
+them and then forward them on to one or more InfluxDB backends. Much effort has
+been put in to ensuring that high volumes of measurements can be
+supported. [NATS] is used for messaging between the various influx-spout
+components.
 
-                               +-------------------------------------------------+
-    +---+     +----------+     |                                                 |
-    |UDP|---->| Listener |---->|                      NATS                       |
-    +---+     +----------+     |                                                 |
-                               +----+------^---+--------------------+------------+
-                                    |      |   |                    |
-                                    v      |   |                    |
-                               +--------+  |   |                    |
-                               |        |  |   |                    |
-                               | Filter |--+   |                    |
-                               |        |      |                    |
-                               +--------+      |                    |
-                                               v                    v
-                                      +----------------+   +----------------+
-                                      |                |   |                |
-                                      |     Writer     |   |     Writer     |
-                                      |                |   |                |
-                                      +----------------+   +----------------+
-                                               |                    |
-                                               v                    v
-                                      +----------------+   +----------------+
-                                      |                |   |                |
-                                      |    InfluxDB    |   |    InfluxDB    |
-                                      |                |   |                |
-                                      +----------------+   +----------------+
+[InfluxDB]: https://www.influxdata.com/time-series-platform/influxdb/
+[line protocol]: https://docs.influxdata.com/influxdb/v1.4/write_protocols/line_protocol_tutorial/
+[Telegraf]: https://www.influxdata.com/time-series-platform/telegraf/
+[NATS]: https://nats.io/
 
-The relay can operate in different modes, each of which are outlined below.
+The following diagram shows a typical influx-spout deployment, and the
+flow of data between the various components:
 
-## Listener mode
+```
+                           +-----+              +------+
+                           | UDP |              | HTTP |
+                           +-----+              +------+
+                              |                     |
+                              v                     v
+                     +-----------------+   +-----------------+
+                     |                 |   |                 |
+                     |     Listener    |   |  HTTP Listener  |
+                     |                 |   |                 |
+                     +-----------------+   +-----------------+
+                              |                     |
+                              v                     v
+ +----------+   +-------------------------------------------------+
+ |          |<--+                                                 |
+ |  Filter  |   |                     NATS                        |
+ |          +-->|                                                 |
+ +----------+   +--------+----------------+----------------+------+
+                         |                |                |
+                         v                v                v
+                   +----------+     +----------+     +----------+
+                   |          |     |          |     |          |
+                   |  Writer  |     |  Writer  |     |  Writer  |
+                   |          |     |          |     |          |
+                   +-----+----+     +-----+----+     +-----+----+
+                         |                |                |
+                         v                v                v
+                   +----------+     +----------+     +----------+
+                   | InfluxDB |     | InfluxDB |     | InfluxDB |
+                   +----------+     +----------+     +----------+
+```
 
-The Listener is responsible for receiving metrics on a UDP port and preparing
-to send to a NATS bus (optionally batching metrics prior to send).
+All the influx-spout components may be run on a single host or may be
+spread across multiple hosts depending on scaling and operational
+requirements.
 
-### Required configuration options
+## Configuration
 
-    mode = "listener"
-    port = 10001
-    nats_address = "nats://localhost:4222"
-    nats_topic = ["influxdb-relay"]
-    nats_topic_monitor = "influxdb-relay-monitor"
-    batch = 100
+influx-spout is a single binary which will run as any of the component
+modes, depending on the configuration provided. The binary takes a
+single mandatory positional argument which is the path to the [TOML]
+configuration file to use:
 
-The options are:
+```
+influx-spout [/path/to/config.toml]
+```
 
-- `mode`: Required, must be "listener" to start the relay in listener mode.
-- `port`: Required, the UDP port to listen on.
-- `nats_address`: Required, the NATS bus address.
-- `nats_topic`: Required, MUST be a singleton list containing the topic to
-  publish messages to.
-- `nats_topic_monitor`: Required, an extra topic used for out-of-band,
-  diagnostic messages concerning the relay.
-- `batch`: Optional, defaults to 1, the number of messages to collect before
-  sending to the NATS bus.
+During startup, `/etc/influx-spout.toml` is parsed first, if it exists. The
+configuration specified in the file with provided on the command line overrides
+any configuration in `/etc/influx-spout.toml`. This allows configuration common
+to different influx-spout components to be shared.
 
-## HTTP Listener mode
+[TOML]: https://github.com/toml-lang/toml
 
-The HTTP listener is the same as the listener except that it received metrics
-via HTTP request bodies sent to a `/write` endpoint on the configured port.
+## Modes
 
-### Required configuration options
+This section documents the various influx-spout component modes and
+how to configure them.
 
-    mode = "listener_http"
-    port = 13337
-    nats_address = "nats://localhost:4222"
-    nats_topic = ["influxdb-relay"]
-    nats_topic_monitor = "influxdb-relay-monitor"
-    batch = 100
+### Listener
 
-The options are:
+The listener is responsible for receiving InfluxDB line protocol measurements
+on a UDP port, batching them and sending them on to a single NATS topic. In
+typical deployments, a single listener will exist but it is possible to run
+multiple listeners.
 
-- `mode`: Required, must be "listener_http" to start the relay in HTTP listener mode.
-- `port`: Required, the TCP port to server the receiving HTTP endpoint on.
+The supported configuration options for the listener mode follow. Defaults are
+shown.
 
-All other options are as per the UDP listener above.
+```
+mode = "listener"  # Required
 
-## Filter mode
+# UDP port to listen on.
+port = 10001
 
-The filter is responsible for filtering messages and forward them to their
-respective topic on the NATS bus. This is meant to be a high-level filter that
-forwards incoming lines to other NATS topics based on the metric.
+# Address of NATS server.
+nats_address = "nats://localhost:4222"
 
-### Required configuration options
+# Topic to publish received measurements on. This must be a list with one item.
+nats_topic = ["influx-spout"]
 
-    mode = "filter"
-    nats_address = "nats://localhost:4222"
-    nats_topic = ["influxdb-relay"]
-    nats_topic_monitor = "influx-spout-monitor"
-    nats_topic_junkyard = "__junkyard"
+# How many messages to collect before forwarding to the NATS server.
+# Increasing this number reduces NATS communication overhead but increases
+# latency.
+batch = 10
 
-    [[rule]]
-    type="basic"
-    match="cgroup"
-    channel="measurement.cgroup"
+# Out-of-bound metrics and diagnostic messages are published to this NATS topic
+# (in InfluxDB line protocol format).
+nats_topic_monitor = "influx-spout-monitor"
+```
 
-The options are:
+### HTTP Listener
 
-- `mode`: Required, must be "filter" to start the relay in filter mode.
-- `nats_address`: Required, the NATS bus' address.
-- `nats_topic`: Required, MUST be a singleton list containing the topic to get
-  messages from.
-- `nats_topic_monitor`: Required, an extra topic used for out-of-band,
-  diagnostic messages concerning the relay.
-- `nats_topic_junkyard`: Required, the topic to which metrics that do not match
-  any rule (see below) are forwarded to.
+The HTTP listener is like the UDP listener (above) except that it receives
+measurements sent using HTTP request bodies to a `/write` endpoint on the
+configured port.
 
-Additionally, at least one rule is required:
+The supported configuration options for the HTTP listener mode follow. Defaults
+are shown.
 
-- `mode`: Can be `basic` or `regex`, however using `regex` is discouraged in filter mode.
-- `match`: A string describing what to match. In `basic` mode, it is the name
-  of the measurement. In `regex` mode, this is a Golang regex that can match
-  the entire line.
-- `channel`: The NATS channel to forward metrics matching this rule to.
+```
+mode = "listener_http"  # Required
 
-## Writer mode
+# TCP port to server a HTTP server on. A single "/write" endpoint is available here.
+port = 13337
 
-A Writer is responsible for writing matching metrics to backends, currently
-InfluxDB nodes.
+# Address of NATS server.
+nats_address = "nats://localhost:4222"
 
-### Required configuration options
+# Topic to publish received measurements on. This must be a list with one item.
+nats_topic = ["influx-spout"]
 
-    mode = "writer"
-    nats_address = "nats://localhost:4222"
-    nats_topic = ["measurement.*", "__junkyard"]
-    nats_topic_monitor = "influxdb-relay-monitor"
+# How many messages to collect before forwarding to the NATS server.
+# Increasing this number reduces NATS communication overhead but increases
+# latency.
+batch = 10
 
-    influxdb_address = "influx-node01"
-    influxdb_port = 8086
-    influxdb_dbname = "relay_nats"
+# Out-of-bound metrics and diagnostic messages are published to this NATS topic
+# (in InfluxDB line protocol format).
+nats_topic_monitor = "influx-spout-monitor"
+```
 
-    batch = 100
-    workers = 96
-    write_timeout_secs = 30
-    nats_pending_max_mb = 200
+### Filter
 
-The options are:
+The filter is responsible for filtering measurements published to NATS by the
+listener, and forwarding them on to other NATS topics.
 
-- `mode`: Required, must be "writer" to start the relay in writer mode.
-- `nats_address`: Required, the NATS bus' address.
-- `nats_topic`: Required, a list of NATS topics to get the metrics from.
-- `nats_topic_monitor`: Required, an extra topic used for out-of-band,
-  diagnostic messages concerning the relay.
-- `influxdb_address`: Required, Hostname of the InfluxDB instance.
-- `influxdb_port`: Required, TCP port where the InfluxDB backend can be found.
-- `influxdb_dbname`: Required, the database name inside InfluxDB to write to.
-- `batch`: Optional, defaults to 1, the number of matching metrics to collect
-  before issuing a write to InfluxDB.
-- `workers:` Optional, defaults to 1, the number of worker threads to spawn.
-- `write_timeout_secs:` Optional, defaults to 30, the maximum number of seconds
-  a writer will wait when writing to an InfluxDB endpoint.
-- `nats_pending_max_mb:` Optional, defaults to 200, the maximum number of megabytes
-  that the NATS pending buffer for a topic may become. Data will be dropped if
-  this limit is reached. This helps to deal with slow consumers.
+The supported configuration options for the filter mode follow. Defaults are
+shown.
+
+```
+mode = "filter"  # Required
+
+# Address of NATS server.
+nats_address = "nats://localhost:4222"
+
+# Topic to receive measurements from (presumably from the listener).
+# This must be a list with one item.
+nats_topic = ["influx-spout"]
+
+# Measurements which do not match any rule (below) are sent to this NATS topic.
+nats_topic_junkyard = "influx-spout-junk"
+
+# Out-of-bound metrics and diagnostic messages are published to this NATS topic
+# (in InfluxDB line protocol format).
+nats_topic_monitor = "influx-spout-monitor"
+
+# At least one rule should be defined. Rules are defined using TOML's table
+# syntax. The following examples show each rule type.
+
+[[rule]]
+# "basic" rules match a measurement name exactly.
+type = "basic"
+
+# For basic rules, "match" specifies an exact measurement name.
+match = "cgroup"
+
+# Measurements matching the rule are forwarded to this topic.
+channel = "measurement.cgroup"
+
+
+[[rule]]
+# "regex" rules apply a regular expression to full measurement lines.
+# Note: regex rules are significantly slower than basic rules. Use with care.
+type = "regex"
+
+# For regex rules, "match" specifies regular expression pattern to apply.
+match = "host=web.+,"
+
+# As above.
+channel = "hosts.web"
+
+
+[[rule]]
+# "negregex" rules apply a regular expression to full measurement lines and
+# match measurements which *don't* match the regular expression.
+# Note: negregex rules are significantly slower than basic rules. Use with care.
+type = "negregex"
+
+# For negregex rules, "match" specifies regular expression pattern to apply.
+match = "host=web.+,"
+
+# As above.
+channel = "not-web"
+```
+
+Ordering of rules in the configuration is important. Only the first rule that
+matches a given measurement is applied.
+
+### Writer
+
+A writer is responsible for reading measurements from one or more NATS topics,
+optionally filtering them and then writing matching them to an InfluxDB
+instances. A writer should be run for each InfluxDB backend that influx-spout
+should send measurements to.
+
+The supported configuration options for the writer mode follow. Defaults are
+shown.
+
+```
+mode = "writer"  # Required
+
+# Address of NATS server.
+nats_address = "nats://localhost:4222"
+
+# The NATS topics to receive measurements from.
+nats_topic = ["influx-spout"]
+
+# Address of the InfluxDB instance to write to.
+influxdb_address = "localhost"
+
+# TCP port where the InfluxDB backend can be found.
+influxdb_port = 8086
+
+# The InfluxDB database name to write to. The default value is unlikely to be
+useful. Please set to an appropriate value.
+influxdb_dbname = "influx-spout-junk"
+
+# How many messages to collect before writing to InfluxDB.
+# Increasing this number reduces InfluxDB communication overhead but increases
+# latency.
+batch = 10
+
+# The number of writer workers to spawn.
+workers = 10
+
+# The maximum number of seconds a writer will wait for an InfluxDB write to
+# complete. Writes which time out will be dropped.
+write_timeout_secs = 30
+
+# The maximum size that the pending buffer for a NATS topic that the writer
+# is reading from may become (in megabytes). Measurements will be dropped if
+# this limit is reached. This helps to deal with slow InfluxDB instances.
+nats_pending_max_mb = 200
+
+# Out-of-bound metrics and diagnostic messages are published to this NATS topic
+# (in InfluxDB line protocol format).
+nats_topic_monitor = "influx-spout-monitor"
+```
+
+Writers can optionally include filter rules. When filter rules are configured
+measurements which don't match a rule will be dropped by the writer instead of
+being written to InfluxDB. Rule configuration is the same as for the filter
+component, but the rule subject should be omitted.
 
 ## Running tests
 
-The relay's tests are classified as either "small", "medium" or "large", where
-"small" tests are unit tests with no external dependencies and "large" test are
-full system tests. To simplify running of tests a `runtests` helper is
+influx-spout's tests are classified as either "small", "medium" or "large",
+where "small" tests are unit tests with no external dependencies and "large"
+test are full system tests. To simplify running of tests a `runtests` helper is
 provided.
 
 Here's some example usage:
@@ -185,7 +290,7 @@ $ ./runtests -v medium
 
 ## Checking for performance regressions
 
-Benchmarks have been implemented for key areas of the relay's
+Benchmarks have been implemented for key areas of influx-spout's
 functionality. The `perfcheck` script will compare the performance of these
 benchmarks in the working tree against a fixed reference revision. Any
 benchmarks that regress by 10% or more will be reported.
