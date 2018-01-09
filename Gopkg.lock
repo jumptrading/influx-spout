@@ -14,12 +14,6 @@
   version = "v1.1.0"
 
 [[projects]]
-  name = "github.com/google/uuid"
-  packages = ["."]
-  revision = "064e2069ce9c359c118179501254f67d7d37ba24"
-  version = "0.2"
-
-[[projects]]
   name = "github.com/nats-io/gnatsd"
   packages = ["conf","logger","server","server/pse","test","util"]
   revision = "4ccbd2e3bac4a1e1f32ed760549f1f26560f58be"
@@ -82,6 +76,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "3dd87ab0e26eac015cb5518b5181615966ab778ba76200997c05f17a17ee5988"
+  inputs-digest = "cd04f3664797f9138c9e93d58dda66c61a1973585ab49e0b5842c3b8da44eec4"
   solver-name = "gps-cdcl"
   solver-version = 1
