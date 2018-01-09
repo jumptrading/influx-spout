@@ -33,7 +33,6 @@ import (
 	// revisit eventually
 	//"github.com/valyala/fasthttp"
 
-	"github.com/google/uuid"
 	"github.com/nats-io/go-nats"
 
 	"github.com/jumptrading/influx-spout/config"
@@ -206,17 +205,6 @@ func (w *Writer) filterLine(line []byte) bool {
 }
 
 func (w *Writer) processMsg(msgBuffer *bytes.Buffer, msgsRecv int, url string, client *http.Client, data []byte) {
-	if w.c.IsTesting {
-		sz := len(string(data))
-		uuidStr := string(data[sz-37 : sz-1])
-		uuid, err := uuid.Parse(uuidStr)
-		if err != nil {
-			panic(fmt.Sprintf("invalid UUID detected: [%s]\n", uuidStr))
-		}
-		log.Printf("Received len %4d uuid %v\n", sz-42, uuid)
-		return
-	}
-
 	// put the message in the queue and process it later
 	if n, err := msgBuffer.Write(data); err != nil {
 		log.Printf("Error: failed to write to message buffer (wrote %d): %v\n", n, err)

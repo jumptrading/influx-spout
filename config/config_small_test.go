@@ -29,8 +29,6 @@ const testConfigFileName = "config.toml"
 
 func TestCorrectConfigFile(t *testing.T) {
 	const validConfigSample = `
-testing_mode = false
-
 mode = "listener"
 port = 10001
 
@@ -79,7 +77,6 @@ func TestAllDefaults(t *testing.T) {
 	assert.Equal(t, 8086, conf.InfluxDBPort)
 	assert.Equal(t, "influx-spout-junk", conf.DBName)
 	assert.Equal(t, 10, conf.BatchMessages)
-	assert.Equal(t, false, conf.IsTesting)
 	assert.Equal(t, 0, conf.Port)
 	assert.Equal(t, "writer", conf.Mode)
 	assert.Equal(t, 10, conf.WriterWorkers)
@@ -114,8 +111,6 @@ func TestInvalidTOML(t *testing.T) {
 
 func TestRulesConfig(t *testing.T) {
 	const rulesConfig = `
-testing_mode = false
-
 mode = "listener"
 port = 10001
 
