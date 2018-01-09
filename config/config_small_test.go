@@ -33,8 +33,8 @@ mode = "listener"
 port = 10001
 
 nats_address = "nats://localhost:4222"
-nats_topic = ["spout"]
-nats_topic_monitor = "spout-monitor"
+nats_subject = ["spout"]
+nats_subject_monitor = "spout-monitor"
 
 influxdb_address = "localhost"
 influxdb_port = 8086
@@ -60,8 +60,8 @@ nats_pending_max_mb = 100
 	assert.Equal(t, "junk_nats", conf.DBName, "InfluxDB DBname must match")
 	assert.Equal(t, "localhost", conf.InfluxDBAddress, "InfluxDB address must match")
 
-	assert.Equal(t, "spout", conf.NATSTopic[0], "Topic must match")
-	assert.Equal(t, "spout-monitor", conf.NATSTopicMonitor, "Monitor topic must match")
+	assert.Equal(t, "spout", conf.NATSSubject[0], "Subject must match")
+	assert.Equal(t, "spout-monitor", conf.NATSSubjectMonitor, "Monitor subject must match")
 	assert.Equal(t, "nats://localhost:4222", conf.NATSAddress, "Address must match")
 }
 
@@ -70,9 +70,9 @@ func TestAllDefaults(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "nats://localhost:4222", conf.NATSAddress)
-	assert.Equal(t, []string{"influx-spout"}, conf.NATSTopic)
-	assert.Equal(t, "influx-spout-monitor", conf.NATSTopicMonitor)
-	assert.Equal(t, "influx-spout-junk", conf.NATSTopicJunkyard)
+	assert.Equal(t, []string{"influx-spout"}, conf.NATSSubject)
+	assert.Equal(t, "influx-spout-monitor", conf.NATSSubjectMonitor)
+	assert.Equal(t, "influx-spout-junk", conf.NATSSubjectJunkyard)
 	assert.Equal(t, "localhost", conf.InfluxDBAddress)
 	assert.Equal(t, 8086, conf.InfluxDBPort)
 	assert.Equal(t, "influx-spout-junk", conf.DBName)
@@ -115,8 +115,8 @@ mode = "listener"
 port = 10001
 
 nats_address = "nats://localhost:4222"
-nats_topic = ["spout"]
-nats_topic_monitor = "spout-monitor"
+nats_subject = ["spout"]
+nats_subject_monitor = "spout-monitor"
 
 influxdb_address = "localhost"
 influxdb_port = 8086
@@ -128,26 +128,26 @@ workers = 96
 [[rule]]
 type = "basic"
 match = "hello"
-channel = "hello-chan"
+subject = "hello-subject"
 
 [[rule]]
 type = "basic"
 match = "world"
-channel = "world-chan"
+subject = "world-subject"
 `
 	conf, err := parseConfig(rulesConfig)
 	require.NoError(t, err, "config should be parsed")
 
 	assert.Len(t, conf.Rule, 2)
-	assert.Equal(t, conf.Rule[0], RawRule{
+	assert.Equal(t, conf.Rule[0], Rule{
 		Rtype:   "basic",
 		Match:   "hello",
-		Channel: "hello-chan",
+		Subject: "hello-subject",
 	})
-	assert.Equal(t, conf.Rule[1], RawRule{
+	assert.Equal(t, conf.Rule[1], Rule{
 		Rtype:   "basic",
 		Match:   "world",
-		Channel: "world-chan",
+		Subject: "world-subject",
 	})
 }
 

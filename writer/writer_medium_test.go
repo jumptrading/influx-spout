@@ -42,16 +42,16 @@ var natsAddress = fmt.Sprintf("nats://127.0.0.1:%d", natsPort)
 
 func testConfig() *config.Config {
 	return &config.Config{
-		NATSAddress:      natsAddress,
-		NATSTopic:        []string{"writer-test"},
-		NATSTopicMonitor: "writer-test-monitor",
-		InfluxDBAddress:  "localhost",
-		InfluxDBPort:     influxPort,
-		BatchMessages:    1,
-		Port:             influxPort,
-		Mode:             "writer",
-		WriterWorkers:    96,
-		NATSPendingMaxMB: 32,
+		NATSAddress:        natsAddress,
+		NATSSubject:        []string{"writer-test"},
+		NATSSubjectMonitor: "writer-test-monitor",
+		InfluxDBAddress:    "localhost",
+		InfluxDBPort:       influxPort,
+		BatchMessages:      1,
+		Port:               influxPort,
+		Mode:               "writer",
+		WriterWorkers:      96,
+		NATSPendingMaxMB:   32,
 	}
 }
 
@@ -95,12 +95,12 @@ func TestBasicWriter(t *testing.T) {
 	defer w.Stop()
 
 	// publish 5 messages to the bus
-	topic := conf.NATSTopic[0]
-	publish(t, topic, "To be, or not to be: that is the question:")
-	publish(t, topic, "Whether ’tis nobler in the mind to suffer")
-	publish(t, topic, "The slings and arrows of outrageous fortune,")
-	publish(t, topic, "Or to take arms against a sea of troubles,")
-	publish(t, topic, "And by opposing end them. To die: to sleep;")
+	subject := conf.NATSSubject[0]
+	publish(t, subject, "To be, or not to be: that is the question:")
+	publish(t, subject, "Whether ’tis nobler in the mind to suffer")
+	publish(t, subject, "The slings and arrows of outrageous fortune,")
+	publish(t, subject, "Or to take arms against a sea of troubles,")
+	publish(t, subject, "And by opposing end them. To die: to sleep;")
 
 	// wait for confirmation that they were written
 	timeout := time.After(relaytest.LongWait)
@@ -115,7 +115,7 @@ func TestBasicWriter(t *testing.T) {
 
 func TestBasicFilterRule(t *testing.T) {
 	conf := testConfig()
-	conf.Rule = []config.RawRule{{
+	conf.Rule = []config.Rule{{
 		Rtype: "basic",
 		Match: "foo",
 	}}
@@ -123,8 +123,8 @@ func TestBasicFilterRule(t *testing.T) {
 	defer w.Stop()
 
 	// Send 2 messages, the first of which should be dropped.
-	publish(t, conf.NATSTopic[0], "should be dropped")
-	publish(t, conf.NATSTopic[0], "foo bar")
+	publish(t, conf.NATSSubject[0], "should be dropped")
+	publish(t, conf.NATSSubject[0], "foo bar")
 
 	assertWrite(t, "foo bar")
 	assertNoWrite(t)
@@ -132,7 +132,7 @@ func TestBasicFilterRule(t *testing.T) {
 
 func TestRegexFilterRule(t *testing.T) {
 	conf := testConfig()
-	conf.Rule = []config.RawRule{{
+	conf.Rule = []config.Rule{{
 		Rtype: "regex",
 		Match: "bar$",
 	}}
@@ -140,8 +140,8 @@ func TestRegexFilterRule(t *testing.T) {
 	defer w.Stop()
 
 	// Send 2 messages, the first of which should be dropped.
-	publish(t, conf.NATSTopic[0], "should be dropped")
-	publish(t, conf.NATSTopic[0], "foo bar")
+	publish(t, conf.NATSSubject[0], "should be dropped")
+	publish(t, conf.NATSSubject[0], "foo bar")
 
 	assertWrite(t, "foo bar")
 	assertNoWrite(t)
@@ -149,7 +149,7 @@ func TestRegexFilterRule(t *testing.T) {
 
 func TestNegativeRegexFilterRule(t *testing.T) {
 	conf := testConfig()
-	conf.Rule = []config.RawRule{{
+	conf.Rule = []config.Rule{{
 		Rtype: "negregex",
 		Match: "dropped$",
 	}}
@@ -157,8 +157,8 @@ func TestNegativeRegexFilterRule(t *testing.T) {
 	defer w.Stop()
 
 	// Send 2 messages, the first of which should be dropped.
-	publish(t, conf.NATSTopic[0], "should be dropped")
-	publish(t, conf.NATSTopic[0], "foo bar")
+	publish(t, conf.NATSSubject[0], "should be dropped")
+	publish(t, conf.NATSSubject[0], "foo bar")
 
 	assertWrite(t, "foo bar")
 	assertNoWrite(t)
@@ -173,7 +173,7 @@ func BenchmarkWriterLatency(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		nc.Publish(conf.NATSTopic[0], byteArr)
+		nc.Publish(conf.NATSSubject[0], byteArr)
 		<-httpWrites
 	}
 }
@@ -184,8 +184,8 @@ func startWriter(t require.TestingT, conf *config.Config) *Writer {
 	return w
 }
 
-func publish(t require.TestingT, topic, msg string) {
-	err := nc.Publish(topic, []byte(msg))
+func publish(t require.TestingT, subject, msg string) {
+	err := nc.Publish(subject, []byte(msg))
 	require.NoError(t, err)
 }
 

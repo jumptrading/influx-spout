@@ -79,7 +79,7 @@ how to configure them.
 ### Listener
 
 The listener is responsible for receiving InfluxDB line protocol measurements
-on a UDP port, batching them and sending them on to a single NATS topic. In
+on a UDP port, batching them and sending them on to a single NATS subject. In
 typical deployments, a single listener will exist but it is possible to run
 multiple listeners.
 
@@ -95,17 +95,17 @@ port = 10001
 # Address of NATS server.
 nats_address = "nats://localhost:4222"
 
-# Topic to publish received measurements on. This must be a list with one item.
-nats_topic = ["influx-spout"]
+# Subject to publish received measurements on. This must be a list with one item.
+nats_subject = ["influx-spout"]
 
 # How many messages to collect before forwarding to the NATS server.
 # Increasing this number reduces NATS communication overhead but increases
 # latency.
 batch = 10
 
-# Out-of-bound metrics and diagnostic messages are published to this NATS topic
+# Out-of-bound metrics and diagnostic messages are published to this NATS subject
 # (in InfluxDB line protocol format).
-nats_topic_monitor = "influx-spout-monitor"
+nats_subject_monitor = "influx-spout-monitor"
 ```
 
 ### HTTP Listener
@@ -126,23 +126,23 @@ port = 13337
 # Address of NATS server.
 nats_address = "nats://localhost:4222"
 
-# Topic to publish received measurements on. This must be a list with one item.
-nats_topic = ["influx-spout"]
+# Subject to publish received measurements on. This must be a list with one item.
+nats_subject = ["influx-spout"]
 
 # How many messages to collect before forwarding to the NATS server.
 # Increasing this number reduces NATS communication overhead but increases
 # latency.
 batch = 10
 
-# Out-of-bound metrics and diagnostic messages are published to this NATS topic
+# Out-of-bound metrics and diagnostic messages are published to this NATS subject
 # (in InfluxDB line protocol format).
-nats_topic_monitor = "influx-spout-monitor"
+nats_subject_monitor = "influx-spout-monitor"
 ```
 
 ### Filter
 
 The filter is responsible for filtering measurements published to NATS by the
-listener, and forwarding them on to other NATS topics.
+listener, and forwarding them on to other NATS subjects.
 
 The supported configuration options for the filter mode follow. Defaults are
 shown.
@@ -153,16 +153,16 @@ mode = "filter"  # Required
 # Address of NATS server.
 nats_address = "nats://localhost:4222"
 
-# Topic to receive measurements from (presumably from the listener).
+# Subject to receive measurements from (presumably from the listener).
 # This must be a list with one item.
-nats_topic = ["influx-spout"]
+nats_subject = ["influx-spout"]
 
-# Measurements which do not match any rule (below) are sent to this NATS topic.
-nats_topic_junkyard = "influx-spout-junk"
+# Measurements which do not match any rule (below) are sent to this NATS subject.
+nats_subject_junkyard = "influx-spout-junk"
 
-# Out-of-bound metrics and diagnostic messages are published to this NATS topic
+# Out-of-bound metrics and diagnostic messages are published to this NATS subject
 # (in InfluxDB line protocol format).
-nats_topic_monitor = "influx-spout-monitor"
+nats_subject_monitor = "influx-spout-monitor"
 
 # At least one rule should be defined. Rules are defined using TOML's table
 # syntax. The following examples show each rule type.
@@ -174,8 +174,8 @@ type = "basic"
 # For basic rules, "match" specifies an exact measurement name.
 match = "cgroup"
 
-# Measurements matching the rule are forwarded to this topic.
-channel = "measurement.cgroup"
+# Measurements matching the rule are forwarded to this subject.
+subject = "measurement.cgroup"
 
 
 [[rule]]
@@ -187,7 +187,7 @@ type = "regex"
 match = "host=web.+,"
 
 # As above.
-channel = "hosts.web"
+subject = "hosts.web"
 
 
 [[rule]]
@@ -200,7 +200,7 @@ type = "negregex"
 match = "host=web.+,"
 
 # As above.
-channel = "not-web"
+subject = "not-web"
 ```
 
 Ordering of rules in the configuration is important. Only the first rule that
@@ -208,7 +208,7 @@ matches a given measurement is applied.
 
 ### Writer
 
-A writer is responsible for reading measurements from one or more NATS topics,
+A writer is responsible for reading measurements from one or more NATS subjects,
 optionally filtering them and then writing matching them to an InfluxDB
 instances. A writer should be run for each InfluxDB backend that influx-spout
 should send measurements to.
@@ -222,8 +222,8 @@ mode = "writer"  # Required
 # Address of NATS server.
 nats_address = "nats://localhost:4222"
 
-# The NATS topics to receive measurements from.
-nats_topic = ["influx-spout"]
+# The NATS subjects to receive measurements from.
+nats_subject = ["influx-spout"]
 
 # Address of the InfluxDB instance to write to.
 influxdb_address = "localhost"
@@ -247,14 +247,14 @@ workers = 10
 # complete. Writes which time out will be dropped.
 write_timeout_secs = 30
 
-# The maximum size that the pending buffer for a NATS topic that the writer
+# The maximum size that the pending buffer for a NATS subject that the writer
 # is reading from may become (in megabytes). Measurements will be dropped if
 # this limit is reached. This helps to deal with slow InfluxDB instances.
 nats_pending_max_mb = 200
 
-# Out-of-bound metrics and diagnostic messages are published to this NATS topic
+# Out-of-bound metrics and diagnostic messages are published to this NATS subject
 # (in InfluxDB line protocol format).
-nats_topic_monitor = "influx-spout-monitor"
+nats_subject_monitor = "influx-spout-monitor"
 ```
 
 Writers can optionally include filter rules. When filter rules are configured

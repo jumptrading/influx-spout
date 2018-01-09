@@ -33,9 +33,9 @@ import (
 )
 
 const (
-	natsPort   = 44444
-	listenPort = 44445
-	natsTopic  = "listener-test"
+	natsPort    = 44444
+	listenPort  = 44445
+	natsSubject = "listener-test"
 )
 
 var (
@@ -44,12 +44,12 @@ var (
 
 func testConfig() *config.Config {
 	return &config.Config{
-		Mode:             "listener",
-		NATSAddress:      natsAddress,
-		NATSTopic:        []string{natsTopic},
-		NATSTopicMonitor: natsTopic + "-monitor",
-		BatchMessages:    1,
-		Port:             listenPort,
+		Mode:               "listener",
+		NATSAddress:        natsAddress,
+		NATSSubject:        []string{natsSubject},
+		NATSSubjectMonitor: natsSubject + "-monitor",
+		BatchMessages:      1,
+		Port:               listenPort,
 	}
 }
 
@@ -197,7 +197,7 @@ func TestStatistician(t *testing.T) {
 	require.NoError(t, err)
 
 	statsCh := make(chan string)
-	sub, err := nc.Subscribe(conf.NATSTopicMonitor, func(msg *nats.Msg) {
+	sub, err := nc.Subscribe(conf.NATSSubjectMonitor, func(msg *nats.Msg) {
 		statsCh <- string(msg.Data)
 	})
 	require.NoError(t, err)
@@ -282,7 +282,7 @@ func dialListener(t require.TestingT) *net.UDPConn {
 	return conn
 }
 
-// subscribe sets up a topic callback for natsTopic. A channel is
+// subscribe sets up a subject callback for natsSubject. A channel is
 // returned which reports when messages are received. A function to
 // cancel the subcription is also returned.
 func subscribe(t require.TestingT) (chan struct{}, func() error) {
@@ -290,7 +290,7 @@ func subscribe(t require.TestingT) (chan struct{}, func() error) {
 	require.NoError(t, err)
 
 	msgCh := make(chan struct{}, 10)
-	sub, err := nc.Subscribe(natsTopic, func(msg *nats.Msg) {
+	sub, err := nc.Subscribe(natsSubject, func(msg *nats.Msg) {
 		msgCh <- struct{}{}
 	})
 	require.NoError(t, err)
