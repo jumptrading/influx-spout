@@ -1,7 +1,7 @@
 #!/bin/bash
 
 GO_PACKAGE=github.com/jumptrading/influx-spout
-REFERENCE_REVISION=${REFERENCE_REVISION:-de96da9a68f6611b6ae10225e13a933d634ef68b}
+REFERENCE_REVISION=${REFERENCE_REVISION:-4d69bb7cd5a8dd80f33a54d9a4a43c5d05ac1e29}
 
 echo "Comparing working tree against $REFERENCE_REVISION"
 
