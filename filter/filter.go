@@ -36,10 +36,10 @@ type Filtering interface {
 	GetRules() []FilterRule
 }
 
-type ChannelBuffer struct {
+type SubjectBuffer struct {
 	sync.Mutex
 	b       *bytes.Buffer
-	channel string
+	subject string
 }
 
 type FilterRule struct {
@@ -51,8 +51,8 @@ type FilterRule struct {
 	// is passed otherwise.
 	escaped bool
 
-	// if it matches, the measurement is sent to this NATS channel
-	natsChan string
+	// if the rule matches, the measurement is sent to this NATS subject
+	subject string
 }
 
 // Name for supported stats
@@ -74,8 +74,8 @@ type filter struct {
 	c  *config.Config
 	nc natsConn
 
-	ruleBatches []ChannelBuffer
-	junkBatch   ChannelBuffer
+	ruleBatches []SubjectBuffer
+	junkBatch   SubjectBuffer
 	rules       []FilterRule
 	stats       *stats.Stats
 }
@@ -85,8 +85,8 @@ func (f *filter) GetRules() []FilterRule {
 }
 
 // CreateBasicRule creates a simple rule that publishes measurements
-// with the name @measurements to the NATS channel @channel
-func CreateBasicRule(measurement string, channel string) FilterRule {
+// with the name @measurement to the NATS @subject.
+func CreateBasicRule(measurement string, subject string) FilterRule {
 	hh := hashMeasurement([]byte(measurement))
 
 	return FilterRule{
@@ -94,8 +94,8 @@ func CreateBasicRule(measurement string, channel string) FilterRule {
 			name := influxUnescape(measurementName(line))
 			return hh == hashMeasurement(name)
 		},
-		escaped:  true,
-		natsChan: channel,
+		escaped: true,
+		subject: subject,
 	}
 }
 
@@ -131,24 +131,24 @@ func measurementName(s []byte) []byte {
 }
 
 // CreateRegexRule creates a rule that publishes measurements which
-// match the given @regexString to the NATS channel @channel.
-func CreateRegexRule(regexString, channel string) FilterRule {
+// match the given @regexString to the NATS @subject.
+func CreateRegexRule(regexString, subject string) FilterRule {
 	reg := regexp.MustCompile(regexString)
 	return FilterRule{
 		match: func(line []byte) bool {
 			return reg.Match(line)
 		},
-		natsChan: channel,
+		subject: subject,
 	}
 }
 
-func CreateNegativeRegexRule(regexString, channel string) FilterRule {
+func CreateNegativeRegexRule(regexString, subject string) FilterRule {
 	reg := regexp.MustCompile(regexString)
 	return FilterRule{
 		match: func(line []byte) bool {
 			return !reg.Match(line)
 		},
-		natsChan: channel,
+		subject: subject,
 	}
 }
 
@@ -193,7 +193,7 @@ func (f *filter) ProcessLine(line []byte) {
 	}
 
 	if f.c.Debug {
-		log.Printf("forwarded [%s] to channel nats:[%s]\n", line, f.rules[id].natsChan)
+		log.Printf("forwarded [%s] to subject nats:[%s]\n", line, f.rules[id].subject)
 	}
 
 	// write to the corresponding batch buffer
@@ -206,14 +206,14 @@ func (f *filter) ProcessLine(line []byte) {
 func (f *filter) sendOff() {
 	for _, b := range f.ruleBatches {
 		if b.b.Len() > 0 {
-			f.nc.Publish(b.channel, b.b.Bytes())
+			f.nc.Publish(b.subject, b.b.Bytes())
 			b.b.Reset()
 		}
 	}
 
 	// send the junk batch
 	if f.junkBatch.b.Len() > 0 {
-		f.nc.Publish(f.c.NATSTopicJunkyard, f.junkBatch.b.Bytes())
+		f.nc.Publish(f.c.NATSSubjectJunkyard, f.junkBatch.b.Bytes())
 		f.junkBatch.b.Reset()
 	}
 }
@@ -242,7 +242,7 @@ func (f *filter) startStatistician() {
 		st := f.stats.Clone()
 
 		// publish the grand stats
-		f.nc.Publish(f.c.NATSTopicMonitor, totalLine.Format(nil,
+		f.nc.Publish(f.c.NATSSubjectMonitor, totalLine.Format(nil,
 			st.Get(linesPassed),
 			st.Get(linesProcessed),
 			st.Get(linesRejected),
@@ -250,8 +250,8 @@ func (f *filter) startStatistician() {
 
 		// publish the per rule stats
 		for i, b := range f.ruleBatches {
-			f.nc.Publish(f.c.NATSTopicMonitor,
-				ruleLine.Format([]string{b.channel}, st.Get(ruleToStatsName(i))),
+			f.nc.Publish(f.c.NATSSubjectMonitor,
+				ruleLine.Format([]string{b.subject}, st.Get(ruleToStatsName(i))),
 			)
 		}
 
@@ -267,12 +267,12 @@ func (f *filter) SetupFilter() {
 	}
 
 	// set up the buffers for batching
-	f.ruleBatches = make([]ChannelBuffer, len(f.rules))
+	f.ruleBatches = make([]SubjectBuffer, len(f.rules))
 	f.junkBatch.b = new(bytes.Buffer)
 	for i, rule := range f.rules {
 		f.ruleBatches[i].b = new(bytes.Buffer)
 		f.ruleBatches[i].b.Grow(16384)
-		f.ruleBatches[i].channel = rule.natsChan
+		f.ruleBatches[i].subject = rule.subject
 
 		statNames = append(statNames, ruleToStatsName(i))
 	}
@@ -289,11 +289,11 @@ func StartFilter(conf *config.Config) {
 	for _, r := range conf.Rule {
 		switch r.Rtype {
 		case "basic":
-			f.AppendFilterRule(CreateBasicRule(r.Match, r.Channel))
+			f.AppendFilterRule(CreateBasicRule(r.Match, r.Subject))
 		case "regex":
-			f.AppendFilterRule(CreateRegexRule(r.Match, r.Channel))
+			f.AppendFilterRule(CreateRegexRule(r.Match, r.Subject))
 		case "negregex":
-			f.AppendFilterRule(CreateNegativeRegexRule(r.Match, r.Channel))
+			f.AppendFilterRule(CreateNegativeRegexRule(r.Match, r.Subject))
 		default:
 			log.Fatalf("Unsupported rule type: [%v]", r)
 		}
@@ -301,20 +301,20 @@ func StartFilter(conf *config.Config) {
 
 	f.SetupFilter()
 
-	// connect to the NATS channel
+	// connect to the NATS server
 	f.nc, err = nats.Connect(f.c.NATSAddress)
 	if err != nil {
 		log.Fatalf("NATS: failed to connect: %v\n", err)
 	}
 
-	// subscribe to the NATS channel
-	f.nc.Subscribe(f.c.NATSTopic[0], func(msg *nats.Msg) {
+	// subscribe to the NATS subject
+	f.nc.Subscribe(f.c.NATSSubject[0], func(msg *nats.Msg) {
 		f.ProcessBatch(msg.Data)
 	})
 
 	go f.startStatistician()
 
-	log.Printf("Filter listening on [%s] with %d rules\n", f.c.NATSTopic, len(f.rules))
+	log.Printf("Filter listening on [%s] with %d rules\n", f.c.NATSSubject, len(f.rules))
 	runtime.Goexit()
 }
 

@@ -57,8 +57,8 @@ type Writer struct {
 	stop  chan struct{}
 }
 
-// StartWriter is the heavylifter, subscribes to the topic where listeners
-// publish the messages and writes it to the influxdb socket
+// StartWriter is the heavylifter, subscribes to the subject where
+// listeners publish the messages and writes it the InfluxDB endpoint.
 func StartWriter(c *config.Config) (_ *Writer, err error) {
 	w := &Writer{
 		c:     c,
@@ -78,11 +78,11 @@ func StartWriter(c *config.Config) (_ *Writer, err error) {
 	for _, r := range c.Rule {
 		switch r.Rtype {
 		case "basic":
-			w.rules = append(w.rules, filter.CreateBasicRule(r.Match, r.Channel))
+			w.rules = append(w.rules, filter.CreateBasicRule(r.Match, r.Subject))
 		case "regex":
-			w.rules = append(w.rules, filter.CreateRegexRule(r.Match, r.Channel))
+			w.rules = append(w.rules, filter.CreateRegexRule(r.Match, r.Subject))
 		case "negregex":
-			w.rules = append(w.rules, filter.CreateNegativeRegexRule(r.Match, r.Channel))
+			w.rules = append(w.rules, filter.CreateNegativeRegexRule(r.Match, r.Subject))
 		default:
 			return nil, fmt.Errorf("Unsupported rule: [%v]", r)
 		}
@@ -106,14 +106,14 @@ func StartWriter(c *config.Config) (_ *Writer, err error) {
 		go w.worker(jobs)
 	}
 
-	// subscribe this writer to the NATS topic
+	// subscribe this writer to the NATS subject.
 	maxPendingBytes := c.NATSPendingMaxMB * 1024 * 1024
-	for _, topic := range c.NATSTopic {
-		sub, err := w.nc.Subscribe(topic, func(msg *nats.Msg) {
+	for _, subject := range c.NATSSubject {
+		sub, err := w.nc.Subscribe(subject, func(msg *nats.Msg) {
 			jobs <- msg
 		})
 		if err != nil {
-			return nil, fmt.Errorf("subscription for %q failed: %v", topic, err)
+			return nil, fmt.Errorf("subscription for %q failed: %v", subject, err)
 		}
 		if err := sub.SetPendingLimits(-1, maxPendingBytes); err != nil {
 			return nil, fmt.Errorf("failed to set pending limits: %v", err)
@@ -134,9 +134,9 @@ func StartWriter(c *config.Config) (_ *Writer, err error) {
 	// notify the monitor that we are ready to receive messages and transmit to influxdb
 	w.notifyState("ready")
 
-	log.Printf("listening on [%v] with %d workers\n", c.NATSTopic, c.WriterWorkers)
+	log.Printf("listening on [%v] with %d workers\n", c.NATSSubject, c.WriterWorkers)
 	log.Printf("POST timeout: %ds", c.WriteTimeoutSecs)
-	log.Printf("maximum NATS topic size: %dMB", c.NATSPendingMaxMB)
+	log.Printf("maximum NATS subject size: %dMB", c.NATSPendingMaxMB)
 
 	return w, nil
 }
@@ -246,8 +246,8 @@ func (w *Writer) signalDrop(drop, last int) {
 	// uh, this writer is overloaded and had to drop a packet
 	log.Printf("Warning: dropped %d (now %d dropped in total)\n", drop-last, drop)
 
-	// publish to the monitor topic, so grafana can pick it up and report failures
-	w.nc.Publish(w.c.NATSTopicMonitor, dropLine.FormatT(time.Now(), nil, drop, drop-last))
+	// publish to the monitor subject, so grafana can pick it up and report failures
+	w.nc.Publish(w.c.NATSSubjectMonitor, dropLine.FormatT(time.Now(), nil, drop, drop-last))
 
 	// the fact the we dropped a packet MUST reach the server
 	// immediately so we can investigate
@@ -296,7 +296,7 @@ func (w *Writer) startStatistician() {
 	)
 	for {
 		stats := w.stats.Clone()
-		w.nc.Publish(w.c.NATSTopicMonitor, statsLine.Format(nil,
+		w.nc.Publish(w.c.NATSSubjectMonitor, statsLine.Format(nil,
 			stats.Get(batchesReceived),
 			stats.Get(writeRequests),
 			stats.Get(failedWrites),
@@ -314,7 +314,7 @@ var notifyLine = lineformatter.New("relay_mon", nil, "type", "state", "pid")
 
 func (w *Writer) notifyState(state string) {
 	line := notifyLine.Format(nil, "writer", state, os.Getpid())
-	if err := w.nc.Publish(w.c.NATSTopicMonitor, line); err != nil {
+	if err := w.nc.Publish(w.c.NATSSubjectMonitor, line); err != nil {
 		log.Printf("NATS Error: %v\n", err)
 		return
 	}

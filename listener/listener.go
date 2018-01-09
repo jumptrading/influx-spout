@@ -44,7 +44,7 @@ var allStats = []string{linesReceived, batchesSent, readErrors}
 // goroutine and runs it's main loop. It never returns.
 //
 // The listener reads incoming UDP packets, batches them up and send
-// batches onwards to a NATS topic.
+// batches onwards to a NATS subject.
 func StartListener(c *config.Config) {
 	listener := newListener(c)
 	go listener.startStatistician(nil)
@@ -150,7 +150,7 @@ var notifyLine = lineformatter.New("relay_mon", nil, "type", "state", "pid")
 
 func (l *listener) notifyState(state string) {
 	line := notifyLine.Format(nil, "listener", state, os.Getpid())
-	if err := l.nc.Publish(l.c.NATSTopicMonitor, line); err != nil {
+	if err := l.nc.Publish(l.c.NATSSubjectMonitor, line); err != nil {
 		l.handleNatsError(err)
 		return
 	}
@@ -200,7 +200,7 @@ func (l *listener) processRead(sz int) {
 	// Send when sufficient lines are batched or the batch buffer is almost full.
 	if linesReceived%l.c.BatchMessages == 0 || l.batchSize >= l.sendThreshold {
 		l.stats.Inc(batchesSent)
-		if err := l.nc.Publish(l.c.NATSTopic[0], l.buf[:l.batchSize]); err != nil {
+		if err := l.nc.Publish(l.c.NATSSubject[0], l.buf[:l.batchSize]); err != nil {
 			l.handleNatsError(err)
 		}
 		l.batchSize = 0
@@ -220,7 +220,7 @@ func (l *listener) startStatistician(stop <-chan struct{}) {
 	)
 	for {
 		stats := l.stats.Clone() // Sample counts
-		l.nc.Publish(l.c.NATSTopicMonitor, statsLine.Format(nil,
+		l.nc.Publish(l.c.NATSSubjectMonitor, statsLine.Format(nil,
 			stats.Get(linesReceived),
 			stats.Get(batchesSent),
 			stats.Get(readErrors),

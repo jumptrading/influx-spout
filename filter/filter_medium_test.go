@@ -33,14 +33,14 @@ import (
 const natsPort = 44446
 
 var conf = config.Config{
-	NATSAddress:       fmt.Sprintf("nats://127.0.0.1:%d", natsPort),
-	NATSTopic:         []string{"filter-test"},
-	NATSTopicMonitor:  "filter-test-monitor",
-	NATSTopicJunkyard: "filter-junkyard",
-	Rule: []config.RawRule{{
+	NATSAddress:         fmt.Sprintf("nats://127.0.0.1:%d", natsPort),
+	NATSSubject:         []string{"filter-test"},
+	NATSSubjectMonitor:  "filter-test-monitor",
+	NATSSubjectJunkyard: "filter-junkyard",
+	Rule: []config.Rule{{
 		Rtype:   "basic",
 		Match:   "hello",
-		Channel: "hello-chan",
+		Subject: "hello-subject",
 	}},
 }
 
@@ -73,21 +73,21 @@ func runMain(m *testing.M) int {
 func TestFilterWorker(t *testing.T) {
 	// Subscribe to filter output
 	helloCh := make(chan string, 1)
-	_, err := nc.Subscribe(conf.Rule[0].Channel, func(msg *nats.Msg) {
+	_, err := nc.Subscribe(conf.Rule[0].Subject, func(msg *nats.Msg) {
 		helloCh <- string(msg.Data)
 	})
 	require.NoError(t, err)
 
 	// Subscribe to junkyard output
 	junkCh := make(chan string, 1)
-	_, err = nc.Subscribe(conf.NATSTopicJunkyard, func(msg *nats.Msg) {
+	_, err = nc.Subscribe(conf.NATSSubjectJunkyard, func(msg *nats.Msg) {
 		junkCh <- string(msg.Data)
 	})
 	require.NoError(t, err)
 
 	// Subscribe to stats output
 	statsCh := make(chan string, 10)
-	_, err = nc.Subscribe(conf.NATSTopicMonitor, func(msg *nats.Msg) {
+	_, err = nc.Subscribe(conf.NATSSubjectMonitor, func(msg *nats.Msg) {
 		statsCh <- string(msg.Data)
 	})
 	require.NoError(t, err)
@@ -98,7 +98,7 @@ hello,host=gopher01
 goodbye,host=gopher01
 hello,host=gopher01
 `[1:]
-	err = nc.Publish(conf.NATSTopic[0], []byte(lines))
+	err = nc.Publish(conf.NATSSubject[0], []byte(lines))
 	require.NoError(t, err)
 
 	// Receive filter output
@@ -119,7 +119,7 @@ relay_stat_filter passed=2,processed=3,rejected=1
 
 	// Receive rule specific stats
 	assertReceived(t, statsCh, "rule stats", `
-relay_stat_filter_rule,rule=hello-chan triggered=2
+relay_stat_filter_rule,rule=hello-subject triggered=2
 `)
 }
 

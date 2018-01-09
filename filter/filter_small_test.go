@@ -25,8 +25,8 @@ import (
 )
 
 func TestBasicRuleCreation(t *testing.T) {
-	fr := CreateBasicRule("hello", "hello-chan")
-	assert.Equal(t, "hello-chan", fr.natsChan, "Channel must match")
+	fr := CreateBasicRule("hello", "hello-subject")
+	assert.Equal(t, "hello-subject", fr.subject, "subject must match")
 }
 
 func TestBasicRule(t *testing.T) {

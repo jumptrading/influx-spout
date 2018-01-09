@@ -27,49 +27,51 @@ import (
 // line is then overlaid on top of it.
 const commonFileName = "/etc/influx-spout.toml"
 
-type RawRule struct {
-	Rtype   string `toml:"type"`
-	Match   string `toml:"match"`
-	Channel string `toml:"channel"`
+// Config represents the configuration for a single influx-spout
+// component.
+type Config struct {
+	NATSAddress         string   `toml:"nats_address"`
+	NATSSubject         []string `toml:"nats_subject"`
+	NATSSubjectMonitor  string   `toml:"nats_subject_monitor"`
+	NATSSubjectJunkyard string   `toml:"nats_subject_junkyard"`
+	InfluxDBAddress     string   `toml:"influxdb_address"`
+	InfluxDBPort        int      `toml:"influxdb_port"`
+	DBName              string   `toml:"influxdb_dbname"`
+	BatchMessages       int      `toml:"batch"`
+	Port                int      `toml:"port"`
+	Mode                string   `toml:"mode"`
+	WriterWorkers       int      `toml:"workers"`
+	WriteTimeoutSecs    int      `toml:"write_timeout_secs"`
+	NATSPendingMaxMB    int      `toml:"nats_pending_max_mb"`
+	Rule                []Rule   `toml:"rule"`
+	Debug               bool     `toml:"debug"`
 }
 
-// Config replaces our configuration values
-type Config struct {
-	NATSAddress       string    `toml:"nats_address"`
-	NATSTopic         []string  `toml:"nats_topic"`
-	NATSTopicMonitor  string    `toml:"nats_topic_monitor"`
-	NATSTopicJunkyard string    `toml:"nats_topic_junkyard"`
-	InfluxDBAddress   string    `toml:"influxdb_address"`
-	InfluxDBPort      int       `toml:"influxdb_port"`
-	DBName            string    `toml:"influxdb_dbname"`
-	BatchMessages     int       `toml:"batch"`
-	Port              int       `toml:"port"`
-	Mode              string    `toml:"mode"`
-	WriterWorkers     int       `toml:"workers"`
-	WriteTimeoutSecs  int       `toml:"write_timeout_secs"`
-	NATSPendingMaxMB  int       `toml:"nats_pending_max_mb"`
-	Rule              []RawRule `toml:"rule"`
-	Debug             bool      `toml:"debug"`
+// Rule contains the configuration for a single filter rule.
+type Rule struct {
+	Rtype   string `toml:"type"`
+	Match   string `toml:"match"`
+	Subject string `toml:"subject"`
 }
 
 func newDefaultConfig() *Config {
 	return &Config{
-		NATSAddress:       "nats://localhost:4222",
-		NATSTopic:         []string{"influx-spout"},
-		NATSTopicMonitor:  "influx-spout-monitor",
-		NATSTopicJunkyard: "influx-spout-junk",
-		InfluxDBAddress:   "localhost",
-		InfluxDBPort:      8086,
-		DBName:            "influx-spout-junk",
-		BatchMessages:     10,
-		WriterWorkers:     10,
-		WriteTimeoutSecs:  30,
-		NATSPendingMaxMB:  200,
+		NATSAddress:         "nats://localhost:4222",
+		NATSSubject:         []string{"influx-spout"},
+		NATSSubjectMonitor:  "influx-spout-monitor",
+		NATSSubjectJunkyard: "influx-spout-junk",
+		InfluxDBAddress:     "localhost",
+		InfluxDBPort:        8086,
+		DBName:              "influx-spout-junk",
+		BatchMessages:       10,
+		WriterWorkers:       10,
+		WriteTimeoutSecs:    30,
+		NATSPendingMaxMB:    200,
 	}
 }
 
-// NewConfig parses the specified configuration file and returns a
-// Config.
+// NewConfigFromFile parses the specified configuration file and
+// returns a Config.
 func NewConfigFromFile(fileName string) (*Config, error) {
 	conf := newDefaultConfig()
 	if err := readConfig(commonFileName, conf); err != nil && !os.IsNotExist(err) {
