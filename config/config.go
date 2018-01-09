@@ -43,7 +43,6 @@ type Config struct {
 	InfluxDBPort      int       `toml:"influxdb_port"`
 	DBName            string    `toml:"influxdb_dbname"`
 	BatchMessages     int       `toml:"batch"`
-	IsTesting         bool      `toml:"testing_mode"`
 	Port              int       `toml:"port"`
 	Mode              string    `toml:"mode"`
 	WriterWorkers     int       `toml:"workers"`

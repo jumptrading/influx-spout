@@ -192,7 +192,7 @@ func (f *filter) ProcessLine(line []byte) {
 		return
 	}
 
-	if f.c.IsTesting {
+	if f.c.Debug {
 		log.Printf("forwarded [%s] to channel nats:[%s]\n", line, f.rules[id].natsChan)
 	}
 
@@ -297,10 +297,6 @@ func StartFilter(conf *config.Config) {
 		default:
 			log.Fatalf("Unsupported rule type: [%v]", r)
 		}
-	}
-
-	if f.c.IsTesting {
-		f.AppendFilterRule(CreateBasicRule("hello", "hello-chan"))
 	}
 
 	f.SetupFilter()

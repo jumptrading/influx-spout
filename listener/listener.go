@@ -24,7 +24,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/nats-io/go-nats"
 
 	"github.com/jumptrading/influx-spout/config"
@@ -194,12 +193,8 @@ func (l *listener) processRead(sz int) {
 	linesReceived := l.stats.Inc(linesReceived)
 	l.batchSize += sz
 
-	if l.c.IsTesting {
-		uuid := uuid.New()
-		log.Printf("Info: Listener received len %4d uuid %v\n", sz, uuid)
-		str := []byte(fmt.Sprintf(" UUID %s\n", uuid.String()))
-		copy(l.buf[sz-1:], str)
-		sz += len(str) - 1
+	if l.c.Debug {
+		log.Printf("Info: Listener read %d bytes\n", sz)
 	}
 
 	// Send when sufficient lines are batched or the batch buffer is almost full.
