@@ -8,4 +8,4 @@ go:
 # No need for an install step as all dependencies are vendored.
 install: []
 
-script: ./runtests small medium large
+script: ./runtests -r small medium large
