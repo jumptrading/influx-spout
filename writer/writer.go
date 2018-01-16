@@ -182,6 +182,7 @@ func (w *Writer) worker(jobs <-chan *nats.Msg) {
 			w.stats.Inc(batchesReceived)
 			if noRules {
 				w.processMsg(&msgBuffer, num, url, client, j.Data)
+				num++
 			} else {
 				// do some filtering
 				for _, line := range bytes.SplitAfter(j.Data, []byte("\n")) {
