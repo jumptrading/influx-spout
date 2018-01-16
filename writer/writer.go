@@ -53,6 +53,7 @@ type Writer struct {
 	c             *config.Config
 	url           string
 	batchMaxBytes int
+	batchMaxAge   time.Duration
 	nc            *nats.Conn
 	rules         []filter.FilterRule
 	stats         *stats.Stats
@@ -67,6 +68,7 @@ func StartWriter(c *config.Config) (_ *Writer, err error) {
 		c:             c,
 		url:           fmt.Sprintf("http://%s:%d/write?db=%s", c.InfluxDBAddress, c.InfluxDBPort, c.DBName),
 		batchMaxBytes: c.BatchMaxMB * 1024 * 1024,
+		batchMaxAge:   time.Duration(c.BatchMaxSecs) * time.Second,
 		stats:         stats.New(batchesReceived, writeRequests, failedWrites),
 		stop:          make(chan struct{}),
 	}
@@ -182,12 +184,13 @@ func (w *Writer) worker(jobs <-chan *nats.Msg) {
 		case j := <-jobs:
 			w.stats.Inc(batchesReceived)
 			batchWrite(j.Data)
+		case <-time.After(time.Second):
+			// Wake up regularly to check batch age
 		case <-w.stop:
 			return
 		}
 
-		// if we have queued enough messages, then we can go ahead and submit them
-		if batch.Writes() >= w.c.BatchMessages || batch.Size() >= w.batchMaxBytes {
+		if w.shouldSendBatch(batch) {
 			w.stats.Inc(writeRequests)
 
 			if err := w.sendBatch(batch, client); err != nil {
@@ -230,6 +233,12 @@ func (w *Writer) filterLine(line []byte) bool {
 		return false
 	}
 	return filter.LookupLine(w, line) != -1
+}
+
+func (w *Writer) shouldSendBatch(batch *batchBuffer) bool {
+	return batch.Writes() >= w.c.BatchMessages ||
+		batch.Size() >= w.batchMaxBytes ||
+		batch.Age() >= w.batchMaxAge
 }
 
 // sendBatch sends the accumulated batch via HTTP to InfluxDB.

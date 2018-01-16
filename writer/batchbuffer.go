@@ -10,8 +10,7 @@ import (
 
 func newBatchBuffer() *batchBuffer {
 	b := &batchBuffer{
-		buf:     new(bytes.Buffer),
-		created: time.Now(),
+		buf: new(bytes.Buffer),
 	}
 	b.buf.Grow(32 * os.Getpagesize())
 	return b
@@ -24,6 +23,10 @@ type batchBuffer struct {
 }
 
 func (b *batchBuffer) Write(data []byte) error {
+	// Set the creation timestamp on the first write.
+	if b.writes == 0 {
+		b.created = time.Now()
+	}
 	b.writes++
 	if n, err := b.buf.Write(data); err != nil {
 		return fmt.Errorf("failed to write to message buffer (wrote %d): %v\n", n, err)
@@ -44,11 +47,13 @@ func (b *batchBuffer) Size() int {
 }
 
 func (b *batchBuffer) Age() time.Duration {
+	if b.writes == 0 {
+		return time.Duration(0)
+	}
 	return time.Since(b.created)
 }
 
 func (b *batchBuffer) Reset() {
 	b.buf.Reset()
-	b.created = time.Now()
 	b.writes = 0
 }

@@ -146,6 +146,23 @@ func TestBatchMBLimit(t *testing.T) {
 	assertNoWrite(t)
 }
 
+func TestBatchTimeLimit(t *testing.T) {
+	// No filter rules.
+	conf := testConfig()
+	conf.WriterWorkers = 1
+	conf.BatchMessages = 9999
+	conf.BatchMaxSecs = 1
+	w := startWriter(t, conf)
+	defer w.Stop()
+
+	// Send one small message. It should still come through because of
+	// BatchMaxSecs.
+	publish(t, conf.NATSSubject[0], "foo")
+
+	assertWrite(t, "foo")
+	assertNoWrite(t)
+}
+
 func TestBasicFilterRule(t *testing.T) {
 	conf := testConfig()
 	conf.Rule = []config.Rule{{
