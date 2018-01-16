@@ -18,6 +18,7 @@ package writer
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -50,6 +51,7 @@ const (
 
 type Writer struct {
 	c     *config.Config
+	url   string
 	nc    *nats.Conn
 	rules []filter.FilterRule
 	stats *stats.Stats
@@ -62,6 +64,7 @@ type Writer struct {
 func StartWriter(c *config.Config) (_ *Writer, err error) {
 	w := &Writer{
 		c:     c,
+		url:   fmt.Sprintf("http://%s:%d/write?db=%s", c.InfluxDBAddress, c.InfluxDBPort, c.DBName),
 		stats: stats.New(batchesReceived, writeRequests, failedWrites),
 		stop:  make(chan struct{}),
 	}
@@ -170,75 +173,83 @@ func (w *Writer) worker(jobs <-chan *nats.Msg) {
 		Timeout:   time.Duration(w.c.WriteTimeoutSecs) * time.Second,
 	}
 
-	url := fmt.Sprintf("http://%s:%d/write?db=%s", w.c.InfluxDBAddress, w.c.InfluxDBPort, w.c.DBName)
-	var num int
-	var msgBuffer bytes.Buffer
-	msgBuffer.Grow(32 * os.Getpagesize())
-
-	noRules := len(w.rules) == 0
+	batch := newBatchBuffer()
+	batchWrite := w.getBatchWriteFunc(batch)
 	for {
 		select {
 		case j := <-jobs:
 			w.stats.Inc(batchesReceived)
-			if noRules {
-				w.processMsg(&msgBuffer, num, url, client, j.Data)
-				num++
-			} else {
-				// do some filtering
-				for _, line := range bytes.SplitAfter(j.Data, []byte("\n")) {
-					if len(line) == 0 {
-						continue
-					}
-					if w.filterLine(line) {
-						w.processMsg(&msgBuffer, num, url, client, line)
-					}
-					num++
-				}
-			}
+			batchWrite(j.Data)
 		case <-w.stop:
 			return
+		}
+
+		// if we have queued enough messages, then we can go ahead and submit them
+		if batch.Writes() >= w.c.BatchMessages || batch.Size() > 10*1024*1024 {
+			w.stats.Inc(writeRequests)
+
+			if err := w.sendBatch(batch, client); err != nil {
+				w.stats.Inc(failedWrites)
+				log.Printf("Error: %v", err)
+			}
+
+			// Reset buffer on success or error; batch will not be sent again.
+			batch.Reset()
+		}
+	}
+}
+
+func (w *Writer) getBatchWriteFunc(batch *batchBuffer) func([]byte) {
+	batchWrite := func(data []byte) {
+		if err := batch.Write(data); err != nil {
+			log.Printf("Error: %v", err)
+		}
+	}
+
+	if len(w.rules) == 0 {
+		// No rules - just append the received data straight onto the
+		// batch buffer.
+		return batchWrite
+	}
+
+	return func(data []byte) {
+		// Rules exist - split the received data into lines and apply
+		// filters.
+		for _, line := range bytes.SplitAfter(data, []byte("\n")) {
+			if w.filterLine(line) {
+				batchWrite(data)
+			}
 		}
 	}
 }
 
 func (w *Writer) filterLine(line []byte) bool {
+	if len(line) == 0 {
+		return false
+	}
 	return filter.LookupLine(w, line) != -1
 }
 
-func (w *Writer) processMsg(msgBuffer *bytes.Buffer, msgsRecv int, url string, client *http.Client, data []byte) {
-	// put the message in the queue and process it later
-	if n, err := msgBuffer.Write(data); err != nil {
-		log.Printf("Error: failed to write to message buffer (wrote %d): %v\n", n, err)
+// sendBatch sends the accumulated batch via HTTP to InfluxDB.
+func (w *Writer) sendBatch(batch *batchBuffer, client *http.Client) error {
+	resp, err := client.Post(w.url, "application/json; charset=UTF-8", batch.Data())
+	if err != nil {
+		return fmt.Errorf("failed to send HTTP request: %v\n", err)
 	}
+	defer resp.Body.Close()
 
-	// if we have queued enough messages, then we can go ahead and submit them
-	if ((msgsRecv%w.c.BatchMessages) == 0 && msgBuffer.Len() > 0) || msgBuffer.Len() > 10*1024*1024 {
-		// send the messages via HTTP to influxdb
-		w.stats.Inc(writeRequests)
-		resp, err := client.Post(url, "application/json; charset=UTF-8", msgBuffer)
-
-		// Reset buffer on success or error; batch will not be sent again.
-		msgBuffer.Reset()
-
-		if err != nil {
-			log.Printf("Error: failed to send HTTP request: %v\n", err)
-			w.stats.Inc(failedWrites)
-			return
-		}
-
-		defer resp.Body.Close()
-
-		if resp.StatusCode > 300 {
-			log.Printf("Error: received HTTP %v from %v\n", resp.Status, url)
-			if w.c.Debug {
-				body, err := ioutil.ReadAll(resp.Body)
-				if err == nil {
-					log.Printf("response body: %s\n", body)
-				}
+	if resp.StatusCode > 300 {
+		errText := fmt.Sprintf("received HTTP %v from %v", resp.Status, w.url)
+		if w.c.Debug {
+			body, err := ioutil.ReadAll(resp.Body)
+			if err == nil {
+				errText += fmt.Sprintf("\nresponse body: %s\n", body)
 			}
-			w.stats.Inc(failedWrites)
 		}
+		return errors.New(errText)
 	}
+
+	return nil
 }
 
 var dropLine = lineformatter.New("writer_drop", nil, "total", "diff")
