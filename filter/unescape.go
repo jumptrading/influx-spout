@@ -6,8 +6,9 @@ import "bytes"
 // of in.
 //
 // This is the same as Unescape() from
-// github.com/influxdata/influxdb/pkg/escape with a small performance
-// tweak (see also https://github.com/influxdata/influxdb/pull/9101).
+// github.com/influxdata/influxdb/pkg/escape.
+// It's copied here because it's not worth vendoring all of influxdb
+// just for this.
 func influxUnescape(in []byte) []byte {
 	if bytes.IndexByte(in, '\\') == -1 {
 		return in
