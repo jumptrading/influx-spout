@@ -50,23 +50,25 @@ const (
 )
 
 type Writer struct {
-	c     *config.Config
-	url   string
-	nc    *nats.Conn
-	rules []filter.FilterRule
-	stats *stats.Stats
-	wg    sync.WaitGroup
-	stop  chan struct{}
+	c             *config.Config
+	url           string
+	batchMaxBytes int
+	nc            *nats.Conn
+	rules         []filter.FilterRule
+	stats         *stats.Stats
+	wg            sync.WaitGroup
+	stop          chan struct{}
 }
 
 // StartWriter is the heavylifter, subscribes to the subject where
 // listeners publish the messages and writes it the InfluxDB endpoint.
 func StartWriter(c *config.Config) (_ *Writer, err error) {
 	w := &Writer{
-		c:     c,
-		url:   fmt.Sprintf("http://%s:%d/write?db=%s", c.InfluxDBAddress, c.InfluxDBPort, c.DBName),
-		stats: stats.New(batchesReceived, writeRequests, failedWrites),
-		stop:  make(chan struct{}),
+		c:             c,
+		url:           fmt.Sprintf("http://%s:%d/write?db=%s", c.InfluxDBAddress, c.InfluxDBPort, c.DBName),
+		batchMaxBytes: c.BatchMaxMB * 1024 * 1024,
+		stats:         stats.New(batchesReceived, writeRequests, failedWrites),
+		stop:          make(chan struct{}),
 	}
 	defer func() {
 		if err != nil {
@@ -185,7 +187,7 @@ func (w *Writer) worker(jobs <-chan *nats.Msg) {
 		}
 
 		// if we have queued enough messages, then we can go ahead and submit them
-		if batch.Writes() >= w.c.BatchMessages || batch.Size() > 10*1024*1024 {
+		if batch.Writes() >= w.c.BatchMessages || batch.Size() >= w.batchMaxBytes {
 			w.stats.Inc(writeRequests)
 
 			if err := w.sendBatch(batch, client); err != nil {

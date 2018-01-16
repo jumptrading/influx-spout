@@ -240,6 +240,14 @@ influxdb_dbname = "influx-spout-junk"
 # latency.
 batch = 10
 
+# The maximum amount of message data a writer worker is allowed to collect. If
+# this limit is reached, a write to InfluxDB is performed.
+batch_max_mb = 10
+
+# The maximum amount of time a writer worker is allowed to hold on to collected
+# data. If this limit is reached, a write to InfluxDB is performed.
+batch_max_secs = 300
+
 # The number of writer workers to spawn.
 workers = 10
 
@@ -256,6 +264,9 @@ nats_pending_max_mb = 200
 # (in InfluxDB line protocol format).
 nats_subject_monitor = "influx-spout-monitor"
 ```
+
+A writer will batch up messages until one of the limits defined by the
+`batch`, `batch_max_mb` or `batch_max_secs` options is reached.
 
 Writers can optionally include filter rules. When filter rules are configured
 measurements which don't match a rule will be dropped by the writer instead of

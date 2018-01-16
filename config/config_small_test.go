@@ -41,6 +41,8 @@ influxdb_port = 8086
 influxdb_dbname = "junk_nats"
 
 batch = 10
+batch_max_mb = 5
+batch_max_secs = 60
 workers = 96
 
 write_timeout_secs = 32
@@ -52,6 +54,8 @@ nats_pending_max_mb = 100
 	assert.Equal(t, "listener", conf.Mode, "Mode must match")
 	assert.Equal(t, 10001, conf.Port, "Port must match")
 	assert.Equal(t, 10, conf.BatchMessages, "Batching must match")
+	assert.Equal(t, 5, conf.BatchMaxMB)
+	assert.Equal(t, 60, conf.BatchMaxSecs)
 	assert.Equal(t, 96, conf.WriterWorkers, "Workers must match")
 	assert.Equal(t, 32, conf.WriteTimeoutSecs, "WriteTimeoutSecs must match")
 	assert.Equal(t, 100, conf.NATSPendingMaxMB, "NATSPendingMaxMB must match")
@@ -77,6 +81,8 @@ func TestAllDefaults(t *testing.T) {
 	assert.Equal(t, 8086, conf.InfluxDBPort)
 	assert.Equal(t, "influx-spout-junk", conf.DBName)
 	assert.Equal(t, 10, conf.BatchMessages)
+	assert.Equal(t, 10, conf.BatchMaxMB)
+	assert.Equal(t, 300, conf.BatchMaxSecs)
 	assert.Equal(t, 0, conf.Port)
 	assert.Equal(t, "writer", conf.Mode)
 	assert.Equal(t, 10, conf.WriterWorkers)

@@ -48,6 +48,8 @@ func testConfig() *config.Config {
 		InfluxDBAddress:    "localhost",
 		InfluxDBPort:       influxPort,
 		BatchMessages:      1,
+		BatchMaxMB:         10,
+		BatchMaxSecs:       300,
 		Port:               influxPort,
 		Mode:               "writer",
 		WriterWorkers:      96,
@@ -111,6 +113,37 @@ func TestBasicWriter(t *testing.T) {
 			t.Fatal("timed out waiting for messages")
 		}
 	}
+}
+
+func TestBatchMBLimit(t *testing.T) {
+	// No filter rules.
+	conf := testConfig()
+	conf.WriterWorkers = 1
+	conf.BatchMessages = 9999
+	conf.BatchMaxMB = 1
+	w := startWriter(t, conf)
+	defer w.Stop()
+
+	// Send 4 large chunks which will exactly hit BatchMaxMB.
+	const totalSize = 1024 * 1024 // 1 MB
+	const chunks = 4
+	large := make([]byte, totalSize/chunks)
+	for i := range large {
+		large[i] = byte('x')
+	}
+	for i := 0; i < chunks; i++ {
+		publish(t, conf.NATSSubject[0], string(large))
+	}
+
+	// the messages should come through (in one batch) because
+	// BatchMaxMB is exceed
+	select {
+	case msg := <-httpWrites:
+		assert.Len(t, msg, totalSize)
+	case <-time.After(relaytest.LongWait):
+		t.Fatal("timed out waiting for messages")
+	}
+	assertNoWrite(t)
 }
 
 func TestBasicFilterRule(t *testing.T) {

@@ -38,6 +38,8 @@ type Config struct {
 	InfluxDBPort        int      `toml:"influxdb_port"`
 	DBName              string   `toml:"influxdb_dbname"`
 	BatchMessages       int      `toml:"batch"`
+	BatchMaxMB          int      `toml:"batch_max_mb"`
+	BatchMaxSecs        int      `toml:"batch_max_secs"`
 	Port                int      `toml:"port"`
 	Mode                string   `toml:"mode"`
 	WriterWorkers       int      `toml:"workers"`
@@ -64,6 +66,8 @@ func newDefaultConfig() *Config {
 		InfluxDBPort:        8086,
 		DBName:              "influx-spout-junk",
 		BatchMessages:       10,
+		BatchMaxMB:          10,
+		BatchMaxSecs:        300,
 		WriterWorkers:       10,
 		WriteTimeoutSecs:    30,
 		NATSPendingMaxMB:    200,
