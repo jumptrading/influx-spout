@@ -29,7 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jumptrading/influx-spout/config"
-	"github.com/jumptrading/influx-spout/relaytest"
+	"github.com/jumptrading/influx-spout/spouttest"
 )
 
 var httpWrites = make(chan string, 10)
@@ -65,7 +65,7 @@ func runMain(m *testing.M) int {
 	var err error
 
 	// Start gnatsd.
-	s := relaytest.RunGnatsd(natsPort)
+	s := spouttest.RunGnatsd(natsPort)
 	defer s.Shutdown()
 
 	// Set up a dummy HTTP server to write to.
@@ -105,7 +105,7 @@ func TestBasicWriter(t *testing.T) {
 	publish(t, subject, "And by opposing end them. To die: to sleep;")
 
 	// wait for confirmation that they were written
-	timeout := time.After(relaytest.LongWait)
+	timeout := time.After(spouttest.LongWait)
 	for i := 0; i < 5; i++ {
 		select {
 		case <-httpWrites:
@@ -140,7 +140,7 @@ func TestBatchMBLimit(t *testing.T) {
 	select {
 	case msg := <-httpWrites:
 		assert.Len(t, msg, totalSize)
-	case <-time.After(relaytest.LongWait):
+	case <-time.After(spouttest.LongWait):
 		t.Fatal("timed out waiting for messages")
 	}
 	assertNoWrite(t)
@@ -243,7 +243,7 @@ func assertWrite(t *testing.T, expected string) {
 	select {
 	case msg := <-httpWrites:
 		assert.Equal(t, msg, expected)
-	case <-time.After(relaytest.LongWait):
+	case <-time.After(spouttest.LongWait):
 		t.Fatal("timed out waiting for message")
 	}
 }
@@ -252,6 +252,6 @@ func assertNoWrite(t *testing.T) {
 	select {
 	case msg := <-httpWrites:
 		t.Fatalf("saw unexpected write: %q", msg)
-	case <-time.After(relaytest.ShortWait):
+	case <-time.After(spouttest.ShortWait):
 	}
 }

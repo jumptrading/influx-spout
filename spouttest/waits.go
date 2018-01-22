@@ -12,20 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package relaytest
+package spouttest
 
-import (
-	"github.com/nats-io/gnatsd/server"
-	"github.com/nats-io/gnatsd/test"
-)
+import "time"
 
-// RunGnatsd runs a gnatsd server on the specified port for testing
-// against.
-//
-// This is essentially a copy of the unexported RunServerOnPort()
-// in github.com/nats-io/go-nats/test
-func RunGnatsd(port int) *server.Server {
-	opts := test.DefaultTestOptions
-	opts.Port = port
-	return test.RunServer(&opts)
-}
+// LongWait should be used in tests when waiting for events that are
+// expected to happen. It is quite long to account for slow/busy test
+// hosts. Typically only a fraction of this time is actually used,
+// unless something is broken.
+const LongWait = 10 * time.Second
+
+// ShortWait should be used in tests when checking for events that are
+// expected *not* to happen. A test will block for this long, unless
+// something is broken.
+const ShortWait = 50 * time.Millisecond

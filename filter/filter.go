@@ -233,9 +233,9 @@ func (f *filter) startStatistician() {
 	// This goroutine is responsible for monitoring the statistics and
 	// sending it to the monitoring backend.
 
-	totalLine := lineformatter.New("relay_stat_filter", nil,
+	totalLine := lineformatter.New("spout_stat_filter", nil,
 		"passed", "processed", "rejected")
-	ruleLine := lineformatter.New("relay_stat_filter_rule",
+	ruleLine := lineformatter.New("spout_stat_filter_rule",
 		[]string{"rule"}, "triggered")
 
 	for {
