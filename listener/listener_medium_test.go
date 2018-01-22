@@ -29,7 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jumptrading/influx-spout/config"
-	"github.com/jumptrading/influx-spout/relaytest"
+	"github.com/jumptrading/influx-spout/spouttest"
 )
 
 const (
@@ -58,7 +58,7 @@ func TestMain(m *testing.M) {
 }
 
 func runMain(m *testing.M) int {
-	s := relaytest.RunGnatsd(natsPort)
+	s := spouttest.RunGnatsd(natsPort)
 	defer s.Shutdown()
 	return m.Run()
 }
@@ -92,7 +92,7 @@ func TestBatching(t *testing.T) {
 	select {
 	case <-newMsg:
 		break
-	case <-time.After(relaytest.LongWait):
+	case <-time.After(spouttest.LongWait):
 		t.Fatal("failed to see message")
 	}
 
@@ -100,7 +100,7 @@ func TestBatching(t *testing.T) {
 	select {
 	case <-newMsg:
 		t.Fatal("unexpectedly saw message")
-	case <-time.After(relaytest.ShortWait):
+	case <-time.After(spouttest.ShortWait):
 	}
 }
 
@@ -149,7 +149,7 @@ func TestBatchBufferFull(t *testing.T) {
 	conn := dialListener(t)
 	defer conn.Close()
 	msg := make([]byte, 100)
-	timeout := time.After(relaytest.LongWait)
+	timeout := time.After(spouttest.LongWait)
 	writeCount := 0
 loop:
 	for {
@@ -176,7 +176,7 @@ loop:
 	select {
 	case <-newMsg:
 		t.Fatal("message unexpectedly seen")
-	case <-time.After(relaytest.ShortWait):
+	case <-time.After(spouttest.ShortWait):
 		return
 	}
 }
@@ -210,8 +210,8 @@ func TestStatistician(t *testing.T) {
 	// Look for expected stats
 	select {
 	case received := <-statsCh:
-		assert.Equal(t, "relay_stat_listener received=3,sent=2,read_errors=1\n", received)
-	case <-time.After(relaytest.LongWait):
+		assert.Equal(t, "spout_stat_listener received=3,sent=2,read_errors=1\n", received)
+	case <-time.After(spouttest.LongWait):
 		t.Fatal("no message seen")
 	}
 

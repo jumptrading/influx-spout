@@ -312,7 +312,7 @@ func (w *Writer) startStatistician() {
 	// This goroutine is responsible for monitoring the statistics and
 	// sending it to the monitoring backend.
 	statsLine := lineformatter.New(
-		"relay_stat_writer", nil,
+		"spout_stat_writer", nil,
 		"received",
 		"write_requests",
 		"failed_writes",
@@ -333,7 +333,7 @@ func (w *Writer) startStatistician() {
 	}
 }
 
-var notifyLine = lineformatter.New("relay_mon", nil, "type", "state", "pid")
+var notifyLine = lineformatter.New("spout_mon", nil, "type", "state", "pid")
 
 func (w *Writer) notifyState(state string) {
 	line := notifyLine.Format(nil, "writer", state, os.Getpid())

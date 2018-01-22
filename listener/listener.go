@@ -146,7 +146,7 @@ func (l *listener) setupBuffers() int {
 	return bufSize
 }
 
-var notifyLine = lineformatter.New("relay_mon", nil, "type", "state", "pid")
+var notifyLine = lineformatter.New("spout_mon", nil, "type", "state", "pid")
 
 func (l *listener) notifyState(state string) {
 	line := notifyLine.Format(nil, "listener", state, os.Getpid())
@@ -213,7 +213,7 @@ func (l *listener) handleNatsError(err error) {
 
 func (l *listener) startStatistician(stop <-chan struct{}) {
 	statsLine := lineformatter.New(
-		"relay_stat_listener", nil,
+		"spout_stat_listener", nil,
 		"received",
 		"sent",
 		"read_errors",

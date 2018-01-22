@@ -27,7 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jumptrading/influx-spout/config"
-	"github.com/jumptrading/influx-spout/relaytest"
+	"github.com/jumptrading/influx-spout/spouttest"
 )
 
 const natsPort = 44446
@@ -51,7 +51,7 @@ func TestMain(m *testing.M) {
 }
 
 func runMain(m *testing.M) int {
-	s := relaytest.RunGnatsd(natsPort)
+	s := spouttest.RunGnatsd(natsPort)
 	defer s.Shutdown()
 
 	// start the listener with this config
@@ -114,12 +114,12 @@ goodbye,host=gopher01
 
 	// Receive total stats
 	assertReceived(t, statsCh, "stats", `
-relay_stat_filter passed=2,processed=3,rejected=1
+spout_stat_filter passed=2,processed=3,rejected=1
 `)
 
 	// Receive rule specific stats
 	assertReceived(t, statsCh, "rule stats", `
-relay_stat_filter_rule,rule=hello-subject triggered=2
+spout_stat_filter_rule,rule=hello-subject triggered=2
 `)
 }
 
@@ -128,7 +128,7 @@ func assertReceived(t *testing.T, ch <-chan string, label, expected string) {
 	select {
 	case received := <-ch:
 		assert.Equal(t, expected, received)
-	case <-time.After(relaytest.LongWait):
+	case <-time.After(spouttest.LongWait):
 		t.Fatal("timed out waiting for " + label)
 	}
 }
