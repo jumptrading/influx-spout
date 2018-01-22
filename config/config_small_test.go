@@ -18,6 +18,7 @@ package config
 
 import (
 	"errors"
+	"path/filepath"
 	"testing"
 
 	"github.com/spf13/afero"
@@ -25,10 +26,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const testConfigFileName = "config.toml"
+const testConfigBaseName = "something"
+
+var testConfigFileName = filepath.Join("some", "dir", testConfigBaseName+".toml")
 
 func TestCorrectConfigFile(t *testing.T) {
 	const validConfigSample = `
+name = "thor"
+
 mode = "listener"
 port = 10001
 
@@ -51,6 +56,7 @@ nats_pending_max_mb = 100
 	conf, err := parseConfig(validConfigSample)
 	require.NoError(t, err, "Couldn't parse a valid config: %v\n", err)
 
+	assert.Equal(t, "thor", conf.Name, "Name must match")
 	assert.Equal(t, "listener", conf.Mode, "Mode must match")
 	assert.Equal(t, 10001, conf.Port, "Port must match")
 	assert.Equal(t, 10, conf.BatchMessages, "Batching must match")
@@ -73,6 +79,7 @@ func TestAllDefaults(t *testing.T) {
 	conf, err := parseConfig(`mode = "writer"`)
 	require.NoError(t, err)
 
+	assert.Equal(t, testConfigBaseName, conf.Name)
 	assert.Equal(t, "nats://localhost:4222", conf.NATSAddress)
 	assert.Equal(t, []string{"influx-spout"}, conf.NATSSubject)
 	assert.Equal(t, "influx-spout-monitor", conf.NATSSubjectMonitor)
@@ -169,9 +176,9 @@ debug = true
 `
 	fs = afero.NewMemMapFs()
 	afero.WriteFile(fs, commonFileName, []byte(commonConfig), 0600)
-	afero.WriteFile(fs, "config.toml", []byte(specificConfig), 0600)
+	afero.WriteFile(fs, testConfigFileName, []byte(specificConfig), 0600)
 
-	conf, err := NewConfigFromFile("config.toml")
+	conf, err := NewConfigFromFile(testConfigFileName)
 	require.NoError(t, err)
 
 	assert.Equal(t, "listener", conf.Mode)   // only set in specific config
@@ -191,9 +198,9 @@ debug = true
 
 	fs = afero.NewMemMapFs()
 	afero.WriteFile(fs, commonFileName, []byte(commonConfig), 0600)
-	afero.WriteFile(fs, "config.toml", []byte(specificConfig), 0600)
+	afero.WriteFile(fs, testConfigFileName, []byte(specificConfig), 0600)
 
-	_, err := NewConfigFromFile("config.toml")
+	_, err := NewConfigFromFile(testConfigFileName)
 	require.Error(t, err)
 	assert.Regexp(t, "/etc/influx-spout.toml: .+", err)
 }
@@ -207,7 +214,7 @@ func (*failingOpenFs) Open(string) (afero.File, error) {
 func TestErrorOpeningCommonFile(t *testing.T) {
 	fs = new(failingOpenFs)
 
-	_, err := NewConfigFromFile("config.toml")
+	_, err := NewConfigFromFile(testConfigFileName)
 	assert.EqualError(t, err, "boom")
 }
 

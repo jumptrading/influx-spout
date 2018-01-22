@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/BurntSushi/toml"
 	"github.com/spf13/afero"
@@ -30,6 +31,8 @@ const commonFileName = "/etc/influx-spout.toml"
 // Config represents the configuration for a single influx-spout
 // component.
 type Config struct {
+	Name                string   `toml:"name"`
+	Mode                string   `toml:"mode"`
 	NATSAddress         string   `toml:"nats_address"`
 	NATSSubject         []string `toml:"nats_subject"`
 	NATSSubjectMonitor  string   `toml:"nats_subject_monitor"`
@@ -41,7 +44,6 @@ type Config struct {
 	BatchMaxMB          int      `toml:"batch_max_mb"`
 	BatchMaxSecs        int      `toml:"batch_max_secs"`
 	Port                int      `toml:"port"`
-	Mode                string   `toml:"mode"`
 	WriterWorkers       int      `toml:"workers"`
 	WriteTimeoutSecs    int      `toml:"write_timeout_secs"`
 	NATSPendingMaxMB    int      `toml:"nats_pending_max_mb"`
@@ -90,6 +92,9 @@ func NewConfigFromFile(fileName string) (*Config, error) {
 	}
 
 	// Set dynamic defaults.
+	if conf.Name == "" {
+		conf.Name = pathToConfigName(fileName)
+	}
 	if conf.Mode == "listener" && conf.Port == 0 {
 		conf.Port = 10001
 	} else if conf.Mode == "listener_http" && conf.Port == 0 {
@@ -110,6 +115,18 @@ func readConfig(fileName string, conf *Config) error {
 		return fmt.Errorf("%s: %v", fileName, err)
 	}
 	return nil
+}
+
+func pathToConfigName(path string) string {
+	// Remove directory (if any)
+	path = filepath.Base(path)
+
+	// Remove the file extension (if any)
+	ext := filepath.Ext(path)
+	if ext == "" {
+		return path
+	}
+	return path[:len(path)-len(ext)]
 }
 
 var fs = afero.NewOsFs()
