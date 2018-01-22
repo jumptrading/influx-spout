@@ -1,4 +1,4 @@
-# influx-spout
+# influx-spout [![Build Status](https://travis-ci.com/jumptrading/influx-spout-internal.svg?token=tnGgsxkjnTL4Es3TAsMc&branch=master)](https://travis-ci.com/jumptrading/influx-spout-internal)
 
 ## Overview
 
