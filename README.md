@@ -219,6 +219,10 @@ shown.
 ```
 mode = "writer"  # Required
 
+# Name to use for identifying a writer's internal metrics.
+# (to separate metrics from different writers from each other)
+name = [default is configuration file path with directory & extension stripped]
+
 # Address of NATS server.
 nats_address = "nats://localhost:4222"
 

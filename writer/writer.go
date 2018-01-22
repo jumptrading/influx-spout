@@ -312,14 +312,17 @@ func (w *Writer) startStatistician() {
 	// This goroutine is responsible for monitoring the statistics and
 	// sending it to the monitoring backend.
 	statsLine := lineformatter.New(
-		"spout_stat_writer", nil,
+		"spout_stat_writer",
+		[]string{"writer"}, // tag keys
 		"received",
 		"write_requests",
 		"failed_writes",
 	)
+	tagVals := []string{w.c.Name}
 	for {
 		stats := w.stats.Clone()
-		w.nc.Publish(w.c.NATSSubjectMonitor, statsLine.Format(nil,
+		w.nc.Publish(w.c.NATSSubjectMonitor, statsLine.Format(
+			tagVals,
 			stats.Get(batchesReceived),
 			stats.Get(writeRequests),
 			stats.Get(failedWrites),
