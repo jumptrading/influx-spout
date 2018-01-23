@@ -286,7 +286,7 @@ provided.
 
 Here's some example usage:
 
-```toml
+```
 # Just run the small tests
 $ ./runtests small
 
