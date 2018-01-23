@@ -180,6 +180,22 @@ func TestBasicFilterRule(t *testing.T) {
 	assertNoWrite(t)
 }
 
+func TestBatchedInput(t *testing.T) {
+	conf := testConfig()
+	conf.Rule = []config.Rule{{
+		Rtype: "basic",
+		Match: "foo",
+	}}
+	w := startWriter(t, conf)
+	defer w.Stop()
+
+	// Send 2 messages together, the first of which should be dropped.
+	publish(t, conf.NATSSubject[0], "should be dropped\nfoo bar")
+
+	assertWrite(t, "foo bar")
+	assertNoWrite(t)
+}
+
 func TestRegexFilterRule(t *testing.T) {
 	conf := testConfig()
 	conf.Rule = []config.Rule{{
