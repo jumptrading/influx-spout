@@ -86,7 +86,7 @@ multiple listeners.
 The supported configuration options for the listener mode follow. Defaults are
 shown.
 
-```
+```toml
 mode = "listener"  # Required
 
 # UDP port to listen on.
@@ -117,7 +117,7 @@ configured port.
 The supported configuration options for the HTTP listener mode follow. Defaults
 are shown.
 
-```
+```toml
 mode = "listener_http"  # Required
 
 # TCP port to server a HTTP server on. A single "/write" endpoint is available here.
@@ -147,7 +147,7 @@ listener, and forwarding them on to other NATS subjects.
 The supported configuration options for the filter mode follow. Defaults are
 shown.
 
-```
+```toml
 mode = "filter"  # Required
 
 # Address of NATS server.
@@ -216,7 +216,7 @@ should send measurements to.
 The supported configuration options for the writer mode follow. Defaults are
 shown.
 
-```
+```toml
 mode = "writer"  # Required
 
 # Name to use for identifying a writer's internal metrics.
@@ -286,7 +286,7 @@ provided.
 
 Here's some example usage:
 
-```
+```toml
 # Just run the small tests
 $ ./runtests small
 
