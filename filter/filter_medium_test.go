@@ -18,7 +18,6 @@ package filter
 
 import (
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -44,36 +43,21 @@ var conf = config.Config{
 	}},
 }
 
-var nc *nats.Conn
+func TestFilterWorker(t *testing.T) {
+	gnatsd := spouttest.RunGnatsd(natsPort)
+	defer gnatsd.Shutdown()
 
-func TestMain(m *testing.M) {
-	os.Exit(runMain(m))
-}
+	filter, err := StartFilter(&conf)
+	require.NoError(t, err)
+	defer filter.Stop()
 
-func runMain(m *testing.M) int {
-	s := spouttest.RunGnatsd(natsPort)
-	defer s.Shutdown()
-
-	// start the listener with this config
-	go StartFilter(&conf)
-
-	time.Sleep(time.Second)
-
-	var err error
-	nc, err = nats.Connect(conf.NATSAddress)
-	if err != nil {
-		fmt.Printf("Error while setup: %v\n", err)
-		return 1
-	}
+	nc, err := nats.Connect(conf.NATSAddress)
+	require.NoError(t, err)
 	defer nc.Close()
 
-	return m.Run()
-}
-
-func TestFilterWorker(t *testing.T) {
 	// Subscribe to filter output
 	helloCh := make(chan string, 1)
-	_, err := nc.Subscribe(conf.Rule[0].Subject, func(msg *nats.Msg) {
+	_, err = nc.Subscribe(conf.Rule[0].Subject, func(msg *nats.Msg) {
 		helloCh <- string(msg.Data)
 	})
 	require.NoError(t, err)

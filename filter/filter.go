@@ -17,10 +17,10 @@ package filter
 
 import (
 	"bytes"
+	"fmt"
 	"hash/fnv"
 	"log"
 	"regexp"
-	"runtime"
 	"strconv"
 	"sync"
 	"time"
@@ -32,17 +32,63 @@ import (
 	"github.com/jumptrading/influx-spout/stats"
 )
 
-type Filtering interface {
-	GetRules() []FilterRule
+// Name for supported stats
+const (
+	linesPassed    = "lines-passed"
+	linesProcessed = "lines-processed"
+	linesRejected  = "lines-rejected"
+)
+
+// StartFilter creates a Filter instance, sets up its rules based on
+// the configuration give and sets up a subscription for the incoming
+// NATS topic.
+func StartFilter(conf *config.Config) (*Filter, error) {
+	var err error
+
+	// Create rules from the config.
+	f := &Filter{
+		c:    conf,
+		stop: make(chan struct{}),
+	}
+	for _, r := range conf.Rule {
+		switch r.Rtype {
+		case "basic":
+			f.appendRule(CreateBasicRule(r.Match, r.Subject))
+		case "regex":
+			f.appendRule(CreateRegexRule(r.Match, r.Subject))
+		case "negregex":
+			f.appendRule(CreateNegativeRegexRule(r.Match, r.Subject))
+		default:
+			return nil, fmt.Errorf("Unsupported rule type: [%v]", r)
+		}
+	}
+
+	f.initRuleBatches()
+
+	// Connect to the NATS server.
+	f.nc, err = nats.Connect(f.c.NATSAddress)
+	if err != nil {
+		return nil, fmt.Errorf("NATS: failed to connect: %v", err)
+	}
+
+	// Subscribe to the NATS subject.
+	f.sub, err = f.nc.Subscribe(f.c.NATSSubject[0], func(msg *nats.Msg) {
+		f.processBatch(msg.Data)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("NATS: failed to subscribe: %v", err)
+	}
+
+	f.wg.Add(1)
+	go f.startStatistician()
+
+	log.Printf("Filter listening on [%s] with %d rules\n", f.c.NATSSubject, len(f.rules))
+	return f, nil
 }
 
-type SubjectBuffer struct {
-	sync.Mutex
-	b       *bytes.Buffer
-	subject string
-}
-
-type FilterRule struct {
+// Rule encapsulates a matching function and the NATS topic to
+// send lines to if the rule matches.
+type Rule struct {
 	// Function used to check if the rule matches
 	match func([]byte) bool
 
@@ -55,41 +101,86 @@ type FilterRule struct {
 	subject string
 }
 
-// Name for supported stats
-const (
-	linesPassed    = "lines-passed"
-	linesProcessed = "lines-processed"
-	linesRejected  = "lines-rejected"
-)
+type filtering interface {
+	GetRules() []Rule
+}
+
+type subjectBuffer struct {
+	sync.Mutex
+	b       *bytes.Buffer
+	subject string
+}
 
 // natsConn allows a mock nats.Conn to be substituted in during tests.
 type natsConn interface {
 	Publish(string, []byte) error
 	Subscribe(string, nats.MsgHandler) (*nats.Subscription, error)
+	Close()
 }
 
-// filter is a struct that contains the configuration we are running with
+// Filter is a struct that contains the configuration we are running with
 // and the NATS bus connection
-type filter struct {
+type Filter struct {
 	c  *config.Config
 	nc natsConn
 
-	ruleBatches []SubjectBuffer
-	junkBatch   SubjectBuffer
-	rules       []FilterRule
+	ruleBatches []subjectBuffer
+	junkBatch   subjectBuffer
+	rules       []Rule
 	stats       *stats.Stats
+
+	sub  *nats.Subscription
+	wg   sync.WaitGroup
+	stop chan struct{}
 }
 
-func (f *filter) GetRules() []FilterRule {
+func (f *Filter) initRuleBatches() {
+	statNames := []string{
+		linesPassed,
+		linesProcessed,
+		linesRejected,
+	}
+
+	// set up the buffers for batching
+	f.ruleBatches = make([]subjectBuffer, len(f.rules))
+	f.junkBatch.b = new(bytes.Buffer)
+	for i, rule := range f.rules {
+		f.ruleBatches[i].b = new(bytes.Buffer)
+		f.ruleBatches[i].b.Grow(16384)
+		f.ruleBatches[i].subject = rule.subject
+
+		statNames = append(statNames, ruleToStatsName(i))
+	}
+
+	f.stats = stats.New(statNames...)
+}
+
+// Stop shuts down goroutines and closes resources related to the filter.
+func (f *Filter) Stop() {
+	// Stop receiving lines to filter.
+	f.sub.Unsubscribe()
+
+	// Shut down goroutines (just the statistician at this stage).
+	close(f.stop)
+	f.wg.Wait()
+
+	// Close the connection to NATS.
+	if f.nc != nil {
+		f.nc.Close()
+	}
+}
+
+// GetRules returns all rules associated with the filter.
+func (f *Filter) GetRules() []Rule {
 	return f.rules
 }
 
 // CreateBasicRule creates a simple rule that publishes measurements
 // with the name @measurement to the NATS @subject.
-func CreateBasicRule(measurement string, subject string) FilterRule {
+func CreateBasicRule(measurement string, subject string) Rule {
 	hh := hashMeasurement([]byte(measurement))
 
-	return FilterRule{
+	return Rule{
 		match: func(line []byte) bool {
 			name := influxUnescape(measurementName(line))
 			return hh == hashMeasurement(name)
@@ -132,9 +223,9 @@ func measurementName(s []byte) []byte {
 
 // CreateRegexRule creates a rule that publishes measurements which
 // match the given @regexString to the NATS @subject.
-func CreateRegexRule(regexString, subject string) FilterRule {
+func CreateRegexRule(regexString, subject string) Rule {
 	reg := regexp.MustCompile(regexString)
-	return FilterRule{
+	return Rule{
 		match: func(line []byte) bool {
 			return reg.Match(line)
 		},
@@ -142,9 +233,11 @@ func CreateRegexRule(regexString, subject string) FilterRule {
 	}
 }
 
-func CreateNegativeRegexRule(regexString, subject string) FilterRule {
+// CreateNegativeRegexRule creates a rule that publishes measurements
+// which *don't* match the given @regexString to the NATS @subject.
+func CreateNegativeRegexRule(regexString, subject string) Rule {
 	reg := regexp.MustCompile(regexString)
-	return FilterRule{
+	return Rule{
 		match: func(line []byte) bool {
 			return !reg.Match(line)
 		},
@@ -158,14 +251,17 @@ func hashMeasurement(measurement []byte) uint32 {
 	return hh.Sum32()
 }
 
-// AppendFilterRule appends a rule to a filter node. once the filter
+// appendRule appends a rule to a filter node. once the filter
 // starts receving messages, the rules are processed in the order they
 // were added.
-func (f *filter) AppendFilterRule(rule FilterRule) {
+func (f *Filter) appendRule(rule Rule) {
 	f.rules = append(f.rules, rule)
 }
 
-func LookupLine(f Filtering, escapedLine []byte) int {
+// LookupLine takes a raw line and returns the index of the rule from
+// the `filtering` provided that matches. Returns -1 if there was no
+// match.
+func LookupLine(f filtering, escapedLine []byte) int {
 	line := influxUnescape(escapedLine)
 	for i, rule := range f.GetRules() {
 		matchLine := line
@@ -179,7 +275,7 @@ func LookupLine(f Filtering, escapedLine []byte) int {
 	return -1
 }
 
-func (f *filter) ProcessLine(line []byte) {
+func (f *Filter) processLine(line []byte) {
 	f.stats.Inc(linesProcessed)
 
 	id := LookupLine(f, line)
@@ -203,7 +299,7 @@ func (f *filter) ProcessLine(line []byte) {
 	f.stats.Inc(ruleToStatsName(id))
 }
 
-func (f *filter) sendOff() {
+func (f *Filter) sendOff() {
 	for _, b := range f.ruleBatches {
 		if b.b.Len() > 0 {
 			f.nc.Publish(b.subject, b.b.Bytes())
@@ -218,10 +314,10 @@ func (f *filter) sendOff() {
 	}
 }
 
-func (f *filter) ProcessBatch(batch []byte) {
+func (f *Filter) processBatch(batch []byte) {
 	for _, line := range bytes.SplitAfter(batch, []byte("\n")) {
 		if len(line) > 0 {
-			f.ProcessLine(line)
+			f.processLine(line)
 		}
 	}
 
@@ -229,9 +325,11 @@ func (f *filter) ProcessBatch(batch []byte) {
 	f.sendOff()
 }
 
-func (f *filter) startStatistician() {
-	// This goroutine is responsible for monitoring the statistics and
-	// sending it to the monitoring backend.
+// startStatistician defines a goroutine that is responsible for
+// regularly sending the filter's statistics to the monitoring
+// backend.
+func (f *Filter) startStatistician() {
+	defer f.wg.Done()
 
 	totalLine := lineformatter.New("spout_stat_filter", nil,
 		"passed", "processed", "rejected")
@@ -255,67 +353,12 @@ func (f *filter) startStatistician() {
 			)
 		}
 
-		time.Sleep(3 * time.Second)
-	}
-}
-
-func (f *filter) SetupFilter() {
-	statNames := []string{
-		linesPassed,
-		linesProcessed,
-		linesRejected,
-	}
-
-	// set up the buffers for batching
-	f.ruleBatches = make([]SubjectBuffer, len(f.rules))
-	f.junkBatch.b = new(bytes.Buffer)
-	for i, rule := range f.rules {
-		f.ruleBatches[i].b = new(bytes.Buffer)
-		f.ruleBatches[i].b.Grow(16384)
-		f.ruleBatches[i].subject = rule.subject
-
-		statNames = append(statNames, ruleToStatsName(i))
-	}
-
-	f.stats = stats.New(statNames...)
-}
-
-func StartFilter(conf *config.Config) {
-	// create the filter instance
-	var f *filter = &filter{c: conf}
-	var err error
-
-	// create our rules from the config rules
-	for _, r := range conf.Rule {
-		switch r.Rtype {
-		case "basic":
-			f.AppendFilterRule(CreateBasicRule(r.Match, r.Subject))
-		case "regex":
-			f.AppendFilterRule(CreateRegexRule(r.Match, r.Subject))
-		case "negregex":
-			f.AppendFilterRule(CreateNegativeRegexRule(r.Match, r.Subject))
-		default:
-			log.Fatalf("Unsupported rule type: [%v]", r)
+		select {
+		case <-time.After(3 * time.Second):
+		case <-f.stop:
+			return
 		}
 	}
-
-	f.SetupFilter()
-
-	// connect to the NATS server
-	f.nc, err = nats.Connect(f.c.NATSAddress)
-	if err != nil {
-		log.Fatalf("NATS: failed to connect: %v\n", err)
-	}
-
-	// subscribe to the NATS subject
-	f.nc.Subscribe(f.c.NATSSubject[0], func(msg *nats.Msg) {
-		f.ProcessBatch(msg.Data)
-	})
-
-	go f.startStatistician()
-
-	log.Printf("Filter listening on [%s] with %d rules\n", f.c.NATSSubject, len(f.rules))
-	runtime.Goexit()
 }
 
 // ruleToStatsName converts a rule index to a name to a key for use

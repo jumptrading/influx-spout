@@ -30,8 +30,8 @@ func TestBasicRuleCreation(t *testing.T) {
 }
 
 func TestBasicRule(t *testing.T) {
-	f := &filter{c: new(config.Config)}
-	f.AppendFilterRule(CreateBasicRule("hello", ""))
+	f := &Filter{c: new(config.Config)}
+	f.appendRule(CreateBasicRule("hello", ""))
 
 	assert.Equal(t, 0, LookupLine(f, []byte("hello,a=b x=y")))
 	assert.Equal(t, 0, LookupLine(f, []byte("hello a=b,x=y")))
@@ -45,8 +45,8 @@ func TestBasicRule(t *testing.T) {
 }
 
 func TestBasicRuleUnescapes(t *testing.T) {
-	f := &filter{c: new(config.Config)}
-	f.AppendFilterRule(CreateBasicRule("hell o", ""))
+	f := &Filter{c: new(config.Config)}
+	f.appendRule(CreateBasicRule("hell o", ""))
 
 	assert.Equal(t, 0, LookupLine(f, []byte(`hell\ o foo=bar`)))
 	assert.Equal(t, 0, LookupLine(f, []byte(`hell\ o,foo=bar`)))
@@ -55,8 +55,8 @@ func TestBasicRuleUnescapes(t *testing.T) {
 }
 
 func TestRegexRule(t *testing.T) {
-	f := &filter{c: new(config.Config)}
-	f.AppendFilterRule(CreateRegexRule("(^hel|,etc=false)", ""))
+	f := &Filter{c: new(config.Config)}
+	f.appendRule(CreateRegexRule("(^hel|,etc=false)", ""))
 
 	assert.Equal(t, 0, LookupLine(f,
 		[]byte("hello,host=gopher01 somefield=11,etc=false")))
@@ -70,8 +70,8 @@ func TestRegexRule(t *testing.T) {
 }
 
 func TestRegexRuleUnescapes(t *testing.T) {
-	f := &filter{c: new(config.Config)}
-	f.AppendFilterRule(CreateRegexRule("hell +o", ""))
+	f := &Filter{c: new(config.Config)}
+	f.appendRule(CreateRegexRule("hell +o", ""))
 
 	assert.Equal(t, 0, LookupLine(f, []byte(`hell\ o x=y`)))
 	assert.Equal(t, 0, LookupLine(f, []byte(`hell\ \ oworld x=y`)))
@@ -80,8 +80,8 @@ func TestRegexRuleUnescapes(t *testing.T) {
 }
 
 func TestNegativeRegexRule(t *testing.T) {
-	f := &filter{c: new(config.Config)}
-	f.AppendFilterRule(CreateNegativeRegexRule("hel|low", ""))
+	f := &Filter{c: new(config.Config)}
+	f.appendRule(CreateNegativeRegexRule("hel|low", ""))
 
 	assert.Equal(t, -1, LookupLine(f, []byte("hello,host=gopher01 x=y")))
 	assert.Equal(t, -1, LookupLine(f, []byte("bye,host=gopher01 x=low")))
@@ -91,8 +91,8 @@ func TestNegativeRegexRule(t *testing.T) {
 }
 
 func TestNegativeRegexRuleUnescapes(t *testing.T) {
-	f := &filter{c: new(config.Config)}
-	f.AppendFilterRule(CreateNegativeRegexRule("hell +o", ""))
+	f := &Filter{c: new(config.Config)}
+	f.appendRule(CreateNegativeRegexRule("hell +o", ""))
 
 	assert.Equal(t, -1, LookupLine(f, []byte(`hell\ o,host=gopher01 x=y`)))
 	assert.Equal(t, -1, LookupLine(f, []byte(`bye,host=gopher01 x=hell\ \ o`)))
@@ -102,10 +102,10 @@ func TestNegativeRegexRuleUnescapes(t *testing.T) {
 }
 
 func TestMultipleRules(t *testing.T) {
-	f := &filter{c: new(config.Config)}
-	f.AppendFilterRule(CreateBasicRule("hello", ""))
-	f.AppendFilterRule(CreateRegexRule(".+ing", ""))
-	f.AppendFilterRule(CreateNegativeRegexRule("foo", ""))
+	f := &Filter{c: new(config.Config)}
+	f.appendRule(CreateBasicRule("hello", ""))
+	f.appendRule(CreateRegexRule(".+ing", ""))
+	f.appendRule(CreateNegativeRegexRule("foo", ""))
 
 	assert.Equal(t, 0, LookupLine(f, []byte("hello,host=gopher01")))
 	assert.Equal(t, 1, LookupLine(f, []byte("singing,host=gopher01")))
@@ -146,8 +146,8 @@ func TestMeasurementName(t *testing.T) {
 }
 
 func BenchmarkLineLookup(b *testing.B) {
-	f := &filter{c: new(config.Config)}
-	f.AppendFilterRule(CreateBasicRule("hello", ""))
+	f := &Filter{c: new(config.Config)}
+	f.appendRule(CreateBasicRule("hello", ""))
 	line := []byte("hello world=42")
 
 	b.ResetTimer()
@@ -157,8 +157,8 @@ func BenchmarkLineLookup(b *testing.B) {
 }
 
 func BenchmarkLineLookupRegex(b *testing.B) {
-	f := &filter{c: new(config.Config)}
-	f.AppendFilterRule(CreateRegexRule("hello|abcde", ""))
+	f := &Filter{c: new(config.Config)}
+	f.appendRule(CreateRegexRule("hello|abcde", ""))
 	line := []byte("hello world=42")
 
 	b.ResetTimer()
@@ -168,8 +168,8 @@ func BenchmarkLineLookupRegex(b *testing.B) {
 }
 
 func BenchmarkLineLookupNegativeRegex(b *testing.B) {
-	f := &filter{c: new(config.Config)}
-	f.AppendFilterRule(CreateNegativeRegexRule("hello|abcde", ""))
+	f := &Filter{c: new(config.Config)}
+	f.appendRule(CreateNegativeRegexRule("hello|abcde", ""))
 	line := []byte("hello world=42")
 
 	b.ResetTimer()
@@ -179,15 +179,15 @@ func BenchmarkLineLookupNegativeRegex(b *testing.B) {
 }
 
 func BenchmarkProcessBatch(b *testing.B) {
-	// Run the filter event handler with a fake NATS connection.
+	// Run the Filter event handler with a fake NATS connection.
 
-	f := &filter{
+	f := &Filter{
 		c:  new(config.Config),
 		nc: new(nothingConn),
 	}
-	f.AppendFilterRule(CreateBasicRule("hello", "hello-out"))
-	f.AppendFilterRule(CreateRegexRule("foo|bar", "foobar-out"))
-	f.SetupFilter()
+	f.appendRule(CreateBasicRule("hello", "hello-out"))
+	f.appendRule(CreateRegexRule("foo|bar", "foobar-out"))
+	f.initRuleBatches()
 
 	batch := []byte(`
 hello,host=gopher01 somefield=11,etc=false
@@ -203,7 +203,7 @@ pepsi host=gopher01,cheese=stilton
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		f.ProcessBatch(batch)
+		f.processBatch(batch)
 	}
 }
 
