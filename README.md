@@ -236,7 +236,7 @@ influxdb_address = "localhost"
 influxdb_port = 8086
 
 # The InfluxDB database name to write to. The default value is unlikely to be
-useful. Please set to an appropriate value.
+# useful. Please set to an appropriate value.
 influxdb_dbname = "influx-spout-junk"
 
 # How many messages to collect before writing to InfluxDB.
