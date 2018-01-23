@@ -222,7 +222,7 @@ func (w *Writer) getBatchWriteFunc(batch *batchBuffer) func([]byte) {
 		// filters.
 		for _, line := range bytes.SplitAfter(data, []byte("\n")) {
 			if w.filterLine(line) {
-				batchWrite(data)
+				batchWrite(line)
 			}
 		}
 	}
