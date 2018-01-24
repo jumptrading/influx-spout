@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -82,29 +83,26 @@ func TestBatching(t *testing.T) {
 	monitorCh, unsubMonitor := subMonitor(t)
 	defer unsubMonitor()
 
+	lines := []string{
+		"Midnight Song of the Seasons: Autumn Song\n",
+		"The autumn wind enters through the window,\n",
+		"The gauze curtain starts to flutter and fly.\n",
+		"I raise my head and look at the bright moon,\n",
+		"And send my feelings a thousand miles in its light.\n",
+	}
+
 	go func() {
 		conn := dialListener(t)
 		defer conn.Close()
 
-		_, err := conn.Write([]byte(`Midnight Song of the Seasons: Autumn Song`))
-		require.NoError(t, err)
-		_, err = conn.Write([]byte(`The autumn wind enters through the window,`))
-		require.NoError(t, err)
-		_, err = conn.Write([]byte(`The gauze curtain starts to flutter and fly.`))
-		require.NoError(t, err)
-		_, err = conn.Write([]byte(`I raise my head and look at the bright moon,`))
-		require.NoError(t, err)
-		_, err = conn.Write([]byte(`And send my feelings a thousand miles in its light.`))
-		require.NoError(t, err)
+		for _, line := range lines {
+			_, err := conn.Write([]byte(line))
+			require.NoError(t, err)
+		}
 	}()
 
-	// Should receive a single message.
-	select {
-	case <-listenerCh:
-		break
-	case <-time.After(spouttest.LongWait):
-		t.Fatal("failed to see message")
-	}
+	// Should receive a single batch.
+	assertBatch(t, listenerCh, strings.Join(lines, ""))
 	assertNoMore(t, listenerCh)
 
 	assertMonitor(t, monitorCh, 5, 1)
@@ -120,27 +118,29 @@ func TestWhatComesAroundGoesAround(t *testing.T) {
 	monitorCh, unsubMonitor := subMonitor(t)
 	defer unsubMonitor()
 
+	lines := []string{
+		"Beatrice. I am stuffed, cousin, I cannot smell.\n",
+		"Margaret. A maid, and stuffed! There's goodly catching of cold.\n",
+		"Hast thou not dragged Diana from her car, \n",
+		"And driven the hamadryad from the wood \n",
+		"To seek a shelter in some happier star?\n",
+	}
+
 	go func() {
 		conn := dialListener(t)
 		defer conn.Close()
 
-		// send 5 messages
-		_, err := conn.Write([]byte("Beatrice. I am stuffed, cousin, I cannot smell.\n"))
-		require.NoError(t, err)
-		_, err = conn.Write([]byte("Margaret. A maid, and stuffed! There's goodly catching of cold.\n"))
-		require.NoError(t, err)
-		_, err = conn.Write([]byte("Hast thou not dragged Diana from her car, \n"))
-		require.NoError(t, err)
-		_, err = conn.Write([]byte("And driven the hamadryad from the wood \n"))
-		require.NoError(t, err)
-		_, err = conn.Write([]byte("To seek a shelter in some happier star?\n"))
-		require.NoError(t, err)
+		for _, line := range lines {
+			_, err := conn.Write([]byte(line))
+			require.NoError(t, err)
+		}
 	}()
 
 	// check that 5 messages came through
 	for i := 0; i < 5; i++ {
-		<-listenerCh
+		assertBatch(t, listenerCh, lines[i])
 	}
+	assertNoMore(t, listenerCh)
 
 	assertMonitor(t, monitorCh, 5, 5)
 }
@@ -244,6 +244,15 @@ func subscribe(t require.TestingT, subject string) (chan string, func()) {
 	return msgCh, func() {
 		sub.Unsubscribe()
 		nc.Close()
+	}
+}
+
+func assertBatch(t *testing.T, ch chan string, expected string) {
+	select {
+	case received := <-ch:
+		assert.Equal(t, expected, received)
+	case <-time.After(spouttest.LongWait):
+		t.Fatal("failed to see message")
 	}
 }
 
