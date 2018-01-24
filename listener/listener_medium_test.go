@@ -43,6 +43,15 @@ const (
 
 var (
 	natsAddress = fmt.Sprintf("nats://127.0.0.1:%d", natsPort)
+
+	poetry = []string{
+		"Midnight Song of the Seasons: Autumn Song\n",
+		"The autumn wind enters through the window,\n",
+		"The gauze curtain starts to flutter and fly.\n",
+		"I raise my head and look at the bright moon,\n",
+		"And send my feelings a thousand miles in its light.\n",
+	}
+	numLines = len(poetry)
 )
 
 func init() {
@@ -74,7 +83,7 @@ func testConfig() *config.Config {
 
 func TestBatching(t *testing.T) {
 	conf := testConfig()
-	conf.BatchMessages = 5 // batch 5 messages into one packet
+	conf.BatchMessages = numLines // batch messages into one packet
 
 	listener := startListener(t, conf)
 	defer listener.Stop()
@@ -85,29 +94,21 @@ func TestBatching(t *testing.T) {
 	monitorCh, unsubMonitor := subMonitor(t)
 	defer unsubMonitor()
 
-	lines := []string{
-		"Midnight Song of the Seasons: Autumn Song\n",
-		"The autumn wind enters through the window,\n",
-		"The gauze curtain starts to flutter and fly.\n",
-		"I raise my head and look at the bright moon,\n",
-		"And send my feelings a thousand miles in its light.\n",
-	}
-
 	go func() {
 		conn := dialListener(t)
 		defer conn.Close()
 
-		for _, line := range lines {
+		for _, line := range poetry {
 			_, err := conn.Write([]byte(line))
 			require.NoError(t, err)
 		}
 	}()
 
 	// Should receive a single batch.
-	assertBatch(t, listenerCh, strings.Join(lines, ""))
+	assertBatch(t, listenerCh, strings.Join(poetry, ""))
 	assertNoMore(t, listenerCh)
 
-	assertMonitor(t, monitorCh, 5, 1)
+	assertMonitor(t, monitorCh, numLines, 1)
 }
 
 func TestWhatComesAroundGoesAround(t *testing.T) {
@@ -120,31 +121,22 @@ func TestWhatComesAroundGoesAround(t *testing.T) {
 	monitorCh, unsubMonitor := subMonitor(t)
 	defer unsubMonitor()
 
-	lines := []string{
-		"Beatrice. I am stuffed, cousin, I cannot smell.\n",
-		"Margaret. A maid, and stuffed! There's goodly catching of cold.\n",
-		"Hast thou not dragged Diana from her car, \n",
-		"And driven the hamadryad from the wood \n",
-		"To seek a shelter in some happier star?\n",
-	}
-
 	go func() {
 		conn := dialListener(t)
 		defer conn.Close()
 
-		for _, line := range lines {
+		for _, line := range poetry {
 			_, err := conn.Write([]byte(line))
 			require.NoError(t, err)
 		}
 	}()
 
-	// check that 5 messages came through
-	for i := 0; i < 5; i++ {
-		assertBatch(t, listenerCh, lines[i])
+	for i := 0; i < numLines; i++ {
+		assertBatch(t, listenerCh, poetry[i])
 	}
 	assertNoMore(t, listenerCh)
 
-	assertMonitor(t, monitorCh, 5, 5)
+	assertMonitor(t, monitorCh, numLines, numLines)
 }
 
 func TestBatchBufferFull(t *testing.T) {
@@ -200,29 +192,20 @@ func TestHTTPListener(t *testing.T) {
 	monitorCh, unsubMonitor := subMonitor(t)
 	defer unsubMonitor()
 
-	lines := []string{
-		"Beatrice. I am stuffed, cousin, I cannot smell.\n",
-		"Margaret. A maid, and stuffed! There's goodly catching of cold.\n",
-		"Hast thou not dragged Diana from her car, \n",
-		"And driven the hamadryad from the wood \n",
-		"To seek a shelter in some happier star?\n",
-	}
-
 	go func() {
 		url := fmt.Sprintf("http://localhost:%d/write", listenPort)
-		for _, line := range lines {
+		for _, line := range poetry {
 			_, err := http.Post(url, "text/plain", bytes.NewBufferString(line))
 			require.NoError(t, err)
 		}
 	}()
 
-	// check that 5 messages came through
-	for i := 0; i < 5; i++ {
-		assertBatch(t, listenerCh, lines[i])
+	for i := 0; i < numLines; i++ {
+		assertBatch(t, listenerCh, poetry[i])
 	}
 	assertNoMore(t, listenerCh)
 
-	assertMonitor(t, monitorCh, 5, 5)
+	assertMonitor(t, monitorCh, numLines, numLines)
 }
 
 func BenchmarkListenerLatency(b *testing.B) {
