@@ -17,8 +17,10 @@
 package listener
 
 import (
+	"bytes"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"strings"
 	"testing"
@@ -185,6 +187,42 @@ loop:
 	// reached, not the message count.
 	assert.True(t, writeCount < conf.BatchMessages,
 		fmt.Sprintf("writeCount = %d", writeCount))
+}
+
+func TestHTTPListener(t *testing.T) {
+	listener, err := StartHTTPListener(testConfig())
+	require.NoError(t, err)
+	defer listener.Stop()
+
+	listenerCh, unsubListener := subListener(t)
+	defer unsubListener()
+
+	monitorCh, unsubMonitor := subMonitor(t)
+	defer unsubMonitor()
+
+	lines := []string{
+		"Beatrice. I am stuffed, cousin, I cannot smell.\n",
+		"Margaret. A maid, and stuffed! There's goodly catching of cold.\n",
+		"Hast thou not dragged Diana from her car, \n",
+		"And driven the hamadryad from the wood \n",
+		"To seek a shelter in some happier star?\n",
+	}
+
+	go func() {
+		url := fmt.Sprintf("http://localhost:%d/write", listenPort)
+		for _, line := range lines {
+			_, err := http.Post(url, "text/plain", bytes.NewBufferString(line))
+			require.NoError(t, err)
+		}
+	}()
+
+	// check that 5 messages came through
+	for i := 0; i < 5; i++ {
+		assertBatch(t, listenerCh, lines[i])
+	}
+	assertNoMore(t, listenerCh)
+
+	assertMonitor(t, monitorCh, 5, 5)
 }
 
 func BenchmarkListenerLatency(b *testing.B) {

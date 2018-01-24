@@ -18,6 +18,7 @@ package listener
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -185,13 +186,20 @@ func (l *Listener) listenUDP(sc *net.UDPConn) {
 func (l *Listener) setupHTTP() *http.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/write", func(w http.ResponseWriter, r *http.Request) {
-		sz, err := r.Body.Read(l.buf[l.batchSize:])
-		if err != nil {
-			l.stats.Inc(readErrors)
+		for {
+			sz, err := r.Body.Read(l.buf[l.batchSize:])
+
+			// Attempt to process the read even on error has Read may
+			// still have read some bytes successfully.
+			l.processRead(sz)
+
+			if err != nil {
+				if err != io.EOF {
+					l.stats.Inc(readErrors)
+				}
+				break
+			}
 		}
-		// Attempt to process the read even on error has Read may
-		// still have read some bytes successfully.
-		l.processRead(sz)
 	})
 	return &http.Server{
 		Addr:    fmt.Sprintf(":%d", l.c.Port),
@@ -203,9 +211,11 @@ func (l *Listener) listenHTTP(server *http.Server) {
 	defer l.wg.Done()
 
 	go func() {
-		if err := server.ListenAndServe(); err != nil {
-			log.Fatal(err)
+		err := server.ListenAndServe()
+		if err == nil || err == http.ErrServerClosed {
+			return
 		}
+		log.Fatal(err)
 	}()
 
 	// Close the server if the stop channel is closed.
