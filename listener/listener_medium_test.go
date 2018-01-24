@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"sync"
 	"testing"
 	"time"
 
@@ -33,24 +32,20 @@ import (
 )
 
 const (
-	natsPort    = 44444
-	listenPort  = 44445
-	natsSubject = "listener-test"
+	natsPort           = 44444
+	listenPort         = 44445
+	natsSubject        = "listener-test"
+	natsMonitorSubject = natsSubject + "-monitor"
 )
 
 var (
 	natsAddress = fmt.Sprintf("nats://127.0.0.1:%d", natsPort)
 )
 
-func testConfig() *config.Config {
-	return &config.Config{
-		Mode:               "listener",
-		NATSAddress:        natsAddress,
-		NATSSubject:        []string{natsSubject},
-		NATSSubjectMonitor: natsSubject + "-monitor",
-		BatchMessages:      1,
-		Port:               listenPort,
-	}
+func init() {
+	// Make the statistician report more often during tests (default
+	// is 3s). This makes the tests run faster.
+	statsInterval = 500 * time.Millisecond
 }
 
 func TestMain(m *testing.M) {
@@ -63,14 +58,29 @@ func runMain(m *testing.M) int {
 	return m.Run()
 }
 
+func testConfig() *config.Config {
+	return &config.Config{
+		Mode:               "listener",
+		NATSAddress:        natsAddress,
+		NATSSubject:        []string{natsSubject},
+		NATSSubjectMonitor: natsMonitorSubject,
+		BatchMessages:      1,
+		Port:               listenPort,
+	}
+}
+
 func TestBatching(t *testing.T) {
 	conf := testConfig()
 	conf.BatchMessages = 5 // batch 5 messages into one packet
-	stop := startTestListener(t, conf)
-	defer stop()
 
-	newMsg, unsubscribe := subscribe(t)
-	defer unsubscribe()
+	listener := startListener(t, conf)
+	defer listener.Stop()
+
+	listenerCh, unsubListener := subListener(t)
+	defer unsubListener()
+
+	monitorCh, unsubMonitor := subMonitor(t)
+	defer unsubMonitor()
 
 	go func() {
 		conn := dialListener(t)
@@ -88,28 +98,27 @@ func TestBatching(t *testing.T) {
 		require.NoError(t, err)
 	}()
 
-	// we should receive a message
+	// Should receive a single message.
 	select {
-	case <-newMsg:
+	case <-listenerCh:
 		break
 	case <-time.After(spouttest.LongWait):
 		t.Fatal("failed to see message")
 	}
+	assertNoMore(t, listenerCh)
 
-	// and, we should only receive one!
-	select {
-	case <-newMsg:
-		t.Fatal("unexpectedly saw message")
-	case <-time.After(spouttest.ShortWait):
-	}
+	assertMonitor(t, monitorCh, 5, 1)
 }
 
 func TestWhatComesAroundGoesAround(t *testing.T) {
-	stop := startTestListener(t, testConfig())
-	defer stop()
+	listener := startListener(t, testConfig())
+	defer listener.Stop()
 
-	newMsg, unsubscribe := subscribe(t)
-	defer unsubscribe()
+	listenerCh, unsubListener := subListener(t)
+	defer unsubListener()
+
+	monitorCh, unsubMonitor := subMonitor(t)
+	defer unsubMonitor()
 
 	go func() {
 		conn := dialListener(t)
@@ -130,8 +139,10 @@ func TestWhatComesAroundGoesAround(t *testing.T) {
 
 	// check that 5 messages came through
 	for i := 0; i < 5; i++ {
-		<-newMsg
+		<-listenerCh
 	}
+
+	assertMonitor(t, monitorCh, 5, 5)
 }
 
 func TestBatchBufferFull(t *testing.T) {
@@ -139,11 +150,12 @@ func TestBatchBufferFull(t *testing.T) {
 	// Set batch size high so that the batch will only send due to the
 	// batch buffer filling up.
 	conf.BatchMessages = 99999
-	stop := startTestListener(t, conf)
-	defer stop()
 
-	newMsg, unsubscribe := subscribe(t)
-	defer unsubscribe()
+	listener := startListener(t, conf)
+	defer listener.Stop()
+
+	listenerCh, unsubListener := subListener(t)
+	defer unsubListener()
 
 	// Keep sending to the listener until it emits a batch.
 	conn := dialListener(t)
@@ -158,7 +170,7 @@ loop:
 		writeCount++
 
 		select {
-		case <-newMsg:
+		case <-listenerCh:
 			break loop
 		case <-time.After(time.Microsecond):
 			// Send again
@@ -167,64 +179,19 @@ loop:
 		}
 	}
 
+	assertNoMore(t, listenerCh)
+
 	// Ensure that batch was output because batch size limit was
 	// reached, not the message count.
 	assert.True(t, writeCount < conf.BatchMessages,
 		fmt.Sprintf("writeCount = %d", writeCount))
-
-	// and, we should only receive one!
-	select {
-	case <-newMsg:
-		t.Fatal("message unexpectedly seen")
-	case <-time.After(spouttest.ShortWait):
-		return
-	}
-}
-
-func TestStatistician(t *testing.T) {
-	// Create a listener with some stats already set up.
-	conf := testConfig()
-	listener := newListener(conf)
-	listener.stats.Inc(linesReceived)
-	listener.stats.Inc(linesReceived)
-	listener.stats.Inc(linesReceived)
-	listener.stats.Inc(batchesSent)
-	listener.stats.Inc(batchesSent)
-	listener.stats.Inc(readErrors)
-
-	// Subscribe to the statistician output.
-	nc, err := nats.Connect(natsAddress)
-	require.NoError(t, err)
-
-	statsCh := make(chan string)
-	sub, err := nc.Subscribe(conf.NATSSubjectMonitor, func(msg *nats.Msg) {
-		statsCh <- string(msg.Data)
-	})
-	require.NoError(t, err)
-	require.NoError(t, nc.Flush())
-
-	// Start statistician
-	stop := make(chan struct{})
-	go listener.startStatistician(stop)
-
-	// Look for expected stats
-	select {
-	case received := <-statsCh:
-		assert.Equal(t, "spout_stat_listener received=3,sent=2,read_errors=1\n", received)
-	case <-time.After(spouttest.LongWait):
-		t.Fatal("no message seen")
-	}
-
-	// Stop the statistician
-	sub.Unsubscribe()
-	close(stop)
 }
 
 func BenchmarkListenerLatency(b *testing.B) {
-	stop := startTestListener(b, testConfig())
-	defer stop()
+	listener := startListener(b, testConfig())
+	defer listener.Stop()
 
-	newMsg, unsubscribe := subscribe(b)
+	listenerCh, unsubscribe := subListener(b)
 	defer unsubscribe()
 
 	conn := dialListener(b)
@@ -233,42 +200,15 @@ func BenchmarkListenerLatency(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		conn.Write([]byte("git - the stupid content tracker"))
-		<-newMsg
+		<-listenerCh
 	}
+	b.StopTimer()
 }
 
-// startTestListener starts a listener that can be stopped. When the
-// returned value is called the listener will be stoppped.
-func startTestListener(t require.TestingT, conf *config.Config) func() {
-	listener := newListener(conf)
-
-	stop := make(chan struct{})
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for {
-			select {
-			case <-stop:
-				return
-			default:
-			}
-			listener.readUDP()
-		}
-	}()
-
-	return func() {
-		close(stop)
-
-		// The listener needs to read something in order to see that
-		// the stop channel was closed.
-		conn := dialListener(t)
-		conn.Write([]byte("die"))
-		conn.Close()
-
-		wg.Wait()
-		listener.close()
-	}
+func startListener(t require.TestingT, conf *config.Config) *Listener {
+	listener, err := StartListener(conf)
+	require.NoError(t, err)
+	return listener
 }
 
 // dialListener creates a UDP connection to the listener's inbound port.
@@ -282,19 +222,53 @@ func dialListener(t require.TestingT) *net.UDPConn {
 	return conn
 }
 
-// subscribe sets up a subject callback for natsSubject. A channel is
-// returned which reports when messages are received. A function to
-// cancel the subcription is also returned.
-func subscribe(t require.TestingT) (chan struct{}, func() error) {
+func subListener(t require.TestingT) (chan string, func()) {
+	return subscribe(t, natsSubject)
+}
+
+func subMonitor(t require.TestingT) (chan string, func()) {
+	return subscribe(t, natsMonitorSubject)
+}
+
+func subscribe(t require.TestingT, subject string) (chan string, func()) {
 	nc, err := nats.Connect(natsAddress)
 	require.NoError(t, err)
 
-	msgCh := make(chan struct{}, 10)
-	sub, err := nc.Subscribe(natsSubject, func(msg *nats.Msg) {
-		msgCh <- struct{}{}
+	msgCh := make(chan string, 10)
+	sub, err := nc.Subscribe(subject, func(msg *nats.Msg) {
+		msgCh <- string(msg.Data)
 	})
 	require.NoError(t, err)
 	require.NoError(t, nc.Flush())
 
-	return msgCh, sub.Unsubscribe
+	return msgCh, func() {
+		sub.Unsubscribe()
+		nc.Close()
+	}
+}
+
+func assertNoMore(t *testing.T, ch chan string) {
+	select {
+	case <-ch:
+		t.Fatal("unexpectedly saw message")
+	case <-time.After(spouttest.ShortWait):
+	}
+}
+
+func assertMonitor(t *testing.T, monitorCh chan string, received, sent int) {
+	expected := fmt.Sprintf(
+		"spout_stat_listener received=%d,sent=%d,read_errors=0\n",
+		received, sent)
+	var line string
+	timeout := time.After(spouttest.LongWait)
+	for {
+		select {
+		case line = <-monitorCh:
+			if line == expected {
+				return
+			}
+		case <-timeout:
+			t.Fatalf("timed out waiting for expected stats. last received: %v", line)
+		}
+	}
 }

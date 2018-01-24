@@ -69,9 +69,13 @@ func main() {
 
 	switch c.Mode {
 	case "listener":
-		listener.StartListener(c)
+		if _, err := listener.StartListener(c); err != nil {
+			log.Fatalf("failed to start listener: %v", err)
+		}
 	case "listener_http":
-		listener.StartHTTPListener(c)
+		if _, err := listener.StartHTTPListener(c); err != nil {
+			log.Fatalf("failed to start HTTP listener: %v", err)
+		}
 	case "filter":
 		if _, err := filter.StartFilter(c); err != nil {
 			log.Fatalf("failed to start writer: %v", err)
