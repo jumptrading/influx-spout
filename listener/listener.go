@@ -128,6 +128,12 @@ func newHTTPListener(c *config.Config) *listener {
 		l.processRead(sz)
 	})
 
+	ServerAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf(":%d", c.Port))
+	if err != nil {
+		log.Fatalf("Error: failed to create HTTP socket: %v\n", err)
+	}
+	log.Printf("Listener bound to HTTP socket: %v\n", ServerAddr.String())
+
 	l.setupBuffers()
 
 	l.notifyState("ready")
