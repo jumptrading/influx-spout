@@ -53,6 +53,13 @@ All the influx-spout components may be run on a single host or may be
 spread across multiple hosts depending on scaling and operational
 requirements.
 
+
+## Building
+
+Ensure the `GOPATH` environment is properly exported and simply run
+`make` to build influx-spout. We recommend building with golang 1.9+.
+
+
 ## Configuration
 
 influx-spout is a single binary which will run as any of the component
@@ -337,3 +344,67 @@ BenchmarkLineLookup-4     75.5          88.4          +17.09%
 3 benchmarks compared.
 1 performance regressions detected.
 ```
+
+
+## Docker
+
+To ease development or deployment to fancy infrastructure such as
+[kubernetes](https://kubernetes.io/), a [Dockerfile](Dockerfile)
+is provided.
+
+
+### Building a docker image
+
+The [Makefile](Makefile) contains the magic to build the image easily:
+
+    $ make docker
+
+Check the version:
+
+    $ docker images | grep influx-spout
+    influx-spout                                      0.1.e6514f8          4af1ff8077d5        30 seconds ago      11.62 MB
+
+To build images for a custom docker registry pass the `DOCKER_NAME` variable with the full name sans the tag:
+
+    $ make docker DOCKER_NAME=quay.io/foo/influx-spout
+    ... docker build output ...
+
+    $ docker images | grep quay\.io
+    quay.io/foo/influx-spout                          0.1.9adf7e6          94078aaba5f1        24 minutes ago      11.62 MB
+
+
+### Setting up a test influx-spout in docker
+
+This requires running a nats container and an influx-spout container with
+a shared network namespace. First things first, setup nats and expose
+the ports for either of the example [http](example-http-listener.conf)
+or [udp](example-udp-listener.conf) listener example configurations:
+
+    $ docker run -p 11001:11001 -p 10001:10001 --rm -it --name nats-main nats
+    [1] 2018/01/24 18:52:33.326930 [INF] Starting nats-server version 1.0.4
+    [1] 2018/01/24 18:52:33.327212 [INF] Starting http monitor on 0.0.0.0:8222
+    [1] 2018/01/24 18:52:33.327325 [INF] Listening for client connections on 0.0.0.0:4222
+    [1] 2018/01/24 18:52:33.327391 [INF] Server is ready
+    [1] 2018/01/24 18:52:33.328545 [INF] Listening for route connections on 0.0.0.0:6222
+
+Next, run the influx-spout container, making sure to use the right
+network namespace. It defaults to the http listener if no arguments are provided.
+
+    $ docker run --network=container:nats-main -it influx-spout:0.1.e6514f8
+    2018/01/24 19:23:03 Running /bin/influx-spout version e6514f8, built on 2018-01-24, go1.9.2
+    2018/01/24 19:23:03 Listener bound to HTTP socket: :11001
+
+An example UDP listener can be setup by specifying the full config path:
+
+    $ docker run --network=container:nats-main -it influx-spout:0.1.e6514f8 /etc/influx-spout/udp-listener.toml
+    2018/01/24 19:24:02 Running /bin/influx-spout version e6514f8, built on 2018-01-24, go1.9.2
+    2018/01/24 19:24:02 Listener bound to UDP socket: 0.0.0.0:10001
+
+Since the nats-main container is exporting both ports, they're ready to
+accept traffic: The HTTP listener is easiest to test:
+
+    $ curl -i -XPOST 'http://localhost:11001/write?db=mydb' --data-binary 'cpu_load_short,host=server01,region=us-west value=0.64 1434055562000000000'
+    HTTP/1.1 200 OK
+    Date: Wed, 24 Jan 2018 19:24:53 GMT
+    Content-Length: 0
+    Content-Type: text/plain; charset=utf-8
