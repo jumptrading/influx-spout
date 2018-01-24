@@ -45,6 +45,7 @@ var (
 func testConfig() *config.Config {
 	return &config.Config{
 		Mode:               "listener",
+		Name:               "testlistener",
 		NATSAddress:        natsAddress,
 		NATSSubject:        []string{natsSubject},
 		NATSSubjectMonitor: natsSubject + "-monitor",
@@ -210,7 +211,7 @@ func TestStatistician(t *testing.T) {
 	// Look for expected stats
 	select {
 	case received := <-statsCh:
-		assert.Equal(t, "spout_stat_listener received=3,sent=2,read_errors=1\n", received)
+		assert.Equal(t, "spout_stat_listener,listener=testlistener received=3,sent=2,read_errors=1\n", received)
 	case <-time.After(spouttest.LongWait):
 		t.Fatal("no message seen")
 	}
