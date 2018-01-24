@@ -68,12 +68,14 @@ func main() {
 	}
 
 	switch c.Mode {
-	case "filter":
-		filter.StartFilter(c)
 	case "listener":
 		listener.StartListener(c)
 	case "listener_http":
 		listener.StartHTTPListener(c)
+	case "filter":
+		if _, err := filter.StartFilter(c); err != nil {
+			log.Fatalf("failed to start writer: %v", err)
+		}
 	case "writer":
 		if c.WriterWorkers == 0 {
 			// this seems to be an okay default from our testing experience:

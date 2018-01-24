@@ -55,7 +55,7 @@ type Writer struct {
 	batchMaxBytes int
 	batchMaxAge   time.Duration
 	nc            *nats.Conn
-	rules         []filter.FilterRule
+	rules         []filter.Rule
 	stats         *stats.Stats
 	wg            sync.WaitGroup
 	stop          chan struct{}
@@ -160,7 +160,7 @@ func (w *Writer) Stop() {
 }
 
 // GetRules implements filter.Filtering.
-func (w *Writer) GetRules() []filter.FilterRule {
+func (w *Writer) GetRules() []filter.Rule {
 	return w.rules
 }
 
