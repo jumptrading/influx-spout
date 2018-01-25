@@ -253,14 +253,17 @@ func (l *Listener) startStatistician() {
 	defer l.wg.Done()
 
 	statsLine := lineformatter.New(
-		"spout_stat_listener", nil,
+		"spout_stat_listener",
+		[]string{"listener"},
 		"received",
 		"sent",
 		"read_errors",
 	)
+	tagVals := []string{l.c.Name}
 	for {
 		stats := l.stats.Clone() // Sample counts
-		l.nc.Publish(l.c.NATSSubjectMonitor, statsLine.Format(nil,
+		l.nc.Publish(l.c.NATSSubjectMonitor, statsLine.Format(
+			tagVals,
 			stats.Get(linesReceived),
 			stats.Get(batchesSent),
 			stats.Get(readErrors),
