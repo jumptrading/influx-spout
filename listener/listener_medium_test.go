@@ -73,6 +73,7 @@ func runMain(m *testing.M) int {
 func testConfig() *config.Config {
 	return &config.Config{
 		Mode:               "listener",
+		Name:               "testlistener",
 		NATSAddress:        natsAddress,
 		NATSSubject:        []string{natsSubject},
 		NATSSubjectMonitor: natsMonitorSubject,
@@ -287,7 +288,7 @@ func assertNoMore(t *testing.T, ch chan string) {
 
 func assertMonitor(t *testing.T, monitorCh chan string, received, sent int) {
 	expected := fmt.Sprintf(
-		"spout_stat_listener received=%d,sent=%d,read_errors=0\n",
+		"spout_stat_listener,listener=testlistener received=%d,sent=%d,read_errors=0\n",
 		received, sent)
 	var line string
 	timeout := time.After(spouttest.LongWait)
