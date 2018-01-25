@@ -69,24 +69,23 @@ func main() {
 
 	switch c.Mode {
 	case "listener":
-		listener.StartListener(c)
+		_, err = listener.StartListener(c)
 	case "listener_http":
-		listener.StartHTTPListener(c)
+		_, err = listener.StartHTTPListener(c)
 	case "filter":
-		if _, err := filter.StartFilter(c); err != nil {
-			log.Fatalf("failed to start writer: %v", err)
-		}
+		_, err = filter.StartFilter(c)
 	case "writer":
 		if c.WriterWorkers == 0 {
 			// this seems to be an okay default from our testing experience:
 			// aim to have on average two workers per OS-thread running.
 			c.WriterWorkers = runtime.GOMAXPROCS(-1) * 2
 		}
-		if _, err := writer.StartWriter(c); err != nil {
-			log.Fatalf("failed to start writer: %v", err)
-		}
+		_, err = writer.StartWriter(c)
 	default:
 		log.Fatalf("unknown mode of operation: [%s]", c.Mode)
+	}
+	if err != nil {
+		log.Fatalf("failed to start %s: %v", c.Mode, err)
 	}
 
 	runtime.Goexit()

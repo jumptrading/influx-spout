@@ -18,10 +18,12 @@ package listener
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/nats-io/go-nats"
@@ -40,138 +42,98 @@ const (
 
 var allStats = []string{linesReceived, batchesSent, readErrors}
 
+var statsInterval = 3 * time.Second
+
 // StartListener initialises a listener, starts its statistician
 // goroutine and runs it's main loop. It never returns.
 //
 // The listener reads incoming UDP packets, batches them up and send
 // batches onwards to a NATS subject.
-func StartListener(c *config.Config) {
-	listener := newListener(c)
-	go listener.startStatistician(nil)
-	for {
-		listener.readUDP()
+func StartListener(c *config.Config) (*Listener, error) {
+	listener, err := newListener(c)
+	if err != nil {
+		return nil, err
 	}
+	sc, err := listener.setupUDP()
+	if err != nil {
+		return nil, err
+	}
+
+	listener.wg.Add(2)
+	go listener.startStatistician()
+	go listener.listenUDP(sc)
+	listener.notifyState("ready")
+
+	return listener, nil
 }
 
 // StartHTTPListener initialises listener configured to accept lines
 // from HTTP request bodies instead of via UDP. It starts the listener
 // and its statistician and never returns.
-func StartHTTPListener(c *config.Config) {
-	listener := newHTTPListener(c)
-	go listener.startStatistician(nil)
+func StartHTTPListener(c *config.Config) (*Listener, error) {
+	listener, err := newListener(c)
+	if err != nil {
+		return nil, err
+	}
+	server := listener.setupHTTP()
 
-	err := http.ListenAndServe(fmt.Sprintf(":%d", c.Port), nil)
-	log.Fatal(err)
+	listener.wg.Add(2)
+	go listener.startStatistician()
+	go listener.listenHTTP(server)
+	listener.notifyState("ready")
+
+	return listener, nil
 }
 
-type listener struct {
+type Listener struct {
 	c     *config.Config
 	nc    *nats.Conn
-	sc    *net.UDPConn
 	stats *stats.Stats
 
+	bufSize       int
 	buf           []byte
 	batchSize     int
 	sendThreshold int
+
+	wg   sync.WaitGroup
+	stop chan struct{}
 }
 
-// newListener creates and initialises a listener, setting up its UDP
-// listener port and connection to NATS.
-func newListener(c *config.Config) *listener {
-	var err error
-
-	l := &listener{
-		c:     c,
-		stats: stats.New(allStats...),
-	}
-
-	l.connectNATS()
-
-	bufSize := l.setupBuffers()
-
-	// setup the UDP listener socket
-	ServerAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf(":%d", c.Port))
-	if err != nil {
-		log.Fatalf("Error: failed to create UDP socket: %v\n", err)
-	}
-
-	l.sc, err = net.ListenUDP("udp", ServerAddr)
-	if err != nil {
-		log.Fatalf("Error: failed to bind UDP socket: %v\n", err)
-	}
-	log.Printf("Listener bound to UDP socket: %v\n", l.sc.LocalAddr().String())
-
-	if err = l.sc.SetReadBuffer(bufSize); err != nil {
-		log.Fatal(err)
-	}
-
-	l.notifyState("ready")
-
-	return l
+func (l *Listener) Stop() {
+	close(l.stop)
+	l.wg.Wait()
+	l.nc.Close()
 }
 
-func newHTTPListener(c *config.Config) *listener {
-	l := &listener{
+func newListener(c *config.Config) (*Listener, error) {
+	l := &Listener{
 		c:     c,
+		stop:  make(chan struct{}),
 		stats: stats.New(allStats...),
+
+		// create a buffer to read incoming UDP packets into,
+		// make it at least a page to get optimal performance
+		bufSize: 32 * os.Getpagesize(),
 	}
-
-	l.connectNATS()
-
-	http.HandleFunc("/write", func(w http.ResponseWriter, r *http.Request) {
-		sz, err := r.Body.Read(l.buf[l.batchSize:])
-		if err != nil {
-			l.stats.Inc(readErrors)
-		}
-		// Attempt to process the read even on error has Read may
-		// still have read some bytes successfully.
-		l.processRead(sz)
-	})
-
-	ServerAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf(":%d", c.Port))
-	if err != nil {
-		log.Fatalf("Error: failed to create HTTP socket: %v\n", err)
+	if err := l.connectNATS(); err != nil {
+		return nil, err
 	}
-	log.Printf("Listener bound to HTTP socket: %v\n", ServerAddr.String())
-
 	l.setupBuffers()
-
-	l.notifyState("ready")
-
-	return l
+	return l, nil
 }
 
-func (l *listener) setupBuffers() int {
-	// create a buffer to read incoming UDP packets into,
-	// make it at least a page to get optimal performance
-	bufSize := 32 * os.Getpagesize()
-
-	l.buf = make([]byte, bufSize)
-	l.sendThreshold = bufSize - 2048
-
-	return bufSize
+func (l *Listener) setupBuffers() {
+	l.buf = make([]byte, l.bufSize)
+	l.sendThreshold = l.bufSize - 2048
 }
 
-var notifyLine = lineformatter.New("spout_mon", nil, "type", "state", "pid")
-
-func (l *listener) notifyState(state string) {
-	line := notifyLine.Format(nil, "listener", state, os.Getpid())
-	if err := l.nc.Publish(l.c.NATSSubjectMonitor, line); err != nil {
-		l.handleNatsError(err)
-		return
-	}
-	if err := l.nc.Flush(); err != nil {
-		l.handleNatsError(err)
-	}
-}
-
-func (l *listener) connectNATS() {
+func (l *Listener) connectNATS() error {
 	var err error
 
 	// connect to the NATS instance running on this machine
 	l.nc, err = nats.Connect(l.c.NATSAddress)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	// If we disconnect, we want to try reconnecting as many times as
@@ -179,19 +141,89 @@ func (l *listener) connectNATS() {
 	l.nc.Opts.MaxReconnect = -1
 
 	l.notifyState("boot")
+
+	return nil
 }
 
-func (l *listener) readUDP() {
-	sz, _, err := l.sc.ReadFromUDP(l.buf[l.batchSize:])
+func (l *Listener) setupUDP() (*net.UDPConn, error) {
+	serverAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf(":%d", l.c.Port))
 	if err != nil {
-		l.stats.Inc(readErrors)
+		return nil, fmt.Errorf("failed to create UDP socket: %v", err)
 	}
-	// Attempt to process the read even on error has Read may
-	// still have read some bytes successfully.
-	l.processRead(sz)
+	sc, err := net.ListenUDP("udp", serverAddr)
+	if err != nil {
+		return nil, err
+	}
+	if err := sc.SetReadBuffer(l.bufSize); err != nil {
+		return nil, err
+	}
+	log.Printf("Listener bound to UDP socket: %v\n", sc.LocalAddr().String())
+	return sc, nil
 }
 
-func (l *listener) processRead(sz int) {
+func (l *Listener) listenUDP(sc *net.UDPConn) {
+	defer l.wg.Done()
+	defer sc.Close()
+	for {
+		sc.SetReadDeadline(time.Now().Add(time.Second))
+		sz, _, err := sc.ReadFromUDP(l.buf[l.batchSize:])
+		if err != nil && !isTimeout(err) {
+			l.stats.Inc(readErrors)
+		}
+
+		// Attempt to process the read even on error as Read may
+		// still have read some bytes successfully.
+		l.processRead(sz)
+
+		select {
+		case <-l.stop:
+			return
+		default:
+		}
+	}
+}
+
+func (l *Listener) setupHTTP() *http.Server {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/write", func(w http.ResponseWriter, r *http.Request) {
+		for {
+			sz, err := r.Body.Read(l.buf[l.batchSize:])
+
+			// Attempt to process the read even on error has Read may
+			// still have read some bytes successfully.
+			l.processRead(sz)
+
+			if err != nil {
+				if err != io.EOF {
+					l.stats.Inc(readErrors)
+				}
+				break
+			}
+		}
+	})
+	return &http.Server{
+		Addr:    fmt.Sprintf(":%d", l.c.Port),
+		Handler: mux,
+	}
+}
+
+func (l *Listener) listenHTTP(server *http.Server) {
+	defer l.wg.Done()
+
+	go func() {
+		err := server.ListenAndServe()
+		if err == nil || err == http.ErrServerClosed {
+			return
+		}
+		log.Fatal(err)
+	}()
+
+	// Close the server if the stop channel is closed.
+	<-l.stop
+	server.Close()
+}
+
+func (l *Listener) processRead(sz int) {
 	if sz < 1 {
 		return // Empty read
 	}
@@ -213,11 +245,13 @@ func (l *listener) processRead(sz int) {
 	}
 }
 
-func (l *listener) handleNatsError(err error) {
+func (l *Listener) handleNatsError(err error) {
 	log.Printf("NATS Error: %v\n", err)
 }
 
-func (l *listener) startStatistician(stop <-chan struct{}) {
+func (l *Listener) startStatistician() {
+	defer l.wg.Done()
+
 	statsLine := lineformatter.New(
 		"spout_stat_listener",
 		[]string{"listener"},
@@ -235,14 +269,33 @@ func (l *listener) startStatistician(stop <-chan struct{}) {
 			stats.Get(readErrors),
 		))
 		select {
-		case <-time.After(3 * time.Second):
-		case <-stop:
+		case <-time.After(statsInterval):
+		case <-l.stop:
 			return
 		}
 	}
 }
 
-func (l *listener) close() {
-	l.nc.Close()
-	l.sc.Close()
+var notifyLine = lineformatter.New("spout_mon", nil, "type", "state", "pid")
+
+func (l *Listener) notifyState(state string) {
+	line := notifyLine.Format(nil, "listener", state, os.Getpid())
+	if err := l.nc.Publish(l.c.NATSSubjectMonitor, line); err != nil {
+		l.handleNatsError(err)
+		return
+	}
+	if err := l.nc.Flush(); err != nil {
+		l.handleNatsError(err)
+	}
+}
+
+type timeouter interface {
+	Timeout() bool
+}
+
+func isTimeout(err error) bool {
+	if timeoutErr, ok := err.(timeouter); ok {
+		return timeoutErr.Timeout()
+	}
+	return false
 }

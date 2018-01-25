@@ -17,10 +17,12 @@
 package listener
 
 import (
+	"bytes"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
-	"sync"
+	"strings"
 	"testing"
 	"time"
 
@@ -33,25 +35,29 @@ import (
 )
 
 const (
-	natsPort    = 44444
-	listenPort  = 44445
-	natsSubject = "listener-test"
+	natsPort           = 44444
+	listenPort         = 44445
+	natsSubject        = "listener-test"
+	natsMonitorSubject = natsSubject + "-monitor"
 )
 
 var (
 	natsAddress = fmt.Sprintf("nats://127.0.0.1:%d", natsPort)
+
+	poetry = []string{
+		"Midnight Song of the Seasons: Autumn Song\n",
+		"The autumn wind enters through the window,\n",
+		"The gauze curtain starts to flutter and fly.\n",
+		"I raise my head and look at the bright moon,\n",
+		"And send my feelings a thousand miles in its light.\n",
+	}
+	numLines = len(poetry)
 )
 
-func testConfig() *config.Config {
-	return &config.Config{
-		Mode:               "listener",
-		Name:               "testlistener",
-		NATSAddress:        natsAddress,
-		NATSSubject:        []string{natsSubject},
-		NATSSubjectMonitor: natsSubject + "-monitor",
-		BatchMessages:      1,
-		Port:               listenPort,
-	}
+func init() {
+	// Make the statistician report more often during tests (default
+	// is 3s). This makes the tests run faster.
+	statsInterval = 500 * time.Millisecond
 }
 
 func TestMain(m *testing.M) {
@@ -64,75 +70,74 @@ func runMain(m *testing.M) int {
 	return m.Run()
 }
 
-func TestBatching(t *testing.T) {
-	conf := testConfig()
-	conf.BatchMessages = 5 // batch 5 messages into one packet
-	stop := startTestListener(t, conf)
-	defer stop()
-
-	newMsg, unsubscribe := subscribe(t)
-	defer unsubscribe()
-
-	go func() {
-		conn := dialListener(t)
-		defer conn.Close()
-
-		_, err := conn.Write([]byte(`Midnight Song of the Seasons: Autumn Song`))
-		require.NoError(t, err)
-		_, err = conn.Write([]byte(`The autumn wind enters through the window,`))
-		require.NoError(t, err)
-		_, err = conn.Write([]byte(`The gauze curtain starts to flutter and fly.`))
-		require.NoError(t, err)
-		_, err = conn.Write([]byte(`I raise my head and look at the bright moon,`))
-		require.NoError(t, err)
-		_, err = conn.Write([]byte(`And send my feelings a thousand miles in its light.`))
-		require.NoError(t, err)
-	}()
-
-	// we should receive a message
-	select {
-	case <-newMsg:
-		break
-	case <-time.After(spouttest.LongWait):
-		t.Fatal("failed to see message")
-	}
-
-	// and, we should only receive one!
-	select {
-	case <-newMsg:
-		t.Fatal("unexpectedly saw message")
-	case <-time.After(spouttest.ShortWait):
+func testConfig() *config.Config {
+	return &config.Config{
+		Mode:               "listener",
+		Name:               "testlistener",
+		NATSAddress:        natsAddress,
+		NATSSubject:        []string{natsSubject},
+		NATSSubjectMonitor: natsMonitorSubject,
+		BatchMessages:      1,
+		Port:               listenPort,
 	}
 }
 
-func TestWhatComesAroundGoesAround(t *testing.T) {
-	stop := startTestListener(t, testConfig())
-	defer stop()
+func TestBatching(t *testing.T) {
+	conf := testConfig()
+	conf.BatchMessages = numLines // batch messages into one packet
 
-	newMsg, unsubscribe := subscribe(t)
-	defer unsubscribe()
+	listener := startListener(t, conf)
+	defer listener.Stop()
+
+	listenerCh, unsubListener := subListener(t)
+	defer unsubListener()
+
+	monitorCh, unsubMonitor := subMonitor(t)
+	defer unsubMonitor()
 
 	go func() {
 		conn := dialListener(t)
 		defer conn.Close()
 
-		// send 5 messages
-		_, err := conn.Write([]byte("Beatrice. I am stuffed, cousin, I cannot smell.\n"))
-		require.NoError(t, err)
-		_, err = conn.Write([]byte("Margaret. A maid, and stuffed! There's goodly catching of cold.\n"))
-		require.NoError(t, err)
-		_, err = conn.Write([]byte("Hast thou not dragged Diana from her car, \n"))
-		require.NoError(t, err)
-		_, err = conn.Write([]byte("And driven the hamadryad from the wood \n"))
-		require.NoError(t, err)
-		_, err = conn.Write([]byte("To seek a shelter in some happier star?\n"))
-		require.NoError(t, err)
+		for _, line := range poetry {
+			_, err := conn.Write([]byte(line))
+			require.NoError(t, err)
+		}
 	}()
 
-	// check that 5 messages came through
-	for i := 0; i < 5; i++ {
-		<-newMsg
+	// Should receive a single batch.
+	assertBatch(t, listenerCh, strings.Join(poetry, ""))
+	assertNoMore(t, listenerCh)
+
+	assertMonitor(t, monitorCh, numLines, 1)
+}
+
+func TestWhatComesAroundGoesAround(t *testing.T) {
+	listener := startListener(t, testConfig())
+	defer listener.Stop()
+
+	listenerCh, unsubListener := subListener(t)
+	defer unsubListener()
+
+	monitorCh, unsubMonitor := subMonitor(t)
+	defer unsubMonitor()
+
+	go func() {
+		conn := dialListener(t)
+		defer conn.Close()
+
+		for _, line := range poetry {
+			_, err := conn.Write([]byte(line))
+			require.NoError(t, err)
+		}
+	}()
+
+	for i := 0; i < numLines; i++ {
+		assertBatch(t, listenerCh, poetry[i])
 	}
+	assertNoMore(t, listenerCh)
+
+	assertMonitor(t, monitorCh, numLines, numLines)
 }
 
 func TestBatchBufferFull(t *testing.T) {
@@ -140,11 +145,12 @@ func TestBatchBufferFull(t *testing.T) {
 	// Set batch size high so that the batch will only send due to the
 	// batch buffer filling up.
 	conf.BatchMessages = 99999
-	stop := startTestListener(t, conf)
-	defer stop()
 
-	newMsg, unsubscribe := subscribe(t)
-	defer unsubscribe()
+	listener := startListener(t, conf)
+	defer listener.Stop()
+
+	listenerCh, unsubListener := subListener(t)
+	defer unsubListener()
 
 	// Keep sending to the listener until it emits a batch.
 	conn := dialListener(t)
@@ -159,7 +165,7 @@ loop:
 		writeCount++
 
 		select {
-		case <-newMsg:
+		case <-listenerCh:
 			break loop
 		case <-time.After(time.Microsecond):
 			// Send again
@@ -168,64 +174,46 @@ loop:
 		}
 	}
 
+	assertNoMore(t, listenerCh)
+
 	// Ensure that batch was output because batch size limit was
 	// reached, not the message count.
 	assert.True(t, writeCount < conf.BatchMessages,
 		fmt.Sprintf("writeCount = %d", writeCount))
-
-	// and, we should only receive one!
-	select {
-	case <-newMsg:
-		t.Fatal("message unexpectedly seen")
-	case <-time.After(spouttest.ShortWait):
-		return
-	}
 }
 
-func TestStatistician(t *testing.T) {
-	// Create a listener with some stats already set up.
-	conf := testConfig()
-	listener := newListener(conf)
-	listener.stats.Inc(linesReceived)
-	listener.stats.Inc(linesReceived)
-	listener.stats.Inc(linesReceived)
-	listener.stats.Inc(batchesSent)
-	listener.stats.Inc(batchesSent)
-	listener.stats.Inc(readErrors)
-
-	// Subscribe to the statistician output.
-	nc, err := nats.Connect(natsAddress)
+func TestHTTPListener(t *testing.T) {
+	listener, err := StartHTTPListener(testConfig())
 	require.NoError(t, err)
+	defer listener.Stop()
 
-	statsCh := make(chan string)
-	sub, err := nc.Subscribe(conf.NATSSubjectMonitor, func(msg *nats.Msg) {
-		statsCh <- string(msg.Data)
-	})
-	require.NoError(t, err)
-	require.NoError(t, nc.Flush())
+	listenerCh, unsubListener := subListener(t)
+	defer unsubListener()
 
-	// Start statistician
-	stop := make(chan struct{})
-	go listener.startStatistician(stop)
+	monitorCh, unsubMonitor := subMonitor(t)
+	defer unsubMonitor()
 
-	// Look for expected stats
-	select {
-	case received := <-statsCh:
-		assert.Equal(t, "spout_stat_listener,listener=testlistener received=3,sent=2,read_errors=1\n", received)
-	case <-time.After(spouttest.LongWait):
-		t.Fatal("no message seen")
+	go func() {
+		url := fmt.Sprintf("http://localhost:%d/write", listenPort)
+		for _, line := range poetry {
+			_, err := http.Post(url, "text/plain", bytes.NewBufferString(line))
+			require.NoError(t, err)
+		}
+	}()
+
+	for i := 0; i < numLines; i++ {
+		assertBatch(t, listenerCh, poetry[i])
 	}
+	assertNoMore(t, listenerCh)
 
-	// Stop the statistician
-	sub.Unsubscribe()
-	close(stop)
+	assertMonitor(t, monitorCh, numLines, numLines)
 }
 
 func BenchmarkListenerLatency(b *testing.B) {
-	stop := startTestListener(b, testConfig())
-	defer stop()
+	listener := startListener(b, testConfig())
+	defer listener.Stop()
 
-	newMsg, unsubscribe := subscribe(b)
+	listenerCh, unsubscribe := subListener(b)
 	defer unsubscribe()
 
 	conn := dialListener(b)
@@ -234,42 +222,15 @@ func BenchmarkListenerLatency(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		conn.Write([]byte("git - the stupid content tracker"))
-		<-newMsg
+		<-listenerCh
 	}
+	b.StopTimer()
 }
 
-// startTestListener starts a listener that can be stopped. When the
-// returned value is called the listener will be stoppped.
-func startTestListener(t require.TestingT, conf *config.Config) func() {
-	listener := newListener(conf)
-
-	stop := make(chan struct{})
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for {
-			select {
-			case <-stop:
-				return
-			default:
-			}
-			listener.readUDP()
-		}
-	}()
-
-	return func() {
-		close(stop)
-
-		// The listener needs to read something in order to see that
-		// the stop channel was closed.
-		conn := dialListener(t)
-		conn.Write([]byte("die"))
-		conn.Close()
-
-		wg.Wait()
-		listener.close()
-	}
+func startListener(t require.TestingT, conf *config.Config) *Listener {
+	listener, err := StartListener(conf)
+	require.NoError(t, err)
+	return listener
 }
 
 // dialListener creates a UDP connection to the listener's inbound port.
@@ -283,19 +244,62 @@ func dialListener(t require.TestingT) *net.UDPConn {
 	return conn
 }
 
-// subscribe sets up a subject callback for natsSubject. A channel is
-// returned which reports when messages are received. A function to
-// cancel the subcription is also returned.
-func subscribe(t require.TestingT) (chan struct{}, func() error) {
+func subListener(t require.TestingT) (chan string, func()) {
+	return subscribe(t, natsSubject)
+}
+
+func subMonitor(t require.TestingT) (chan string, func()) {
+	return subscribe(t, natsMonitorSubject)
+}
+
+func subscribe(t require.TestingT, subject string) (chan string, func()) {
 	nc, err := nats.Connect(natsAddress)
 	require.NoError(t, err)
 
-	msgCh := make(chan struct{}, 10)
-	sub, err := nc.Subscribe(natsSubject, func(msg *nats.Msg) {
-		msgCh <- struct{}{}
+	msgCh := make(chan string, 10)
+	sub, err := nc.Subscribe(subject, func(msg *nats.Msg) {
+		msgCh <- string(msg.Data)
 	})
 	require.NoError(t, err)
 	require.NoError(t, nc.Flush())
 
-	return msgCh, sub.Unsubscribe
+	return msgCh, func() {
+		sub.Unsubscribe()
+		nc.Close()
+	}
+}
+
+func assertBatch(t *testing.T, ch chan string, expected string) {
+	select {
+	case received := <-ch:
+		assert.Equal(t, expected, received)
+	case <-time.After(spouttest.LongWait):
+		t.Fatal("failed to see message")
+	}
+}
+
+func assertNoMore(t *testing.T, ch chan string) {
+	select {
+	case <-ch:
+		t.Fatal("unexpectedly saw message")
+	case <-time.After(spouttest.ShortWait):
+	}
+}
+
+func assertMonitor(t *testing.T, monitorCh chan string, received, sent int) {
+	expected := fmt.Sprintf(
+		"spout_stat_listener,listener=testlistener received=%d,sent=%d,read_errors=0\n",
+		received, sent)
+	var line string
+	timeout := time.After(spouttest.LongWait)
+	for {
+		select {
+		case line = <-monitorCh:
+			if line == expected {
+				return
+			}
+		case <-timeout:
+			t.Fatalf("timed out waiting for expected stats. last received: %v", line)
+		}
+	}
 }
