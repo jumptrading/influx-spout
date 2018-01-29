@@ -96,7 +96,7 @@ func TestAllDefaults(t *testing.T) {
 	assert.Equal(t, "writer", conf.Mode)
 	assert.Equal(t, 10, conf.WriterWorkers)
 	assert.Equal(t, 30, conf.WriteTimeoutSecs)
-	assert.Equal(t, 131072, conf.ReadBufferBytes)
+	assert.Equal(t, 4194304, conf.ReadBufferBytes)
 	assert.Equal(t, 200, conf.NATSPendingMaxMB)
 	assert.Equal(t, false, conf.Debug)
 	assert.Len(t, conf.Rule, 0)

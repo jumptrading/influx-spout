@@ -73,7 +73,7 @@ func newDefaultConfig() *Config {
 		BatchMaxSecs:        300,
 		WriterWorkers:       10,
 		WriteTimeoutSecs:    30,
-		ReadBufferBytes:     131072,
+		ReadBufferBytes:     4 * 1024 * 1024,
 		NATSPendingMaxMB:    200,
 	}
 }
