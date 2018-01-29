@@ -106,20 +106,29 @@ func (l *Listener) Stop() {
 }
 
 func newListener(c *config.Config) (*Listener, error) {
+	bufSize := roundUpToPageSize(c.ReadBufferBytes)
+	if bufSize != c.ReadBufferBytes {
+		log.Printf("rounding up receive buffer to nearest page size (now %d bytes)", bufSize)
+	}
 	l := &Listener{
-		c:     c,
-		stop:  make(chan struct{}),
-		stats: stats.New(allStats...),
-
-		// create a buffer to read incoming UDP packets into,
-		// make it at least a page to get optimal performance
-		bufSize: 32 * os.Getpagesize(),
+		c:       c,
+		stop:    make(chan struct{}),
+		stats:   stats.New(allStats...),
+		bufSize: bufSize,
 	}
 	if err := l.connectNATS(); err != nil {
 		return nil, err
 	}
 	l.setupBuffers()
 	return l, nil
+}
+
+func roundUpToPageSize(n int) int {
+	pageSize := os.Getpagesize()
+	if n <= 0 {
+		return pageSize
+	}
+	return (n + pageSize - 1) / pageSize * pageSize
 }
 
 func (l *Listener) setupBuffers() {
