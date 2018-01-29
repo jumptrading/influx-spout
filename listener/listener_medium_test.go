@@ -89,9 +89,10 @@ func TestBufferSize(t *testing.T) {
 		l, err := newListener(conf)
 		require.NoError(t, err)
 		defer l.Stop()
-		assert.Equal(t, expectedSize, len(l.buf),
+		assert.Equal(t, expectedSize, l.bufSize,
 			"expected buf size of %d for buf size of %d, got %d",
 			expectedSize, configSize, len(l.buf))
+		assert.Equal(t, expectedSize*4, len(l.buf))
 	}
 
 	pageSize := os.Getpagesize()

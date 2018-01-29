@@ -132,8 +132,12 @@ func roundUpToPageSize(n int) int {
 }
 
 func (l *Listener) setupBuffers() {
-	l.buf = make([]byte, l.bufSize)
-	l.sendThreshold = l.bufSize - 2048
+	// Make the batch buffer a multiple of the max UDP receive buffer.
+	l.buf = make([]byte, l.bufSize*4)
+
+	// Set sendThreshold so that a send of the batch is forced when
+	// the batch buffer is nearly full.
+	l.sendThreshold = len(l.buf) - os.Getpagesize()
 }
 
 func (l *Listener) connectNATS() error {
