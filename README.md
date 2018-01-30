@@ -57,7 +57,7 @@ requirements.
 ## Building
 
 Ensure the `GOPATH` environment is properly exported and simply run
-`make` to build influx-spout. We recommend building with golang 1.9+.
+`make` to build influx-spout. We recommend building with Go 1.9+.
 
 
 ## Configuration
@@ -373,7 +373,7 @@ To build images for a custom docker registry pass the `DOCKER_NAME` variable wit
     quay.io/foo/influx-spout                          0.1.9adf7e6          94078aaba5f1        24 minutes ago      11.62 MB
 
 
-### Setting up a test influx-spout in docker
+### Setting up a test influx-spout instance using Docker
 
 This requires running a nats container and an influx-spout container with
 a shared network namespace. First things first, setup nats and expose

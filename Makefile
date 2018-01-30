@@ -7,7 +7,7 @@ DOCKER_IMAGE ?= "$(DOCKER_NAME):$(DOCKER_TAG)"
 
 ifeq ($(GOPATH),)
 abort:
-	$(error Ensure golang 1.9+ is available and the GOPATH env variable is set)
+	$(error Ensure Go 1.9+ is available and the GOPATH env variable is set)
 endif
 		
 all: deps check-git influx-spout
@@ -29,6 +29,7 @@ check-git:
 	@if [ "$(shell git diff-index --cached --quiet HEAD --ignore-submodules --; echo $$?)" -ne 0 ]; then \
 		(echo ERROR: Uncommitted changes in the index >&2; exit 1); \
 	fi
+
 
 deps:
 	$(info Checking $(PROJECT) dependencies)
