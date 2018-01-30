@@ -186,6 +186,9 @@ nats_subject_junkyard = "influx-spout-junk"
 # (in InfluxDB line protocol format).
 nats_subject_monitor = "influx-spout-monitor"
 
+# The number of filter workers to spawn.
+workers = 8
+
 # At least one rule should be defined. Rules are defined using TOML's table
 # syntax. The following examples show each rule type.
 
@@ -275,7 +278,7 @@ batch_max_mb = 10
 batch_max_secs = 300
 
 # The number of writer workers to spawn.
-workers = 10
+workers = 8
 
 # The maximum number of seconds a writer will wait for an InfluxDB write to
 # complete. Writes which time out will be dropped.

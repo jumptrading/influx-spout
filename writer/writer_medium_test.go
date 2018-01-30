@@ -52,7 +52,7 @@ func testConfig() *config.Config {
 		BatchMaxSecs:       300,
 		Port:               influxPort,
 		Mode:               "writer",
-		WriterWorkers:      96,
+		Workers:            96,
 		NATSPendingMaxMB:   32,
 	}
 }
@@ -118,7 +118,7 @@ func TestBasicWriter(t *testing.T) {
 func TestBatchMBLimit(t *testing.T) {
 	// No filter rules.
 	conf := testConfig()
-	conf.WriterWorkers = 1
+	conf.Workers = 1
 	conf.BatchMessages = 9999
 	conf.BatchMaxMB = 1
 	w := startWriter(t, conf)
@@ -149,7 +149,7 @@ func TestBatchMBLimit(t *testing.T) {
 func TestBatchTimeLimit(t *testing.T) {
 	// No filter rules.
 	conf := testConfig()
-	conf.WriterWorkers = 1
+	conf.Workers = 1
 	conf.BatchMessages = 9999
 	conf.BatchMaxSecs = 1
 	w := startWriter(t, conf)
