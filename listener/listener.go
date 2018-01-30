@@ -33,11 +33,14 @@ import (
 	"github.com/jumptrading/influx-spout/stats"
 )
 
-// Listener stats counters
 const (
+	// Listener stats counters
 	linesReceived = "lines-received"
 	batchesSent   = "batches-sent"
 	readErrors    = "read-errors"
+
+	// The maximum possible UDP read size.
+	udpMaxDatagramSize = 65536
 )
 
 var allStats = []string{linesReceived, batchesSent, readErrors}
@@ -54,7 +57,7 @@ func StartListener(c *config.Config) (*Listener, error) {
 	if err != nil {
 		return nil, err
 	}
-	sc, err := listener.setupUDP()
+	sc, err := listener.setupUDP(c.ReadBufferBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -90,10 +93,9 @@ type Listener struct {
 	nc    *nats.Conn
 	stats *stats.Stats
 
-	bufSize       int
-	buf           []byte
-	batchSize     int
-	sendThreshold int
+	buf                []byte
+	batchSize          int
+	batchSizeThreshold int
 
 	wg   sync.WaitGroup
 	stop chan struct{}
@@ -106,59 +108,32 @@ func (l *Listener) Stop() {
 }
 
 func newListener(c *config.Config) (*Listener, error) {
-	bufSize := roundUpToPageSize(c.ReadBufferBytes)
-	if bufSize != c.ReadBufferBytes {
-		log.Printf("rounding up receive buffer to nearest page size (now %d bytes)", bufSize)
-	}
 	l := &Listener{
-		c:       c,
-		stop:    make(chan struct{}),
-		stats:   stats.New(allStats...),
-		bufSize: bufSize,
+		c:     c,
+		stop:  make(chan struct{}),
+		stats: stats.New(allStats...),
+		buf:   make([]byte, c.ListenerBatchBytes),
+
+		// If more than batchSizeThreshold bytes has been written to
+		// the current batch buffer, the batch will be sent. We allow
+		// for the maximum UDP datagram size to be read from the
+		// socket (unlikely but possible).
+		batchSizeThreshold: c.ListenerBatchBytes - udpMaxDatagramSize,
 	}
-	if err := l.connectNATS(); err != nil {
+
+	nc, err := nats.Connect(l.c.NATSAddress)
+	if err != nil {
 		return nil, err
 	}
-	l.setupBuffers()
+	// If we disconnect, we want to try reconnecting as many times as we can.
+	nc.Opts.MaxReconnect = -1
+	l.nc = nc
+
+	l.notifyState("boot")
 	return l, nil
 }
 
-func roundUpToPageSize(n int) int {
-	pageSize := os.Getpagesize()
-	if n <= 0 {
-		return pageSize
-	}
-	return (n + pageSize - 1) / pageSize * pageSize
-}
-
-func (l *Listener) setupBuffers() {
-	// Make the batch buffer a multiple of the max UDP receive buffer.
-	l.buf = make([]byte, l.bufSize*4)
-
-	// Set sendThreshold so that a send of the batch is forced when
-	// the batch buffer is nearly full.
-	l.sendThreshold = len(l.buf) - os.Getpagesize()
-}
-
-func (l *Listener) connectNATS() error {
-	var err error
-
-	// connect to the NATS instance running on this machine
-	l.nc, err = nats.Connect(l.c.NATSAddress)
-	if err != nil {
-		return err
-	}
-
-	// If we disconnect, we want to try reconnecting as many times as
-	// we can.
-	l.nc.Opts.MaxReconnect = -1
-
-	l.notifyState("boot")
-
-	return nil
-}
-
-func (l *Listener) setupUDP() (*net.UDPConn, error) {
+func (l *Listener) setupUDP(configBufSize int) (*net.UDPConn, error) {
 	serverAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf(":%d", l.c.Port))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create UDP socket: %v", err)
@@ -167,11 +142,25 @@ func (l *Listener) setupUDP() (*net.UDPConn, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := sc.SetReadBuffer(l.bufSize); err != nil {
+
+	bufSize := roundUpToPageSize(configBufSize)
+	if bufSize != configBufSize {
+		log.Printf("rounding up receive buffer to nearest page size (now %d bytes)", bufSize)
+	}
+	if err := sc.SetReadBuffer(bufSize); err != nil {
 		return nil, err
 	}
+
 	log.Printf("Listener bound to UDP socket: %v\n", sc.LocalAddr().String())
 	return sc, nil
+}
+
+func roundUpToPageSize(n int) int {
+	pageSize := os.Getpagesize()
+	if n <= 0 {
+		return pageSize
+	}
+	return (n + pageSize - 1) / pageSize * pageSize
 }
 
 func (l *Listener) listenUDP(sc *net.UDPConn) {
@@ -248,8 +237,9 @@ func (l *Listener) processRead(sz int) {
 		log.Printf("Info: Listener read %d bytes\n", sz)
 	}
 
-	// Send when sufficient lines are batched or the batch buffer is almost full.
-	if linesReceived%l.c.BatchMessages == 0 || l.batchSize >= l.sendThreshold {
+	// Send when sufficient reads have been batched or the batch
+	// buffer is almost full.
+	if linesReceived%l.c.BatchMessages == 0 || l.batchSize > l.batchSizeThreshold {
 		l.stats.Inc(batchesSent)
 		if err := l.nc.Publish(l.c.NATSSubject[0], l.buf[:l.batchSize]); err != nil {
 			l.handleNatsError(err)

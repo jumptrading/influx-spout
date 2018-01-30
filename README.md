@@ -86,6 +86,7 @@ multiple listeners.
 The supported configuration options for the listener mode follow. Defaults are
 shown.
 
+
 ```toml
 mode = "listener"  # Required
 
@@ -141,6 +142,19 @@ nats_subject = ["influx-spout"]
 # Increasing this number reduces NATS communication overhead but increases
 # latency.
 batch = 10
+
+# Maximum UDP socket receive buffer size in bytes. A higher value this increases
+# the peak inbound traffic the listener can handle at the cost of higher memory
+# consumption.
+#
+# The default value is good for low to medium loads but should be increased to
+# support higher receive rates.
+read_buffer_bytes = 4194304
+
+# The maximum number of bytes that the listener should send at once to NATS.
+# This should be no bigger than the NATS server's max_payload setting (which
+# defaults to 1 MB).
+listener_batch_bytes = 1048576
 
 # Out-of-bound metrics and diagnostic messages are published to this NATS subject
 # (in InfluxDB line protocol format).
