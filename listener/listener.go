@@ -106,14 +106,15 @@ func (l *Listener) Stop() {
 }
 
 func newListener(c *config.Config) (*Listener, error) {
+	bufSize := roundUpToPageSize(c.ReadBufferBytes)
+	if bufSize != c.ReadBufferBytes {
+		log.Printf("rounding up receive buffer to nearest page size (now %d bytes)", bufSize)
+	}
 	l := &Listener{
-		c:     c,
-		stop:  make(chan struct{}),
-		stats: stats.New(allStats...),
-
-		// create a buffer to read incoming UDP packets into,
-		// make it at least a page to get optimal performance
-		bufSize: 32 * os.Getpagesize(),
+		c:       c,
+		stop:    make(chan struct{}),
+		stats:   stats.New(allStats...),
+		bufSize: bufSize,
 	}
 	if err := l.connectNATS(); err != nil {
 		return nil, err
@@ -122,9 +123,21 @@ func newListener(c *config.Config) (*Listener, error) {
 	return l, nil
 }
 
+func roundUpToPageSize(n int) int {
+	pageSize := os.Getpagesize()
+	if n <= 0 {
+		return pageSize
+	}
+	return (n + pageSize - 1) / pageSize * pageSize
+}
+
 func (l *Listener) setupBuffers() {
-	l.buf = make([]byte, l.bufSize)
-	l.sendThreshold = l.bufSize - 2048
+	// Make the batch buffer a multiple of the max UDP receive buffer.
+	l.buf = make([]byte, l.bufSize*4)
+
+	// Set sendThreshold so that a send of the batch is forced when
+	// the batch buffer is nearly full.
+	l.sendThreshold = len(l.buf) - os.Getpagesize()
 }
 
 func (l *Listener) connectNATS() error {

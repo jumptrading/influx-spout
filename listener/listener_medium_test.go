@@ -82,6 +82,30 @@ func testConfig() *config.Config {
 	}
 }
 
+func TestBufferSize(t *testing.T) {
+	checkSize := func(configSize, expectedSize int) {
+		conf := testConfig()
+		conf.ReadBufferBytes = configSize
+		l, err := newListener(conf)
+		require.NoError(t, err)
+		defer l.Stop()
+		assert.Equal(t, expectedSize, l.bufSize,
+			"expected buf size of %d for buf size of %d, got %d",
+			expectedSize, configSize, len(l.buf))
+		assert.Equal(t, expectedSize*4, len(l.buf))
+	}
+
+	pageSize := os.Getpagesize()
+	checkSize(0, pageSize)
+	checkSize(1, pageSize)
+	checkSize(pageSize-1, pageSize)
+	checkSize(pageSize, pageSize)
+	checkSize(pageSize+1, 2*pageSize)
+	checkSize((2*pageSize)-1, 2*pageSize)
+	checkSize(2*pageSize, 2*pageSize)
+	checkSize((2*pageSize)+1, 3*pageSize)
+}
+
 func TestBatching(t *testing.T) {
 	conf := testConfig()
 	conf.BatchMessages = numLines // batch messages into one packet
