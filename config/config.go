@@ -48,6 +48,7 @@ type Config struct {
 	WriteTimeoutSecs    int      `toml:"write_timeout_secs"`
 	ReadBufferBytes     int      `toml:"read_buffer_bytes"`
 	NATSPendingMaxMB    int      `toml:"nats_pending_max_mb"`
+	ListenerBatchBytes  int      `toml:"listener_batch_bytes"`
 	Rule                []Rule   `toml:"rule"`
 	Debug               bool     `toml:"debug"`
 }
@@ -75,6 +76,7 @@ func newDefaultConfig() *Config {
 		WriteTimeoutSecs:    30,
 		ReadBufferBytes:     4 * 1024 * 1024,
 		NATSPendingMaxMB:    200,
+		ListenerBatchBytes:  1024 * 1024,
 	}
 }
 

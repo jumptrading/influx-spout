@@ -53,6 +53,7 @@ workers = 96
 write_timeout_secs = 32
 read_buffer_bytes = 43210
 nats_pending_max_mb = 100
+listener_batch_bytes = 4096
 `
 	conf, err := parseConfig(validConfigSample)
 	require.NoError(t, err, "Couldn't parse a valid config: %v\n", err)
@@ -67,6 +68,7 @@ nats_pending_max_mb = 100
 	assert.Equal(t, 32, conf.WriteTimeoutSecs, "WriteTimeoutSecs must match")
 	assert.Equal(t, 43210, conf.ReadBufferBytes)
 	assert.Equal(t, 100, conf.NATSPendingMaxMB, "NATSPendingMaxMB must match")
+	assert.Equal(t, 4096, conf.ListenerBatchBytes, "NATSPendingMaxMB must match")
 
 	assert.Equal(t, 8086, conf.InfluxDBPort, "InfluxDB Port must match")
 	assert.Equal(t, "junk_nats", conf.DBName, "InfluxDB DBname must match")
@@ -98,6 +100,7 @@ func TestAllDefaults(t *testing.T) {
 	assert.Equal(t, 30, conf.WriteTimeoutSecs)
 	assert.Equal(t, 4194304, conf.ReadBufferBytes)
 	assert.Equal(t, 200, conf.NATSPendingMaxMB)
+	assert.Equal(t, 1048576, conf.ListenerBatchBytes)
 	assert.Equal(t, false, conf.Debug)
 	assert.Len(t, conf.Rule, 0)
 }
