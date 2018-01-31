@@ -16,11 +16,8 @@
 package filter
 
 import (
-	"bytes"
 	"fmt"
-	"hash/fnv"
 	"log"
-	"regexp"
 	"strconv"
 	"sync"
 	"time"
@@ -42,73 +39,73 @@ const (
 // StartFilter creates a Filter instance, sets up its rules based on
 // the configuration give and sets up a subscription for the incoming
 // NATS topic.
-func StartFilter(conf *config.Config) (*Filter, error) {
-	var err error
-
-	// Create rules from the config.
+func StartFilter(conf *config.Config) (_ *Filter, err error) {
 	f := &Filter{
 		c:    conf,
 		stop: make(chan struct{}),
+		wg:   new(sync.WaitGroup),
 	}
-	for _, r := range conf.Rule {
-		switch r.Rtype {
-		case "basic":
-			f.appendRule(CreateBasicRule(r.Match, r.Subject))
-		case "regex":
-			f.appendRule(CreateRegexRule(r.Match, r.Subject))
-		case "negregex":
-			f.appendRule(CreateNegativeRegexRule(r.Match, r.Subject))
-		default:
-			return nil, fmt.Errorf("Unsupported rule type: [%v]", r)
+	defer func() {
+		if err != nil {
+			f.Stop()
 		}
-	}
+	}()
 
-	f.initRuleBatches()
-
-	// Connect to the NATS server.
-	f.nc, err = nats.Connect(f.c.NATSAddress)
+	rules, err := RuleSetFromConfig(conf)
 	if err != nil {
-		return nil, fmt.Errorf("NATS: failed to connect: %v", err)
+		return nil, err
 	}
 
-	// Subscribe to the NATS subject.
+	stats := initStats(rules)
+
+	f.nc, err = f.natsConnect()
+	if err != nil {
+		return nil, err
+	}
+
+	jobs := make(chan []byte, 1024)
+	for i := 0; i < f.c.Workers; i++ {
+		w, err := newWorker(rules, stats, f.natsConnect, f.c.NATSSubjectJunkyard)
+		if err != nil {
+			return nil, fmt.Errorf("failed to start worker: %v", err)
+		}
+		f.wg.Add(1)
+		go w.run(jobs, f.stop, f.wg)
+	}
+
 	f.sub, err = f.nc.Subscribe(f.c.NATSSubject[0], func(msg *nats.Msg) {
-		f.processBatch(msg.Data)
+		jobs <- msg.Data
 	})
 	if err != nil {
 		return nil, fmt.Errorf("NATS: failed to subscribe: %v", err)
 	}
 
 	f.wg.Add(1)
-	go f.startStatistician()
+	go f.startStatistician(stats, rules)
 
-	log.Printf("Filter listening on [%s] with %d rules\n", f.c.NATSSubject, len(f.rules))
+	log.Printf("Filter listening on [%s] with %d rules\n", f.c.NATSSubject, rules.Count())
 	return f, nil
 }
 
-// Rule encapsulates a matching function and the NATS topic to
-// send lines to if the rule matches.
-type Rule struct {
-	// Function used to check if the rule matches
-	match func([]byte) bool
-
-	// escaped is true if the match function needs the original,
-	// escaped version of the line. The unescaped version of the line
-	// is passed otherwise.
-	escaped bool
-
-	// if the rule matches, the measurement is sent to this NATS subject
-	subject string
+func (f *Filter) natsConnect() (natsConn, error) {
+	nc, err := nats.Connect(f.c.NATSAddress)
+	if err != nil {
+		return nil, fmt.Errorf("NATS: failed to connect: %v", err)
+	}
+	return nc, nil
 }
 
-type filtering interface {
-	GetRules() []Rule
-}
-
-type subjectBuffer struct {
-	sync.Mutex
-	b       *bytes.Buffer
-	subject string
+func initStats(rules *RuleSet) *stats.Stats {
+	// Initialise
+	statNames := []string{
+		linesPassed,
+		linesProcessed,
+		linesRejected,
+	}
+	for i := 0; i < rules.Count(); i++ {
+		statNames = append(statNames, ruleToStatsName(i))
+	}
+	return stats.New(statNames...)
 }
 
 // natsConn allows a mock nats.Conn to be substituted in during tests.
@@ -121,38 +118,11 @@ type natsConn interface {
 // Filter is a struct that contains the configuration we are running with
 // and the NATS bus connection
 type Filter struct {
-	c  *config.Config
-	nc natsConn
-
-	ruleBatches []subjectBuffer
-	junkBatch   subjectBuffer
-	rules       []Rule
-	stats       *stats.Stats
-
+	c    *config.Config
+	nc   natsConn
 	sub  *nats.Subscription
-	wg   sync.WaitGroup
+	wg   *sync.WaitGroup
 	stop chan struct{}
-}
-
-func (f *Filter) initRuleBatches() {
-	statNames := []string{
-		linesPassed,
-		linesProcessed,
-		linesRejected,
-	}
-
-	// set up the buffers for batching
-	f.ruleBatches = make([]subjectBuffer, len(f.rules))
-	f.junkBatch.b = new(bytes.Buffer)
-	for i, rule := range f.rules {
-		f.ruleBatches[i].b = new(bytes.Buffer)
-		f.ruleBatches[i].b.Grow(16384)
-		f.ruleBatches[i].subject = rule.subject
-
-		statNames = append(statNames, ruleToStatsName(i))
-	}
-
-	f.stats = stats.New(statNames...)
 }
 
 // Stop shuts down goroutines and closes resources related to the filter.
@@ -160,7 +130,7 @@ func (f *Filter) Stop() {
 	// Stop receiving lines to filter.
 	f.sub.Unsubscribe()
 
-	// Shut down goroutines (just the statistician at this stage).
+	// Shut down goroutines.
 	close(f.stop)
 	f.wg.Wait()
 
@@ -170,165 +140,10 @@ func (f *Filter) Stop() {
 	}
 }
 
-// GetRules returns all rules associated with the filter.
-func (f *Filter) GetRules() []Rule {
-	return f.rules
-}
-
-// CreateBasicRule creates a simple rule that publishes measurements
-// with the name @measurement to the NATS @subject.
-func CreateBasicRule(measurement string, subject string) Rule {
-	hh := hashMeasurement([]byte(measurement))
-
-	return Rule{
-		match: func(line []byte) bool {
-			name := influxUnescape(measurementName(line))
-			return hh == hashMeasurement(name)
-		},
-		escaped: true,
-		subject: subject,
-	}
-}
-
-// measurementName takes an *escaped* line protocol line and returns
-// the *escaped* measurement from it.
-func measurementName(s []byte) []byte {
-	// Handle the unlikely case of a single character line.
-	if len(s) == 1 {
-		switch s[0] {
-		case ' ', ',':
-			return s[:0]
-		default:
-			return s
-		}
-	}
-
-	i := 0
-	for {
-		i++
-		if i >= len(s) {
-			return s
-		}
-
-		if s[i-1] == '\\' {
-			// Skip character (it's escaped).
-			continue
-		}
-
-		if s[i] == ',' || s[i] == ' ' {
-			return s[:i]
-		}
-	}
-}
-
-// CreateRegexRule creates a rule that publishes measurements which
-// match the given @regexString to the NATS @subject.
-func CreateRegexRule(regexString, subject string) Rule {
-	reg := regexp.MustCompile(regexString)
-	return Rule{
-		match: func(line []byte) bool {
-			return reg.Match(line)
-		},
-		subject: subject,
-	}
-}
-
-// CreateNegativeRegexRule creates a rule that publishes measurements
-// which *don't* match the given @regexString to the NATS @subject.
-func CreateNegativeRegexRule(regexString, subject string) Rule {
-	reg := regexp.MustCompile(regexString)
-	return Rule{
-		match: func(line []byte) bool {
-			return !reg.Match(line)
-		},
-		subject: subject,
-	}
-}
-
-func hashMeasurement(measurement []byte) uint32 {
-	hh := fnv.New32()
-	hh.Write(measurement)
-	return hh.Sum32()
-}
-
-// appendRule appends a rule to a filter node. once the filter
-// starts receving messages, the rules are processed in the order they
-// were added.
-func (f *Filter) appendRule(rule Rule) {
-	f.rules = append(f.rules, rule)
-}
-
-// LookupLine takes a raw line and returns the index of the rule from
-// the `filtering` provided that matches. Returns -1 if there was no
-// match.
-func LookupLine(f filtering, escapedLine []byte) int {
-	line := influxUnescape(escapedLine)
-	for i, rule := range f.GetRules() {
-		matchLine := line
-		if rule.escaped {
-			matchLine = escapedLine
-		}
-		if rule.match(matchLine) {
-			return i
-		}
-	}
-	return -1
-}
-
-func (f *Filter) processLine(line []byte) {
-	f.stats.Inc(linesProcessed)
-
-	id := LookupLine(f, line)
-	if id == -1 {
-		// no rule for this => junkyard
-		f.stats.Inc(linesRejected)
-
-		// batch up
-		f.junkBatch.b.Write(line)
-		return
-	}
-
-	if f.c.Debug {
-		log.Printf("forwarded [%s] to subject nats:[%s]\n", line, f.rules[id].subject)
-	}
-
-	// write to the corresponding batch buffer
-	f.ruleBatches[id].b.Write(line)
-
-	f.stats.Inc(linesPassed)
-	f.stats.Inc(ruleToStatsName(id))
-}
-
-func (f *Filter) sendOff() {
-	for _, b := range f.ruleBatches {
-		if b.b.Len() > 0 {
-			f.nc.Publish(b.subject, b.b.Bytes())
-			b.b.Reset()
-		}
-	}
-
-	// send the junk batch
-	if f.junkBatch.b.Len() > 0 {
-		f.nc.Publish(f.c.NATSSubjectJunkyard, f.junkBatch.b.Bytes())
-		f.junkBatch.b.Reset()
-	}
-}
-
-func (f *Filter) processBatch(batch []byte) {
-	for _, line := range bytes.SplitAfter(batch, []byte("\n")) {
-		if len(line) > 0 {
-			f.processLine(line)
-		}
-	}
-
-	// batches have been processed, empty the buffers onto NATS
-	f.sendOff()
-}
-
 // startStatistician defines a goroutine that is responsible for
 // regularly sending the filter's statistics to the monitoring
 // backend.
-func (f *Filter) startStatistician() {
+func (f *Filter) startStatistician(stats *stats.Stats, rules *RuleSet) {
 	defer f.wg.Done()
 
 	totalLine := lineformatter.New("spout_stat_filter", nil,
@@ -337,7 +152,7 @@ func (f *Filter) startStatistician() {
 		[]string{"rule"}, "triggered")
 
 	for {
-		st := f.stats.Clone()
+		st := stats.Clone()
 
 		// publish the grand stats
 		f.nc.Publish(f.c.NATSSubjectMonitor, totalLine.Format(nil,
@@ -347,9 +162,9 @@ func (f *Filter) startStatistician() {
 		))
 
 		// publish the per rule stats
-		for i, b := range f.ruleBatches {
+		for i, subject := range rules.Subjects() {
 			f.nc.Publish(f.c.NATSSubjectMonitor,
-				ruleLine.Format([]string{b.subject}, st.Get(ruleToStatsName(i))),
+				ruleLine.Format([]string{subject}, st.Get(ruleToStatsName(i))),
 			)
 		}
 

@@ -36,6 +36,7 @@ var conf = config.Config{
 	NATSSubject:         []string{"filter-test"},
 	NATSSubjectMonitor:  "filter-test-monitor",
 	NATSSubjectJunkyard: "filter-junkyard",
+	Workers:             1,
 	Rule: []config.Rule{{
 		Rtype:   "basic",
 		Match:   "hello",

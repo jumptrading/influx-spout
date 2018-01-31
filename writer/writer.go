@@ -55,7 +55,7 @@ type Writer struct {
 	batchMaxBytes int
 	batchMaxAge   time.Duration
 	nc            *nats.Conn
-	rules         []filter.Rule
+	rules         *filter.RuleSet
 	stats         *stats.Stats
 	wg            sync.WaitGroup
 	stop          chan struct{}
@@ -78,21 +78,11 @@ func StartWriter(c *config.Config) (_ *Writer, err error) {
 		}
 	}()
 
-	// for pprof profiling
-	go http.ListenAndServe(":8080", nil)
+	go http.ListenAndServe(":8080", nil) // for pprof profiling
 
-	// create our rules from the config rules
-	for _, r := range c.Rule {
-		switch r.Rtype {
-		case "basic":
-			w.rules = append(w.rules, filter.CreateBasicRule(r.Match, r.Subject))
-		case "regex":
-			w.rules = append(w.rules, filter.CreateRegexRule(r.Match, r.Subject))
-		case "negregex":
-			w.rules = append(w.rules, filter.CreateNegativeRegexRule(r.Match, r.Subject))
-		default:
-			return nil, fmt.Errorf("Unsupported rule: [%v]", r)
-		}
+	w.rules, err = filter.RuleSetFromConfig(c)
+	if err != nil {
+		return nil, err
 	}
 
 	w.nc, err = nats.Connect(c.NATSAddress)
@@ -108,8 +98,8 @@ func StartWriter(c *config.Config) (_ *Writer, err error) {
 
 	w.notifyState("boot") // notify the monitor that we have finished booting and soon are ready
 	jobs := make(chan *nats.Msg, 1024)
-	w.wg.Add(w.c.WriterWorkers)
-	for wk := 0; wk < w.c.WriterWorkers; wk++ {
+	w.wg.Add(w.c.Workers)
+	for wk := 0; wk < w.c.Workers; wk++ {
 		go w.worker(jobs)
 	}
 
@@ -141,7 +131,7 @@ func StartWriter(c *config.Config) (_ *Writer, err error) {
 	// notify the monitor that we are ready to receive messages and transmit to influxdb
 	w.notifyState("ready")
 
-	log.Printf("listening on [%v] with %d workers\n", c.NATSSubject, c.WriterWorkers)
+	log.Printf("listening on [%v] with %d workers\n", c.NATSSubject, c.Workers)
 	log.Printf("POST timeout: %ds", c.WriteTimeoutSecs)
 	log.Printf("maximum NATS subject size: %dMB", c.NATSPendingMaxMB)
 
@@ -157,11 +147,6 @@ func (w *Writer) Stop() {
 	if w.nc != nil {
 		w.nc.Close()
 	}
-}
-
-// GetRules implements filter.Filtering.
-func (w *Writer) GetRules() []filter.Rule {
-	return w.rules
 }
 
 func (w *Writer) worker(jobs <-chan *nats.Msg) {
@@ -211,7 +196,7 @@ func (w *Writer) getBatchWriteFunc(batch *batchBuffer) func([]byte) {
 		}
 	}
 
-	if len(w.rules) == 0 {
+	if w.rules.Count() == 0 {
 		// No rules - just append the received data straight onto the
 		// batch buffer.
 		return batchWrite
@@ -232,7 +217,7 @@ func (w *Writer) filterLine(line []byte) bool {
 	if len(line) == 0 {
 		return false
 	}
-	return filter.LookupLine(w, line) != -1
+	return w.rules.Lookup(line) != -1
 }
 
 func (w *Writer) shouldSendBatch(batch *batchBuffer) bool {

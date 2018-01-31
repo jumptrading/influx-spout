@@ -75,10 +75,10 @@ func main() {
 	case "filter":
 		_, err = filter.StartFilter(c)
 	case "writer":
-		if c.WriterWorkers == 0 {
+		if c.Workers == 0 {
 			// this seems to be an okay default from our testing experience:
 			// aim to have on average two workers per OS-thread running.
-			c.WriterWorkers = runtime.GOMAXPROCS(-1) * 2
+			c.Workers = runtime.GOMAXPROCS(-1) * 2
 		}
 		_, err = writer.StartWriter(c)
 	default:
