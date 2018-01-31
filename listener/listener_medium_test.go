@@ -97,15 +97,13 @@ func TestBatching(t *testing.T) {
 	monitorCh, unsubMonitor := subMonitor(t)
 	defer unsubMonitor()
 
-	go func() {
-		conn := dialListener(t)
-		defer conn.Close()
-
-		for _, line := range poetry {
-			_, err := conn.Write([]byte(line))
-			require.NoError(t, err)
-		}
-	}()
+	// Send some lines to the listener.
+	conn := dialListener(t)
+	defer conn.Close()
+	for _, line := range poetry {
+		_, err := conn.Write([]byte(line))
+		require.NoError(t, err)
+	}
 
 	// Should receive a single batch.
 	assertBatch(t, listenerCh, strings.Join(poetry, ""))
@@ -124,15 +122,13 @@ func TestWhatComesAroundGoesAround(t *testing.T) {
 	monitorCh, unsubMonitor := subMonitor(t)
 	defer unsubMonitor()
 
-	go func() {
-		conn := dialListener(t)
-		defer conn.Close()
-
-		for _, line := range poetry {
-			_, err := conn.Write([]byte(line))
-			require.NoError(t, err)
-		}
-	}()
+	// Send some lines to the listener.
+	conn := dialListener(t)
+	defer conn.Close()
+	for _, line := range poetry {
+		_, err := conn.Write([]byte(line))
+		require.NoError(t, err)
+	}
 
 	for i := 0; i < numLines; i++ {
 		assertBatch(t, listenerCh, poetry[i])
@@ -187,6 +183,7 @@ loop:
 func TestHTTPListener(t *testing.T) {
 	listener, err := StartHTTPListener(testConfig())
 	require.NoError(t, err)
+	assertListenerStarted(t, listener)
 	defer listener.Stop()
 
 	listenerCh, unsubListener := subListener(t)
@@ -195,13 +192,12 @@ func TestHTTPListener(t *testing.T) {
 	monitorCh, unsubMonitor := subMonitor(t)
 	defer unsubMonitor()
 
-	go func() {
-		url := fmt.Sprintf("http://localhost:%d/write", listenPort)
-		for _, line := range poetry {
-			_, err := http.Post(url, "text/plain", bytes.NewBufferString(line))
-			require.NoError(t, err)
-		}
-	}()
+	// Send some lines to the listener.
+	url := fmt.Sprintf("http://localhost:%d/write", listenPort)
+	for _, line := range poetry {
+		_, err := http.Post(url, "text/plain", bytes.NewBufferString(line))
+		require.NoError(t, err)
+	}
 
 	for i := 0; i < numLines; i++ {
 		assertBatch(t, listenerCh, poetry[i])
@@ -232,7 +228,17 @@ func BenchmarkListenerLatency(b *testing.B) {
 func startListener(t require.TestingT, conf *config.Config) *Listener {
 	listener, err := StartListener(conf)
 	require.NoError(t, err)
+	assertListenerStarted(t, listener)
 	return listener
+}
+
+func assertListenerStarted(t require.TestingT, listener *Listener) {
+	select {
+	case <-listener.ready:
+	case <-time.After(spouttest.LongWait):
+		listener.Stop()
+		t.Errorf("listener failed to start up")
+	}
 }
 
 // dialListener creates a UDP connection to the listener's inbound port.
