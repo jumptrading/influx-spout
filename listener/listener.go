@@ -97,8 +97,9 @@ type Listener struct {
 	batchSize          int
 	batchSizeThreshold int
 
-	wg   sync.WaitGroup
-	stop chan struct{}
+	wg    sync.WaitGroup
+	ready chan struct{} // Is close once the listener is listening
+	stop  chan struct{}
 }
 
 func (l *Listener) Stop() {
@@ -110,6 +111,7 @@ func (l *Listener) Stop() {
 func newListener(c *config.Config) (*Listener, error) {
 	l := &Listener{
 		c:     c,
+		ready: make(chan struct{}),
 		stop:  make(chan struct{}),
 		stats: stats.New(allStats...),
 		buf:   make([]byte, c.ListenerBatchBytes),
@@ -164,8 +166,12 @@ func roundUpToPageSize(n int) int {
 }
 
 func (l *Listener) listenUDP(sc *net.UDPConn) {
-	defer l.wg.Done()
-	defer sc.Close()
+	defer func() {
+		sc.Close()
+		l.wg.Done()
+	}()
+
+	close(l.ready)
 	for {
 		sc.SetReadDeadline(time.Now().Add(time.Second))
 		sz, _, err := sc.ReadFromUDP(l.buf[l.batchSize:])
@@ -213,6 +219,7 @@ func (l *Listener) listenHTTP(server *http.Server) {
 	defer l.wg.Done()
 
 	go func() {
+		close(l.ready)
 		err := server.ListenAndServe()
 		if err == nil || err == http.ErrServerClosed {
 			return
