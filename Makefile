@@ -10,12 +10,12 @@ abort:
 	$(error Ensure Go 1.9+ is available and the GOPATH env variable is set)
 endif
 		
-all: deps check-git influx-spout utils
+all: deps check-git influx-spout influx-spout-tap
 
 
 clean:
 	go clean
-
+	rm -f influx-spout-tap
 
 check-git:
 	@# See these files with:
@@ -50,9 +50,8 @@ influx-spout:
 	go build -a -tags netgo -installsuffix netgo -v -x -ldflags '-X main.version=$(VERSION) -X main.builtOn=$(BUILT_ON) -w -extldflags "-static"'
 	@ls -l influx-spout
 
-utils: 
-	cd utils
-	go build *.go 
+influx-spout-tap:
+	go build utils/influx-spout-tap.go
 
 docker: influx-spout
 	$(info Building the docker image $(DOCKER_IMAGE) with $(PROJECT) $(VERSION))
