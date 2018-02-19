@@ -1,4 +1,4 @@
-// Copyright 2017 Jump Trading
+// Copyright 2018 Jump Trading
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,21 +20,21 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
-	"github.com/nats-io/go-nats"
 	"log"
 	"regexp"
 	"runtime"
+
+	"github.com/nats-io/go-nats"
 )
 
 func main() {
-	var url = flag.String("h", nats.DefaultURL, "The nats server URL")
-	var subject = flag.String("s", "influx-spout", "The nats subjects")
+	var url = flag.String("h", nats.DefaultURL, "The NATS server URL")
+	var subject = flag.String("s", "influx-spout", "The NATS subjects")
 	var regexpString = flag.String("e", "", "Regexp to match")
 	var r *regexp.Regexp
 	flag.Parse()
 	natsConnection, _ := nats.Connect(*url)
 	log.Println("Connected to " + *url)
-	// Subscribe to subject
 	log.Printf("Subscribing to subject %s\n", *subject)
 
 	if *regexpString != "" {
