@@ -180,9 +180,9 @@ mode = "listener"
 batch = 100
 debug = true
 `
-	fs = afero.NewMemMapFs()
-	afero.WriteFile(fs, commonFileName, []byte(commonConfig), 0600)
-	afero.WriteFile(fs, testConfigFileName, []byte(specificConfig), 0600)
+	Fs = afero.NewMemMapFs()
+	afero.WriteFile(Fs, commonFileName, []byte(commonConfig), 0600)
+	afero.WriteFile(Fs, testConfigFileName, []byte(specificConfig), 0600)
 
 	conf, err := NewConfigFromFile(testConfigFileName)
 	require.NoError(t, err)
@@ -202,9 +202,9 @@ batch = 100
 debug = true
 `
 
-	fs = afero.NewMemMapFs()
-	afero.WriteFile(fs, commonFileName, []byte(commonConfig), 0600)
-	afero.WriteFile(fs, testConfigFileName, []byte(specificConfig), 0600)
+	Fs = afero.NewMemMapFs()
+	afero.WriteFile(Fs, commonFileName, []byte(commonConfig), 0600)
+	afero.WriteFile(Fs, testConfigFileName, []byte(specificConfig), 0600)
 
 	_, err := NewConfigFromFile(testConfigFileName)
 	require.Error(t, err)
@@ -218,14 +218,14 @@ func (*failingOpenFs) Open(string) (afero.File, error) {
 }
 
 func TestErrorOpeningCommonFile(t *testing.T) {
-	fs = new(failingOpenFs)
+	Fs = new(failingOpenFs)
 
 	_, err := NewConfigFromFile(testConfigFileName)
 	assert.EqualError(t, err, "boom")
 }
 
 func TestOpenError(t *testing.T) {
-	fs = afero.NewMemMapFs()
+	Fs = afero.NewMemMapFs()
 
 	conf, err := NewConfigFromFile("/does/not/exist")
 	assert.Nil(t, conf)
@@ -233,8 +233,8 @@ func TestOpenError(t *testing.T) {
 }
 
 func parseConfig(content string) (*Config, error) {
-	fs = afero.NewMemMapFs()
-	afero.WriteFile(fs, testConfigFileName, []byte(content), 0600)
+	Fs = afero.NewMemMapFs()
+	afero.WriteFile(Fs, testConfigFileName, []byte(content), 0600)
 
 	return NewConfigFromFile(testConfigFileName)
 }
