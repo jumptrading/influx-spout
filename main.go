@@ -20,10 +20,7 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/jumptrading/influx-spout/config"
-	"github.com/jumptrading/influx-spout/filter"
-	"github.com/jumptrading/influx-spout/listener"
-	"github.com/jumptrading/influx-spout/writer"
+	"github.com/jumptrading/influx-spout/cmd"
 )
 
 // These are set at build time.
@@ -61,32 +58,8 @@ func main() {
 
 	log.Printf("Running %v version %s, built on %s, %s\n", os.Args[0], version, builtOn, runtime.Version())
 
-	c, err := config.NewConfigFromFile(configFile)
-	if err != nil {
-		fmt.Printf("FATAL: Error while loading config file: %v\n", err)
-		os.Exit(1)
+	if _, err := cmd.Run(configFile); err != nil {
+		log.Fatalf("%s", err)
 	}
-
-	switch c.Mode {
-	case "listener":
-		_, err = listener.StartListener(c)
-	case "listener_http":
-		_, err = listener.StartHTTPListener(c)
-	case "filter":
-		_, err = filter.StartFilter(c)
-	case "writer":
-		if c.Workers == 0 {
-			// this seems to be an okay default from our testing experience:
-			// aim to have on average two workers per OS-thread running.
-			c.Workers = runtime.GOMAXPROCS(-1) * 2
-		}
-		_, err = writer.StartWriter(c)
-	default:
-		log.Fatalf("unknown mode of operation: [%s]", c.Mode)
-	}
-	if err != nil {
-		log.Fatalf("failed to start %s: %v", c.Mode, err)
-	}
-
 	runtime.Goexit()
 }

@@ -52,11 +52,17 @@ var statsInterval = 3 * time.Second
 //
 // The listener reads incoming UDP packets, batches them up and send
 // batches onwards to a NATS subject.
-func StartListener(c *config.Config) (*Listener, error) {
+func StartListener(c *config.Config) (_ *Listener, err error) {
 	listener, err := newListener(c)
 	if err != nil {
 		return nil, err
 	}
+	defer func() {
+		if err != nil {
+			listener.Stop()
+		}
+	}()
+
 	sc, err := listener.setupUDP(c.ReadBufferBytes)
 	if err != nil {
 		return nil, err
@@ -65,6 +71,8 @@ func StartListener(c *config.Config) (*Listener, error) {
 	listener.wg.Add(2)
 	go listener.startStatistician()
 	go listener.listenUDP(sc)
+
+	log.Printf("UDP listener publishing to [%s] at %s", c.NATSSubject[0], c.NATSAddress)
 	listener.notifyState("ready")
 
 	return listener, nil
@@ -83,6 +91,8 @@ func StartHTTPListener(c *config.Config) (*Listener, error) {
 	listener.wg.Add(2)
 	go listener.startStatistician()
 	go listener.listenHTTP(server)
+
+	log.Printf("HTTP listener publishing to [%s] at %s", c.NATSSubject[0], c.NATSAddress)
 	listener.notifyState("ready")
 
 	return listener, nil
@@ -100,6 +110,12 @@ type Listener struct {
 	wg    sync.WaitGroup
 	ready chan struct{} // Is close once the listener is listening
 	stop  chan struct{}
+}
+
+// Ready returns a channel which is closed once the listener is
+// actually listening for incoming data.
+func (l *Listener) Ready() <-chan struct{} {
+	return l.ready
 }
 
 func (l *Listener) Stop() {
@@ -153,7 +169,7 @@ func (l *Listener) setupUDP(configBufSize int) (*net.UDPConn, error) {
 		return nil, err
 	}
 
-	log.Printf("Listener bound to UDP socket: %v\n", sc.LocalAddr().String())
+	log.Printf("listener bound to UDP socket: %v\n", sc.LocalAddr().String())
 	return sc, nil
 }
 
@@ -241,7 +257,7 @@ func (l *Listener) processRead(sz int) {
 	l.batchSize += sz
 
 	if l.c.Debug {
-		log.Printf("Info: Listener read %d bytes\n", sz)
+		log.Printf("listener read %d bytes\n", sz)
 	}
 
 	// Send when sufficient reads have been batched or the batch

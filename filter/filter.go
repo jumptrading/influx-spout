@@ -74,6 +74,9 @@ func StartFilter(conf *config.Config) (_ *Filter, err error) {
 	}
 
 	f.sub, err = f.nc.Subscribe(f.c.NATSSubject[0], func(msg *nats.Msg) {
+		if conf.Debug {
+			log.Printf("filter received %d bytes", len(msg.Data))
+		}
 		jobs <- msg.Data
 	})
 	if err != nil {
@@ -83,7 +86,8 @@ func StartFilter(conf *config.Config) (_ *Filter, err error) {
 	f.wg.Add(1)
 	go f.startStatistician(stats, rules)
 
-	log.Printf("Filter listening on [%s] with %d rules\n", f.c.NATSSubject, rules.Count())
+	log.Printf("filter subscribed to [%s] at %s with %d rules\n",
+		f.c.NATSSubject[0], f.c.NATSAddress, rules.Count())
 	return f, nil
 }
 

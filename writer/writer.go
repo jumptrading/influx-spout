@@ -131,7 +131,8 @@ func StartWriter(c *config.Config) (_ *Writer, err error) {
 	// notify the monitor that we are ready to receive messages and transmit to influxdb
 	w.notifyState("ready")
 
-	log.Printf("listening on [%v] with %d workers\n", c.NATSSubject, c.Workers)
+	log.Printf("writer subscribed to [%v] at %s with %d workers",
+		c.NATSSubject, c.NATSAddress, c.Workers)
 	log.Printf("POST timeout: %ds", c.WriteTimeoutSecs)
 	log.Printf("maximum NATS subject size: %dMB", c.NATSPendingMaxMB)
 

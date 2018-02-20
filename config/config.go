@@ -108,7 +108,7 @@ func NewConfigFromFile(fileName string) (*Config, error) {
 }
 
 func readConfig(fileName string, conf *Config) error {
-	f, err := fs.Open(fileName)
+	f, err := Fs.Open(fileName)
 	if err != nil {
 		return err
 	}
@@ -133,4 +133,6 @@ func pathToConfigName(path string) string {
 	return path[:len(path)-len(ext)]
 }
 
-var fs = afero.NewOsFs()
+// Fs abstracts away filesystem access for the config package. It
+// should only be modified by tests.
+var Fs = afero.NewOsFs()
