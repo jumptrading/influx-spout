@@ -65,6 +65,8 @@ func StartListener(c *config.Config) (*Listener, error) {
 	listener.wg.Add(2)
 	go listener.startStatistician()
 	go listener.listenUDP(sc)
+
+	log.Printf("UDP listener publishing to [%s] at %s", c.NATSSubject[0], c.NATSAddress)
 	listener.notifyState("ready")
 
 	return listener, nil
@@ -83,6 +85,8 @@ func StartHTTPListener(c *config.Config) (*Listener, error) {
 	listener.wg.Add(2)
 	go listener.startStatistician()
 	go listener.listenHTTP(server)
+
+	log.Printf("HTTP listener publishing to [%s] at %s", c.NATSSubject[0], c.NATSAddress)
 	listener.notifyState("ready")
 
 	return listener, nil
@@ -153,7 +157,7 @@ func (l *Listener) setupUDP(configBufSize int) (*net.UDPConn, error) {
 		return nil, err
 	}
 
-	log.Printf("Listener bound to UDP socket: %v\n", sc.LocalAddr().String())
+	log.Printf("listener bound to UDP socket: %v\n", sc.LocalAddr().String())
 	return sc, nil
 }
 
@@ -241,7 +245,7 @@ func (l *Listener) processRead(sz int) {
 	l.batchSize += sz
 
 	if l.c.Debug {
-		log.Printf("Info: Listener read %d bytes\n", sz)
+		log.Printf("listener read %d bytes\n", sz)
 	}
 
 	// Send when sufficient reads have been batched or the batch
