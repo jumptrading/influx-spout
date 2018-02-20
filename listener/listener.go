@@ -52,11 +52,17 @@ var statsInterval = 3 * time.Second
 //
 // The listener reads incoming UDP packets, batches them up and send
 // batches onwards to a NATS subject.
-func StartListener(c *config.Config) (*Listener, error) {
+func StartListener(c *config.Config) (_ *Listener, err error) {
 	listener, err := newListener(c)
 	if err != nil {
 		return nil, err
 	}
+	defer func() {
+		if err != nil {
+			listener.Stop()
+		}
+	}()
+
 	sc, err := listener.setupUDP(c.ReadBufferBytes)
 	if err != nil {
 		return nil, err
@@ -104,6 +110,12 @@ type Listener struct {
 	wg    sync.WaitGroup
 	ready chan struct{} // Is close once the listener is listening
 	stop  chan struct{}
+}
+
+// Ready returns a channel which is closed once the listener is
+// actually listening for incoming data.
+func (l *Listener) Ready() <-chan struct{} {
+	return l.ready
 }
 
 func (l *Listener) Stop() {

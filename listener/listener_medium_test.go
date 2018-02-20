@@ -234,7 +234,7 @@ func startListener(t require.TestingT, conf *config.Config) *Listener {
 
 func assertListenerStarted(t require.TestingT, listener *Listener) {
 	select {
-	case <-listener.ready:
+	case <-listener.Ready():
 	case <-time.After(spouttest.LongWait):
 		listener.Stop()
 		t.Errorf("listener failed to start up")
