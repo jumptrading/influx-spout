@@ -32,6 +32,7 @@ import (
 const natsPort = 44446
 
 var conf = config.Config{
+	Name:                "particle",
 	NATSAddress:         fmt.Sprintf("nats://127.0.0.1:%d", natsPort),
 	NATSSubject:         []string{"filter-test"},
 	NATSSubjectMonitor:  "filter-test-monitor",
@@ -99,12 +100,12 @@ goodbye,host=gopher01
 
 	// Receive total stats
 	assertReceived(t, statsCh, "stats", `
-spout_stat_filter passed=2,processed=3,rejected=1
+spout_stat_filter,filter=particle passed=2,processed=3,rejected=1
 `)
 
 	// Receive rule specific stats
 	assertReceived(t, statsCh, "rule stats", `
-spout_stat_filter_rule,rule=hello-subject triggered=2
+spout_stat_filter_rule,filter=particle,rule=hello-subject triggered=2
 `)
 }
 
