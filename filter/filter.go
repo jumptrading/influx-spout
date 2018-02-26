@@ -150,16 +150,23 @@ func (f *Filter) Stop() {
 func (f *Filter) startStatistician(stats *stats.Stats, rules *RuleSet) {
 	defer f.wg.Done()
 
-	totalLine := lineformatter.New("spout_stat_filter", nil,
-		"passed", "processed", "rejected")
-	ruleLine := lineformatter.New("spout_stat_filter_rule",
-		[]string{"rule"}, "triggered")
+	totalLine := lineformatter.New(
+		"spout_stat_filter",
+		[]string{"filter"},
+		"passed", "processed", "rejected",
+	)
+	ruleLine := lineformatter.New(
+		"spout_stat_filter_rule",
+		[]string{"filter", "rule"},
+		"triggered",
+	)
 
 	for {
 		st := stats.Clone()
 
 		// publish the grand stats
-		f.nc.Publish(f.c.NATSSubjectMonitor, totalLine.Format(nil,
+		f.nc.Publish(f.c.NATSSubjectMonitor, totalLine.Format(
+			[]string{f.c.Name},
 			st.Get(linesPassed),
 			st.Get(linesProcessed),
 			st.Get(linesRejected),
@@ -168,7 +175,10 @@ func (f *Filter) startStatistician(stats *stats.Stats, rules *RuleSet) {
 		// publish the per rule stats
 		for i, subject := range rules.Subjects() {
 			f.nc.Publish(f.c.NATSSubjectMonitor,
-				ruleLine.Format([]string{subject}, st.Get(ruleToStatsName(i))),
+				ruleLine.Format(
+					[]string{f.c.Name, subject},
+					st.Get(ruleToStatsName(i)),
+				),
 			)
 		}
 
