@@ -19,10 +19,8 @@ package filter
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/nats-io/go-nats"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/jumptrading/influx-spout/config"
@@ -88,51 +86,23 @@ hello,host=gopher01
 	require.NoError(t, err)
 
 	// Receive filter output
-	assertReceived(t, helloCh, "data", `
+	spouttest.AssertRecv(t, helloCh, "data", `
 hello,host=gopher01
 hello,host=gopher01
 `)
 
 	// Receive junkyard output
-	assertReceived(t, junkCh, "junkyard data", `
+	spouttest.AssertRecv(t, junkCh, "junkyard data", `
 goodbye,host=gopher01
 `)
 
 	// Receive total stats
-	assertReceivedMulti(t, statsCh, "stats", `
+	spouttest.AssertRecvMulti(t, statsCh, "stats", `
 spout_stat_filter,filter=particle passed=2,processed=3,rejected=1
 `)
 
 	// Receive rule specific stats
-	assertReceivedMulti(t, statsCh, "rule stats", `
+	spouttest.AssertRecvMulti(t, statsCh, "rule stats", `
 spout_stat_filter_rule,filter=particle,rule=hello-subject triggered=2
 `)
-}
-
-func assertReceived(t *testing.T, ch <-chan string, label, expected string) {
-	expected = expected[1:]
-
-	select {
-	case received := <-ch:
-		assert.Equal(t, expected, received)
-	case <-time.After(spouttest.LongWait):
-		t.Fatalf("timed out waiting for %s", label)
-	}
-}
-
-func assertReceivedMulti(t *testing.T, ch <-chan string, label, expected string) {
-	expected = expected[1:]
-
-	var received string
-	timeout := time.After(spouttest.LongWait)
-	for {
-		select {
-		case received = <-ch:
-			if expected == received {
-				return
-			}
-		case <-timeout:
-			t.Fatalf("timed out waiting for %s. last received: %q", label, received)
-		}
-	}
 }
