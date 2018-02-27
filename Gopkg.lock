@@ -15,13 +15,24 @@
 
 [[projects]]
   name = "github.com/nats-io/gnatsd"
-  packages = ["conf","logger","server","server/pse","test","util"]
+  packages = [
+    "conf",
+    "logger",
+    "server",
+    "server/pse",
+    "test",
+    "util"
+  ]
   revision = "4ccbd2e3bac4a1e1f32ed760549f1f26560f58be"
   version = "v1.0.2"
 
 [[projects]]
   name = "github.com/nats-io/go-nats"
-  packages = [".","encoders/builtin","util"]
+  packages = [
+    ".",
+    "encoders/builtin",
+    "util"
+  ]
   revision = "29f9728a183bf3fa7e809e14edac00b33be72088"
   version = "v1.3.0"
 
@@ -40,42 +51,71 @@
 [[projects]]
   branch = "master"
   name = "github.com/spf13/afero"
-  packages = [".","mem"]
+  packages = [
+    ".",
+    "mem"
+  ]
   revision = "ee1bd8ee15a1306d1f9201acc41ef39cd9f99a1b"
 
 [[projects]]
   name = "github.com/stretchr/testify"
-  packages = ["assert","require"]
+  packages = [
+    "assert",
+    "require"
+  ]
   revision = "69483b4bd14f5845b5a1e55bca19e954e827f1d0"
   version = "v1.1.4"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/crypto"
-  packages = ["bcrypt","blowfish","ssh/terminal"]
+  packages = [
+    "bcrypt",
+    "blowfish",
+    "ssh/terminal"
+  ]
   revision = "7d9177d70076375b9a59c8fde23d52d9c4a7ecd5"
 
 [[projects]]
   branch = "master"
+  name = "golang.org/x/perf"
+  packages = [
+    "benchstat",
+    "internal/stats",
+    "storage/benchfmt"
+  ]
+  revision = "ea1fc7ea91ba64ca9b3d0d016e9627a931b6abf8"
+
+[[projects]]
+  branch = "master"
   name = "golang.org/x/sys"
-  packages = ["unix","windows","windows/registry","windows/svc","windows/svc/debug","windows/svc/eventlog","windows/svc/mgr"]
+  packages = [
+    "unix",
+    "windows",
+    "windows/registry",
+    "windows/svc",
+    "windows/svc/debug",
+    "windows/svc/eventlog",
+    "windows/svc/mgr"
+  ]
   revision = "1f337fdb7fffc2ab9c536b9b462da1521d706042"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/text"
-  packages = ["internal/gen","internal/triegen","internal/ucd","transform","unicode/cldr","unicode/norm"]
+  packages = [
+    "internal/gen",
+    "internal/triegen",
+    "internal/ucd",
+    "transform",
+    "unicode/cldr",
+    "unicode/norm"
+  ]
   revision = "1cbadb444a806fd9430d14ad08967ed91da4fa0a"
-
-[[projects]]
-  branch = "master"
-  name = "golang.org/x/tools"
-  packages = ["benchmark/parse"]
-  revision = "9b61fcc4c548d69663d915801fc4b42a43b6cd9c"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "cd04f3664797f9138c9e93d58dda66c61a1973585ab49e0b5842c3b8da44eec4"
+  inputs-digest = "b380b1e23bde0e8ab44c1569d9c9b0e12c56ff337ab727d135cd69a673557dac"
   solver-name = "gps-cdcl"
   solver-version = 1
