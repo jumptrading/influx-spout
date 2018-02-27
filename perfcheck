@@ -3,6 +3,9 @@
 GO_PACKAGE=github.com/jumptrading/influx-spout
 REFERENCE_REVISION=${REFERENCE_REVISION:-4d69bb7cd5a8dd80f33a54d9a4a43c5d05ac1e29}
 
+iterations=5
+orig_gopath=$GOPATH
+
 echo "Comparing working tree against $REFERENCE_REVISION"
 
 fatal() {
@@ -17,7 +20,9 @@ title() {
 capture_benchmarks() {
     test_sizes=$1
     output=$2
-    go test -tags="$test_sizes" -run='^$' -bench=. $(go list ./... | grep -v vendor) &> $output
+
+    packages=`go list ./... | grep -v vendor`
+    go test -tags="$test_sizes" -run='^$' -bench=. $packages &>> $output
     if [[ $? -ne 0 ]]; then
         cat $output
         exit 1
@@ -36,38 +41,46 @@ for test_size in $test_sizes; do
     esac
 done
 
-out_dir=$PWD
-packages= current_bench_output="$out_dir/current.bench"
-reference_bench_output="$out_dir/reference.bench"
+current_bench_output="$PWD/current.bench"
+reference_bench_output="$PWD/reference.bench"
 
 title "Building benchcheck tool"
 go build -o benchcheck/benchcheck ./benchcheck || exit 1
 
-title "Running current benchmarks"
-capture_benchmarks "$test_sizes" $current_bench_output
-
 title "Setting up reference branch"
 
 # Create a temporary GOPATH which gets removed on exit.
-tempdir=`mktemp -d`
+ref_gopath=`mktemp -d`
 function cleanup() {
-    rm -rf $tempdir
+    rm -rf $ref_gopath
 }
 trap cleanup EXIT
 
 # Clone the repo into the temporary GOPATH
 set -e
-export GOPATH=$tempdir
-clone_dir=$GOPATH/src/$GO_PACKAGE
-echo "Cloning to $clone_dir"
+clone_dir=$ref_gopath/src/$GO_PACKAGE
 git clone --quiet . $clone_dir
 pushd $clone_dir > /dev/null
-git checkout --quiet -b perfcheck $REFERENCE_REVISION
+git checkout --quiet -b perfcheck $REFERENCE_REVISION > /dev/null
+popd > /dev/null
 set +e
 
-title "Running reference benchmarks"
-capture_benchmarks "$test_sizes" $reference_bench_output
+# Run the tests for the current benchmarks and reference benchmarks
+# $iterations times. The runs are interleaved to minimise the effects
+# of other load on the host.
+for i in `seq $iterations`; do
+    title "Iteration $i/$iterations"
+
+    title "Running current benchmarks"
+    export GOPATH=$orig_gopath
+    capture_benchmarks "$test_sizes" $current_bench_output
+
+    title "Running reference benchmarks"
+    export GOPATH=$ref_gopath
+    pushd $clone_dir > /dev/null
+    capture_benchmarks "$test_sizes" $reference_bench_output
+    popd > /dev/null
+done
 
 title "Comparing benchmarks"
-popd > /dev/null
-exec benchcheck/benchcheck $reference_bench_output $current_bench_output
+./benchcheck/benchcheck $reference_bench_output $current_bench_output
