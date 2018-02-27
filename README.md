@@ -4,15 +4,18 @@
 
 influx-spout is an open source messaging system that routes and processes 
 [InfluxDB] [line protocol] metrics from agents (For example [Telegraf]) to 
-processing and storage backends (InfluxDB, Kapacitor etc.)
+processing and storage backends (InfluxDB, Kapacitor etc.). 
 
 Key features:
-- Proven ability to handle high volumes of data (>500k points per second)
-- Horizontal scalability with a multithreaded data processing pipeline and multi-node distributed architecture based on the [NATS] messaging system
+- Proven ability to handle high volumes of data (>500k points per second) in a production environment
+- Horizontal scalability
+  - Multithreaded data processing within components
+  - Components can be distributed on multiple servers or a fleet of containers
 - Ability to add and remove endpoints without disrupting existing data flows
-- Fine-grained control over routing of metrics data to specific destinations based on measurement names and, optionally, regular expressions
-- Sanity checking that prevents corrupt metrics data from reaching storage and processing backends
-- Batching of egress data to large chunks, making it easier for backends to process
+- Fine-grained, regexp-based control over routing of metrics data to specific backends
+- Sanity checking of the data stream that prevents corrupt metrics data from reaching backends
+- Batching of outgoing data to larger chunks, making it easier for backends to handle high-volume dataflows
+- Leverages the high-performance [NATS] messaging system
 
 [InfluxDB]: https://www.influxdata.com/time-series-platform/influxdb/
 [line protocol]: https://docs.influxdata.com/influxdb/v1.4/write_protocols/line_protocol_tutorial/
