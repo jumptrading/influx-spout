@@ -23,16 +23,12 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
-	// for profiling a nasty memleak
 	"net/http"
-	_ "net/http/pprof"
-
-	// This would be nice, but it's too unstable for now
-	// revisit eventually
-	//"github.com/valyala/fasthttp"
+	_ "net/http/pprof" // for profiling a nasty memleak
 
 	"github.com/nats-io/go-nats"
 
@@ -299,12 +295,22 @@ func (w *Writer) startStatistician() {
 	// sending it to the monitoring backend.
 	statsLine := lineformatter.New(
 		"spout_stat_writer",
-		[]string{"writer"}, // tag keys
+		[]string{ // tag keys
+			"writer",
+			"influxdb_address",
+			"influxdb_port",
+			"influxdb_dbname",
+		},
 		"received",
 		"write_requests",
 		"failed_writes",
 	)
-	tagVals := []string{w.c.Name}
+	tagVals := []string{
+		w.c.Name,
+		w.c.InfluxDBAddress,
+		strconv.Itoa(w.c.InfluxDBPort),
+		w.c.DBName,
+	}
 	for {
 		stats := w.stats.Clone()
 		w.nc.Publish(w.c.NATSSubjectMonitor, statsLine.Format(

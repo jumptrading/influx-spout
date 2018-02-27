@@ -21,6 +21,8 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -42,16 +44,18 @@ var natsAddress = fmt.Sprintf("nats://127.0.0.1:%d", natsPort)
 
 func testConfig() *config.Config {
 	return &config.Config{
+		Mode:               "writer",
+		Name:               "foo",
 		NATSAddress:        natsAddress,
 		NATSSubject:        []string{"writer-test"},
 		NATSSubjectMonitor: "writer-test-monitor",
 		InfluxDBAddress:    "localhost",
 		InfluxDBPort:       influxPort,
+		DBName:             "metrics",
 		BatchMessages:      1,
 		BatchMaxMB:         10,
 		BatchMaxSecs:       300,
 		Port:               influxPort,
-		Mode:               "writer",
 		Workers:            96,
 		NATSPendingMaxMB:   32,
 	}
@@ -96,7 +100,14 @@ func TestBasicWriter(t *testing.T) {
 	w := startWriter(t, conf)
 	defer w.Stop()
 
-	// publish 5 messages to the bus
+	// Subscribe to stats output.
+	statsCh := make(chan string, 10)
+	_, err := nc.Subscribe(conf.NATSSubjectMonitor, func(msg *nats.Msg) {
+		statsCh <- string(msg.Data)
+	})
+	require.NoError(t, err)
+
+	// Publish 5 messages to the bus.
 	subject := conf.NATSSubject[0]
 	publish(t, subject, "To be, or not to be: that is the question:")
 	publish(t, subject, "Whether ’tis nobler in the mind to suffer")
@@ -104,7 +115,7 @@ func TestBasicWriter(t *testing.T) {
 	publish(t, subject, "Or to take arms against a sea of troubles,")
 	publish(t, subject, "And by opposing end them. To die: to sleep;")
 
-	// wait for confirmation that they were written
+	// Wait for confirmation that they were written.
 	timeout := time.After(spouttest.LongWait)
 	for i := 0; i < 5; i++ {
 		select {
@@ -113,6 +124,16 @@ func TestBasicWriter(t *testing.T) {
 			t.Fatal("timed out waiting for messages")
 		}
 	}
+
+	// Check the stats output.
+	spouttest.AssertRecvMulti(t, statsCh, "stats",
+		strings.Join([]string{
+			"spout_stat_writer",
+			"writer=foo",
+			"influxdb_address=localhost",
+			"influxdb_port=" + strconv.Itoa(influxPort),
+			"influxdb_dbname=metrics",
+		}, ",")+" received=5,write_requests=5,failed_writes=0\n")
 }
 
 func TestBatchMBLimit(t *testing.T) {
