@@ -2,17 +2,30 @@
 
 ## Overview
 
-influx-spout consists of a number of components which receive [InfluxDB] [line
-protocol] measurements sent by agents such as [Telegraf], efficiently filter
-them and then forward them on to one or more InfluxDB backends. Much effort has
-been put in to ensuring that high volumes of measurements can be
-supported. [NATS] is used for messaging between the various influx-spout
-components.
+influx-spout is an open source messaging system that routes and processes 
+[InfluxDB line protocol] metrics from agents (for example [Telegraf]) to 
+processing and storage backends ([InfluxDB], [Kapacitor] etc.). 
+
+Key features:
+- Proven ability to handle high volumes of data (>500k points per second) 
+  in a production environment
+- Horizontal scalability
+  - Multithreaded data processing within components
+  - Components can be distributed on multiple servers or a fleet of containers
+- Ability to add and remove endpoints without disrupting existing data flows
+- Fine-grained, regexp-based control over routing of metrics data to specific 
+  backends
+- Sanity checking of the data stream that prevents corrupt metrics data from 
+  reaching backends
+- Batching of outgoing data to larger chunks, making it easier for backends 
+  to handle high-volume dataflows
+- Leverages the high-performance [NATS] messaging system
 
 [InfluxDB]: https://www.influxdata.com/time-series-platform/influxdb/
-[line protocol]: https://docs.influxdata.com/influxdb/v1.4/write_protocols/line_protocol_tutorial/
+[InfluxDB line protocol]: https://docs.influxdata.com/influxdb/v1.4/write_protocols/line_protocol_tutorial/
 [Telegraf]: https://www.influxdata.com/time-series-platform/telegraf/
 [NATS]: https://nats.io/
+[Kapacitor]: https://www.influxdata.com/time-series-platform/kapacitor/
 
 The following diagram shows a typical influx-spout deployment, and the
 flow of data between the various components:
@@ -52,7 +65,6 @@ flow of data between the various components:
 All the influx-spout components may be run on a single host or may be
 spread across multiple hosts depending on scaling and operational
 requirements.
-
 
 ## Building
 
