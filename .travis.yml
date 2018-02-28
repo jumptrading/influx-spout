@@ -1,10 +1,15 @@
 language: go
 
 go:
-  - 1.8.x
   - 1.9.x
   - "1.10"
   - master  # find out if a upcoming change in Go is going to break us
+
+matrix:
+  # We only want to fail the build based on stable versions of Go
+  allow_failures:
+    - go: master
+  fast_finish: true
 
 # No need for an install step as all dependencies are vendored.
 install: []
