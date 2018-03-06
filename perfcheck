@@ -65,6 +65,9 @@ git checkout --quiet -b perfcheck $REFERENCE_REVISION > /dev/null
 popd > /dev/null
 set +e
 
+# Remove output from previous runs
+rm -f $reference_bench_output $current_bench_output
+
 # Run the tests for the current benchmarks and reference benchmarks
 # $iterations times. The runs are interleaved to minimise the effects
 # of other load on the host.
