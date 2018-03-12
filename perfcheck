@@ -1,7 +1,7 @@
 #!/bin/bash
 
 GO_PACKAGE=github.com/jumptrading/influx-spout
-REFERENCE_REVISION=${REFERENCE_REVISION:-4d69bb7cd5a8dd80f33a54d9a4a43c5d05ac1e29}
+REFERENCE_REVISION=${REFERENCE_REVISION:-aa46d4677bb8ef72848c211312d9051b879322dc}
 
 iterations=5
 orig_gopath=$GOPATH
