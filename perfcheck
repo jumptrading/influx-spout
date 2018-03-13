@@ -47,6 +47,9 @@ reference_bench_output="$PWD/reference.bench"
 title "Building benchcheck tool"
 go build -o benchcheck/benchcheck ./benchcheck || exit 1
 
+title "Fetching upstream reference branch"
+git fetch --depth=50 origin perfcheck-reference
+
 title "Setting up reference branch"
 
 # Create a temporary GOPATH which gets removed on exit.
