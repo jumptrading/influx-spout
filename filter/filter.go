@@ -25,7 +25,7 @@ import (
 	"github.com/jumptrading/influx-spout/config"
 	"github.com/jumptrading/influx-spout/lineformatter"
 	"github.com/jumptrading/influx-spout/stats"
-	"github.com/nats-io/nats"
+	"github.com/nats-io/go-nats"
 )
 
 // Name for supported stats
