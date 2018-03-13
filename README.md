@@ -9,7 +9,7 @@ processing and storage backends ([InfluxDB], [Kapacitor] etc.).
 Key features:
 - Proven ability to handle high volumes of data (>500k points per second) 
   in a production environment
-- Horizontal scalability
+- Horizontal scalability 
   - Multithreaded data processing within components
   - Components can be distributed on multiple servers or a fleet of containers
 - Ability to add and remove endpoints without disrupting existing data flows
