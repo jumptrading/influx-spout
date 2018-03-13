@@ -17,7 +17,10 @@
 package filter
 
 import (
+	"strconv"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -188,22 +191,31 @@ func BenchmarkProcessBatch(b *testing.B) {
 	rs.Append(CreateBasicRule("hello", "hello-out"))
 	rs.Append(CreateRegexRule("foo|bar", "foobar-out"))
 
-	w, err := newWorker(rs, initStats(rs), nullNATSConnect, "junk")
+	w, err := newWorker(600, rs, initStats(rs), false, nullNATSConnect, "junk")
 	require.NoError(b, err)
 
-	batch := []byte(`
-hello,host=gopher01 somefield=11,etc=false
-bar,host=gopher02 somefield=14
-pepsi host=gopher01,cheese=stilton
-hello,host=gopher01 somefield=11,etc=false
-bar,host=gopher02 somefield=14
-pepsi host=gopher01,cheese=stilton
-hello,host=gopher01 somefield=11,etc=false
-bar,host=gopher02 somefield=14
-pepsi host=gopher01,cheese=stilton
-`[1:])
+	lines := []string{
+		"hello,host=gopher01 somefield=11,etc=false",
+		"bar,host=gopher02 somefield=14",
+		"pepsi host=gopher01,cheese=stilton",
+		"hello,host=gopher01 somefield=11,etc=false",
+		"bar,host=gopher02 somefield=14",
+		"pepsi host=gopher01,cheese=stilton",
+		"hello,host=gopher01 somefield=11,etc=false",
+		"bar,host=gopher02 somefield=14",
+		"pepsi host=gopher01,cheese=stilton",
+	}
+
+	// Add a timestamp to each line.
+	ts := strconv.FormatInt(time.Now().UnixNano(), 10)
+	for i, line := range lines {
+		lines[i] = line + " " + ts
+	}
+
+	batch := []byte(strings.Join(lines, "\n"))
 
 	b.ResetTimer()
+
 	for i := 0; i < b.N; i++ {
 		w.processBatch(batch)
 	}

@@ -50,6 +50,7 @@ type Config struct {
 	NATSPendingMaxMB    int      `toml:"nats_pending_max_mb"`
 	ListenerBatchBytes  int      `toml:"listener_batch_bytes"`
 	Rule                []Rule   `toml:"rule"`
+	MaxTimeDeltaSecs    int      `toml:"max_time_delta_secs"`
 	Debug               bool     `toml:"debug"`
 }
 
@@ -77,6 +78,7 @@ func newDefaultConfig() *Config {
 		ReadBufferBytes:     4 * 1024 * 1024,
 		NATSPendingMaxMB:    200,
 		ListenerBatchBytes:  1024 * 1024,
+		MaxTimeDeltaSecs:    600,
 	}
 }
 

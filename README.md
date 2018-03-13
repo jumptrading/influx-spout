@@ -208,6 +208,11 @@ nats_subject_monitor = "influx-spout-monitor"
 # The number of filter workers to spawn.
 workers = 8
 
+# Incoming metrics with timestamps ± this value from the current time will be
+# rejected. Metrics with timestamps that are significantly different from previously
+# written timestamps negatively impact InfluxDB performance.
+max_time_delta_secs = 600
+
 # At least one rule should be defined. Rules are defined using TOML's table
 # syntax. The following examples show each rule type.
 

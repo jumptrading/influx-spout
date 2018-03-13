@@ -22,18 +22,18 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nats-io/go-nats"
-
 	"github.com/jumptrading/influx-spout/config"
 	"github.com/jumptrading/influx-spout/lineformatter"
 	"github.com/jumptrading/influx-spout/stats"
+	"github.com/nats-io/nats"
 )
 
 // Name for supported stats
 const (
-	linesPassed    = "lines-passed"
-	linesProcessed = "lines-processed"
-	linesRejected  = "lines-rejected"
+	linesPassed      = "passed"
+	linesProcessed   = "processed"
+	linesRejected    = "rejected"
+	linesInvalidTime = "invalid-time"
 )
 
 // StartFilter creates a Filter instance, sets up its rules based on
@@ -65,7 +65,14 @@ func StartFilter(conf *config.Config) (_ *Filter, err error) {
 
 	jobs := make(chan []byte, 1024)
 	for i := 0; i < f.c.Workers; i++ {
-		w, err := newWorker(rules, stats, f.natsConnect, f.c.NATSSubjectJunkyard)
+		w, err := newWorker(
+			f.c.MaxTimeDeltaSecs,
+			rules,
+			stats,
+			f.c.Debug,
+			f.natsConnect,
+			f.c.NATSSubjectJunkyard,
+		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to start worker: %v", err)
 		}
@@ -105,6 +112,7 @@ func initStats(rules *RuleSet) *stats.Stats {
 		linesPassed,
 		linesProcessed,
 		linesRejected,
+		linesInvalidTime,
 	}
 	for i := 0; i < rules.Count(); i++ {
 		statNames = append(statNames, ruleToStatsName(i))
@@ -153,7 +161,7 @@ func (f *Filter) startStatistician(stats *stats.Stats, rules *RuleSet) {
 	totalLine := lineformatter.New(
 		"spout_stat_filter",
 		[]string{"filter"},
-		"passed", "processed", "rejected",
+		linesPassed, linesProcessed, linesRejected, linesInvalidTime,
 	)
 	ruleLine := lineformatter.New(
 		"spout_stat_filter_rule",
@@ -170,6 +178,7 @@ func (f *Filter) startStatistician(stats *stats.Stats, rules *RuleSet) {
 			st.Get(linesPassed),
 			st.Get(linesProcessed),
 			st.Get(linesRejected),
+			st.Get(linesInvalidTime),
 		))
 
 		// publish the per rule stats
