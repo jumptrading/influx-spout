@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -83,7 +82,7 @@ func StartWriter(c *config.Config) (_ *Writer, err error) {
 
 	w.nc, err = nats.Connect(c.NATSAddress)
 	if err != nil {
-		return nil, fmt.Errorf("NATS Error: can't connect: %v\n", err)
+		return nil, fmt.Errorf("NATS Error: can't connect: %v", err)
 	}
 
 	// if we disconnect, we want to try reconnecting as many times as
@@ -92,7 +91,6 @@ func StartWriter(c *config.Config) (_ *Writer, err error) {
 
 	http.DefaultTransport.(*http.Transport).MaxIdleConnsPerHost = 100
 
-	w.notifyState("boot") // notify the monitor that we have finished booting and soon are ready
 	jobs := make(chan *nats.Msg, 1024)
 	w.wg.Add(w.c.Workers)
 	for wk := 0; wk < w.c.Workers; wk++ {
@@ -116,16 +114,14 @@ func StartWriter(c *config.Config) (_ *Writer, err error) {
 		go w.monitorSub(sub)
 	}
 
-	w.wg.Add(1)
-	go w.startStatistician()
-
-	if err = w.nc.LastError(); err != nil {
-		w.notifyState("crashed")
-		return nil, err
+	// Subscriptions don't always seem to be reliable without flushing
+	// after subscribing.
+	if err := w.nc.Flush(); err != nil {
+		return nil, fmt.Errorf("NATS flush error: %v", err)
 	}
 
-	// notify the monitor that we are ready to receive messages and transmit to influxdb
-	w.notifyState("ready")
+	w.wg.Add(1)
+	go w.startStatistician()
 
 	log.Printf("writer subscribed to [%v] at %s with %d workers",
 		c.NATSSubject, c.NATSAddress, c.Workers)
@@ -325,18 +321,5 @@ func (w *Writer) startStatistician() {
 		case <-w.stop:
 			return
 		}
-	}
-}
-
-var notifyLine = lineformatter.New("spout_mon", nil, "type", "state", "pid")
-
-func (w *Writer) notifyState(state string) {
-	line := notifyLine.Format(nil, "writer", state, os.Getpid())
-	if err := w.nc.Publish(w.c.NATSSubjectMonitor, line); err != nil {
-		log.Printf("NATS Error: %v\n", err)
-		return
-	}
-	if err := w.nc.Flush(); err != nil {
-		log.Printf("NATS Error: %v\n", err)
 	}
 }
