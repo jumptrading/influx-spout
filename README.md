@@ -1,4 +1,4 @@
-# influx-spout [![Build Status](https://travis-ci.com/jumptrading/influx-spout.svg?token=tnGgsxkjnTL4Es3TAsMc&branch=master)](https://travis-ci.com/jumptrading/influx-spout)
+# influx-spout [![Build Status](https://travis-ci.org/jumptrading/influx-spout.svg?branch=master)](https://travis-ci.org/jumptrading/influx-spout) [![Go Report Card](https://goreportcard.com/badge/github.com/jumptrading/influx-spout)](https://goreportcard.com/report/github.com/jumptrading/influx-spout)
 
 ## Overview
 

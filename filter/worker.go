@@ -148,7 +148,7 @@ func extractTimestamp(line []byte, defaultTs int64) int64 {
 	length := len(line)
 
 	// Reject lines that are too short to have a timestamp.
-	if length <= minTsLen {
+	if length <= minTsLen+6 {
 		return defaultTs
 	}
 
