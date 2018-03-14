@@ -17,3 +17,7 @@ install: []
 script:
   - ./runtests -r small medium large
   - ./perfcheck small medium large
+
+notifications:
+  slack:
+    secure: Py9Z8gyzsr63Wx8+GZNluL18Npf1y08K4IqtODK7jb9bRddyrsEwjFrqCE8KGNfgbYc1h9UAE2MXEbX2vtF3nTrBHUzo8m15c9bKNlc5SJQO40B4+fu/xfzUn+XdDCaZyoaMBSUOrIJwTfFrPPWzfAa7g13xIXMk7Pa/bKAlkj+gFKhvHCf2JCf3sUSaZ+2/A4py9S5ljfAMYhk48XTKqODAZGnpRkgPnKRYvIBKrWGXhS8V++UHcR19Dng1ND+3y/t5mtjZuvSSm5e1EN0kjNVhhsCmZPBjeQUg17YbuzCh7qVCxI5clseAlaAx3MdImhiSCo44rgJ8oYpSR9I2MwN9wYL9h0aZ/V1vEUPZ9vyRRVe09T1MGsKMMrcSMflplV/vEk/v8eo2PC+tU+NfTyJd6dQ0eMF5SjOrUL2mOp0vxS6fGc+D8y1Lni/rrm9huGKPIKarzqBpye22npBm2OxYBgl9gZoGRzyZtyyTYBxp2PgcirfEbcM+UPoFC2cgRwfV5TacYaJfU6Jel+lmCyLbPzE/0ZXeQ/xNH4sWVhuGjYJj4t+cHNxhk4HDlza6eOXeh7feO8tivBcwO8+JWhNt0zzNWW+Nvu9XcFMtVhjaIwQh7A5w0AVtUs17dnbDcURvDSBjrh9WELFxE9gLB8uF52VQO6/FpnaQ6EWsIFg=
