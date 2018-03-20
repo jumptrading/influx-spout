@@ -3,7 +3,8 @@ package monitor
 import (
 	"bytes"
 	"errors"
-	"strconv"
+
+	"github.com/jumptrading/influx-spout/convert"
 )
 
 // Metric represents a single Prometheus metric line, including its
@@ -11,7 +12,7 @@ import (
 type Metric struct {
 	Name         []byte
 	Labels       LabelPairs
-	Value        int
+	Value        int64
 	Milliseconds int64
 }
 
@@ -60,14 +61,14 @@ func ParseMetric(s []byte) (*Metric, error) {
 	if j == -1 {
 		j = len(s[i:]) // No timestamp
 	}
-	out.Value, err = strconv.Atoi(string(s[i : i+j]))
+	out.Value, err = convert.ToInt(s[i : i+j])
 	if err != nil {
 		return nil, errors.New("invalid value")
 	}
 
 	i += j
 	if i < len(s) {
-		out.Milliseconds, err = strconv.ParseInt(string(s[i+1:]), 10, 64)
+		out.Milliseconds, err = convert.ToInt(s[i+1:])
 		if err != nil {
 			return nil, errors.New("invalid timestamp")
 		}

@@ -16,12 +16,12 @@ package filter
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"log"
 	"sync"
 	"time"
 
+	"github.com/jumptrading/influx-spout/convert"
 	"github.com/jumptrading/influx-spout/stats"
 )
 
@@ -161,7 +161,7 @@ func extractTimestamp(line []byte, defaultTs int64) int64 {
 	// Expect a space just before the timestamp.
 	for i := length - maxTsLen - 1; i < length-minTsLen; i++ {
 		if line[i] == ' ' {
-			out, err := fastParseInt(line[i+1:])
+			out, err := convert.ToInt(line[i+1:])
 			if err != nil {
 				return defaultTs
 			}
@@ -169,33 +169,4 @@ func extractTimestamp(line []byte, defaultTs int64) int64 {
 		}
 	}
 	return defaultTs
-}
-
-const int64Max = (1 << 63) - 1
-
-// fastParseInt is a simpler, faster version of strconv.ParseInt().
-// Differences to ParseInt:
-// - input is []byte instead of a string (no type conversion required
-//   by caller)
-// - only supports base 10 input
-// - only handles positive values
-func fastParseInt(s []byte) (int64, error) {
-	if len(s) == 0 {
-		return 0, errors.New("empty")
-	}
-
-	var n uint64
-	for _, c := range s {
-		if '0' <= c && c <= '9' {
-			c -= '0'
-		} else {
-			return 0, errors.New("invalid char")
-		}
-		n = n*10 + uint64(c)
-	}
-
-	if n > int64Max {
-		return 0, errors.New("overflow")
-	}
-	return int64(n), nil
 }
