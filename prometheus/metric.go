@@ -17,6 +17,7 @@ package prometheus
 import (
 	"bytes"
 	"fmt"
+	"sort"
 )
 
 // Metric represents a single Prometheus metric line, including its
@@ -46,6 +47,8 @@ type LabelPairs []LabelPair
 
 // ToBytes renders the label name and value to wire format.
 func (p LabelPairs) ToBytes() []byte {
+	p.sort() // ensure consistent output order
+
 	out := new(bytes.Buffer)
 	out.WriteByte('{')
 	for i, label := range p {
@@ -56,6 +59,12 @@ func (p LabelPairs) ToBytes() []byte {
 	}
 	out.WriteByte('}')
 	return out.Bytes()
+}
+
+func (p LabelPairs) sort() {
+	sort.Slice(p, func(i, j int) bool {
+		return bytes.Compare(p[i].Name, p[j].Name) < 0
+	})
 }
 
 // LabelPair contains a label name and value.
