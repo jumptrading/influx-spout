@@ -180,3 +180,39 @@ func TestLabelsAndTimestamp(t *testing.T) {
 		Milliseconds: 123456789,
 	}, m)
 }
+
+func TestMetricBytesMinimal(t *testing.T) {
+	m := &monitor.Metric{
+		Name:  []byte("foo"),
+		Value: 42,
+	}
+	assert.Equal(t, []byte("foo 42"), m.ToBytes())
+}
+
+func TestMetricBytesTimestamp(t *testing.T) {
+	m := &monitor.Metric{
+		Name:         []byte("foo"),
+		Value:        42,
+		Milliseconds: 123456,
+	}
+	assert.Equal(t, []byte("foo 42 123456"), m.ToBytes())
+}
+
+func TestMetricBytesLabels(t *testing.T) {
+	m := &monitor.Metric{
+		Name: []byte("foo"),
+		Labels: monitor.LabelPairs{
+			{
+				Name:  []byte("host"),
+				Value: []byte("nyc01"),
+			},
+			{
+				Name:  []byte("thing"),
+				Value: []byte("forgot"),
+			},
+		},
+		Value:        42,
+		Milliseconds: 123456,
+	}
+	assert.Equal(t, []byte(`foo{host="nyc01",thing="forgot"} 42 123456`), m.ToBytes())
+}

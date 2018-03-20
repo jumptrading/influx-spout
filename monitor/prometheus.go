@@ -17,27 +17,10 @@ package monitor
 import (
 	"bytes"
 	"errors"
+	"fmt"
 
 	"github.com/jumptrading/influx-spout/convert"
 )
-
-// Metric represents a single Prometheus metric line, including its
-// labels and timestamp.
-type Metric struct {
-	Name         []byte
-	Labels       LabelPairs
-	Value        int64
-	Milliseconds int64
-}
-
-// LabelPairs contains the set of labels for a metric.
-type LabelPairs []LabelPair
-
-// LabelPair contains a label name and value.
-type LabelPair struct {
-	Name  []byte
-	Value []byte
-}
 
 // ParseMetric parses a single Promethesus metric line.
 //
@@ -126,4 +109,49 @@ func parseLabels(s []byte) (LabelPairs, int, error) {
 			return nil, i, errors.New("invalid label separator")
 		}
 	}
+}
+
+// Metric represents a single Prometheus metric line, including its
+// labels and timestamp.
+type Metric struct {
+	Name         []byte
+	Labels       LabelPairs
+	Value        int64
+	Milliseconds int64
+}
+
+// ToBytes renders the metric to wire format.
+func (m *Metric) ToBytes() []byte {
+	out := bytes.NewBuffer(m.Name)
+	if len(m.Labels) > 0 {
+		out.Write(m.Labels.ToBytes())
+	}
+	fmt.Fprintf(out, " %d", m.Value)
+	if m.Milliseconds > 0 {
+		fmt.Fprintf(out, " %d", m.Milliseconds)
+	}
+	return out.Bytes()
+}
+
+// LabelPairs contains the set of labels for a metric.
+type LabelPairs []LabelPair
+
+// ToBytes renders the label name and value to wire format.
+func (p LabelPairs) ToBytes() []byte {
+	out := new(bytes.Buffer)
+	out.WriteByte('{')
+	for i, label := range p {
+		fmt.Fprintf(out, `%s="%s"`, label.Name, label.Value)
+		if i < len(p)-1 {
+			out.WriteByte(',')
+		}
+	}
+	out.WriteByte('}')
+	return out.Bytes()
+}
+
+// LabelPair contains a label name and value.
+type LabelPair struct {
+	Name  []byte
+	Value []byte
 }
