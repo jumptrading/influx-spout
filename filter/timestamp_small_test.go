@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestExtractTimestamp(t *testing.T) {
@@ -55,29 +54,4 @@ func TestExtractTimestamp(t *testing.T) {
 	check("weather temp=99 11520761485803180202", defaultTs) // too long
 	check("weather temp=99 -"+tsStr, defaultTs)
 	check(tsStr, defaultTs)
-}
-
-func TestFastParseInt(t *testing.T) {
-	check := func(input string, expected int64) {
-		actual, err := fastParseInt([]byte(input))
-		require.NoError(t, err)
-		assert.Equal(t, expected, actual, "fastParseInt(%q)", input)
-	}
-
-	shouldFail := func(input string) {
-		_, err := fastParseInt([]byte(input))
-		assert.Error(t, err)
-	}
-
-	check("0", 0)
-	check("1", 1)
-	check("9", 9)
-	check("10", 10)
-	check("99", 99)
-	check("101", 101)
-	check("9223372036854775807", (1<<63)-1) // max int64 value
-
-	shouldFail("9223372036854775808") // max int64 value + 1
-	shouldFail("-1")                  // negatives not supported
-	shouldFail("x")
 }
