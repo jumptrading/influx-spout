@@ -21,6 +21,7 @@ import (
 	"github.com/jumptrading/influx-spout/config"
 	"github.com/jumptrading/influx-spout/filter"
 	"github.com/jumptrading/influx-spout/listener"
+	"github.com/jumptrading/influx-spout/monitor"
 	"github.com/jumptrading/influx-spout/writer"
 )
 
@@ -51,6 +52,8 @@ func Run(configFile string) (out Stoppable, err error) {
 			c.Workers = runtime.GOMAXPROCS(-1) * 2
 		}
 		out, err = writer.StartWriter(c)
+	case "monitor":
+		out, err = monitor.Start(c)
 	default:
 		return nil, fmt.Errorf("unknown mode of operation: [%s]", c.Mode)
 	}
