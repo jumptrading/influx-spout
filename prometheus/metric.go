@@ -29,6 +29,10 @@ type Metric struct {
 	Milliseconds int64
 }
 
+func (m *Metric) String() string {
+	return fmt.Sprintf("<Metric: %s>", m.ToBytes())
+}
+
 // ToBytes renders the metric to wire format.
 func (m *Metric) ToBytes() []byte {
 	out := bytes.NewBuffer(m.Name)

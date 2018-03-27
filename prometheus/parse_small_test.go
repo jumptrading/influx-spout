@@ -180,3 +180,106 @@ func TestParseLabelsAndTimestamp(t *testing.T) {
 		Milliseconds: 123456789,
 	}, m)
 }
+
+func TestParseMetrics(t *testing.T) {
+	input := []byte(`
+foo{host="nyc01",bar="definitely",thing="forgot"} 42 11111111
+foo{host="nyc02",bar="maybe"} 999 22222222
+bar 1234`[1:])
+
+	expected := prometheus.NewMetricSet()
+	expected.Update(&prometheus.Metric{
+		Name: []byte("foo"),
+		Labels: prometheus.LabelPairs{
+			{
+				Name:  []byte("host"),
+				Value: []byte("nyc01"),
+			},
+			{
+				Name:  []byte("bar"),
+				Value: []byte("definitely"),
+			},
+			{
+				Name:  []byte("thing"),
+				Value: []byte("forgot"),
+			},
+		},
+		Value:        42,
+		Milliseconds: 11111111,
+	})
+	expected.Update(&prometheus.Metric{
+		Name: []byte("foo"),
+		Labels: prometheus.LabelPairs{
+			{
+				Name:  []byte("host"),
+				Value: []byte("nyc02"),
+			},
+			{
+				Name:  []byte("bar"),
+				Value: []byte("maybe"),
+			},
+		},
+		Value:        999,
+		Milliseconds: 22222222,
+	})
+	expected.Update(&prometheus.Metric{
+		Name:  []byte("bar"),
+		Value: 1234,
+	})
+
+	actual, err := prometheus.ParseMetrics(input)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, expected.All(), actual.All())
+}
+
+func TestParseMetricsBlankLines(t *testing.T) {
+	input := []byte(`
+foo 111
+
+bar 222
+
+`)
+
+	expected := prometheus.NewMetricSet()
+	expected.Update(&prometheus.Metric{
+		Name:  []byte("foo"),
+		Value: 111,
+	})
+	expected.Update(&prometheus.Metric{
+		Name:  []byte("bar"),
+		Value: 222,
+	})
+
+	actual, err := prometheus.ParseMetrics(input)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, expected.All(), actual.All())
+}
+
+func TestParseMetricsLastWins(t *testing.T) {
+	input := []byte(`
+foo 1
+foo 2
+foo 3
+foo 4
+foo 5
+foo 6
+`[1:])
+
+	expected := prometheus.NewMetricSet()
+	expected.Update(&prometheus.Metric{
+		Name:  []byte("foo"),
+		Value: 6,
+	})
+
+	actual, err := prometheus.ParseMetrics(input)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, expected.All(), actual.All())
+}
+
+func TestParseMetricsEmpty(t *testing.T) {
+	expected := prometheus.NewMetricSet()
+
+	actual, err := prometheus.ParseMetrics([]byte{})
+	require.NoError(t, err)
+	assert.ElementsMatch(t, expected.All(), actual.All())
+}

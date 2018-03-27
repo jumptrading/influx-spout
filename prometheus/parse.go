@@ -17,9 +17,26 @@ package prometheus
 import (
 	"bytes"
 	"errors"
+	"fmt"
 
 	"github.com/jumptrading/influx-spout/convert"
 )
+
+// ParseMetrics parses multiple Promethesus metric lines, returning a MetricSet.
+func ParseMetrics(s []byte) (*MetricSet, error) {
+	set := NewMetricSet()
+	for i, line := range bytes.Split(s, []byte("\n")) {
+		if len(line) == 0 {
+			continue
+		}
+		m, err := ParseMetric(line)
+		if err != nil {
+			return nil, fmt.Errorf("line %d: %v", i+1, err)
+		}
+		set.Update(m)
+	}
+	return set, nil
+}
 
 // ParseMetric parses a single Promethesus metric line.
 //
