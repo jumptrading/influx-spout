@@ -49,6 +49,13 @@ func (set *MetricSet) Update(m *Metric) {
 	set.metrics[metricKey(m)] = m
 }
 
+// UpdateFromSet updates the values in the set from another MetricSet.
+func (set *MetricSet) UpdateFromSet(other *MetricSet) {
+	for _, m := range other.All() {
+		set.Update(m)
+	}
+}
+
 // ToBytes serialise the metrics contained in the MetricSet to the
 // Prometheus exposition format.
 func (set *MetricSet) ToBytes() []byte {
