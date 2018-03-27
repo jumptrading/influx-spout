@@ -154,3 +154,50 @@ func TestUpdateLabelOrdering(t *testing.T) {
 
 	assert.Equal(t, set.All(), []*prometheus.Metric{m1})
 }
+
+func TestToBytes(t *testing.T) {
+	set := prometheus.NewMetricSet()
+
+	set.Update(&prometheus.Metric{
+		Name: []byte("uptime"),
+		Labels: prometheus.LabelPairs{
+			{Name: []byte("host"), Value: []byte("nyc01")},
+		},
+		Value:        1234,
+		Milliseconds: 101,
+	})
+	set.Update(&prometheus.Metric{
+		Name: []byte("temp"),
+		Labels: prometheus.LabelPairs{
+			{Name: []byte("host"), Value: []byte("nyc02")},
+			{Name: []byte("core"), Value: []byte("0")},
+		},
+		Value:        55,
+		Milliseconds: 100,
+	})
+	set.Update(&prometheus.Metric{
+		Name: []byte("temp"),
+		Labels: prometheus.LabelPairs{
+			{Name: []byte("host"), Value: []byte("nyc02")},
+			{Name: []byte("core"), Value: []byte("1")},
+		},
+		Value:        56,
+		Milliseconds: 100,
+	})
+	set.Update(&prometheus.Metric{
+		Name: []byte("uptime"),
+		Labels: prometheus.LabelPairs{
+			{Name: []byte("host"), Value: []byte("nyc02")},
+		},
+		Value:        4444,
+		Milliseconds: 102,
+	})
+
+	expected := []byte(`
+temp{core="0",host="nyc02"} 55 100
+temp{core="1",host="nyc02"} 56 100
+uptime{host="nyc01"} 1234 101
+uptime{host="nyc02"} 4444 102
+`[1:])
+	assert.Equal(t, expected, set.ToBytes())
+}

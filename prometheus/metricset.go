@@ -15,7 +15,9 @@
 package prometheus
 
 import (
+	"bytes"
 	"fmt"
+	"sort"
 )
 
 // NewMetricSet returns an empty MetricSet.
@@ -45,6 +47,23 @@ func (set *MetricSet) All() []*Metric {
 // overwriting previous values.
 func (set *MetricSet) Update(m *Metric) {
 	set.metrics[metricKey(m)] = m
+}
+
+// ToBytes serialise the metrics contained in the MetricSet to the
+// Prometheus exposition format.
+func (set *MetricSet) ToBytes() []byte {
+	keys := make([]string, 0, len(set.metrics))
+	for key := range set.metrics {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	out := new(bytes.Buffer)
+	for _, key := range keys {
+		out.Write(set.metrics[key].ToBytes())
+		out.WriteByte('\n')
+	}
+	return out.Bytes()
 }
 
 func metricKey(m *Metric) string {
