@@ -50,6 +50,9 @@ func Start(conf *config.Config) (_ *Monitor, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("NATS: failed to subscribe: %v", err)
 	}
+	if err := m.nc.Flush(); err != nil {
+		return nil, fmt.Errorf("NATS: failed to flush: %v", err)
+	}
 
 	m.wg.Add(1)
 	go m.serveHTTP()
