@@ -96,5 +96,5 @@ for a in `seq $max_attempts`; do
     done
 
     title "Comparing benchmarks"
-    ./benchcheck/benchcheck $reference_bench_output $current_bench_output && exit 0
+    ./benchcheck/benchcheck -print $reference_bench_output $current_bench_output && exit 0
 done
