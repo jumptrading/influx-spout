@@ -67,18 +67,16 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if hasProblem {
-		fmt.Println("Performance regression found!")
-		fmt.Println()
+	if hasProblem || *flagPrint {
 		printTables(tables)
-	} else if *flagPrint {
-		printTables(tables)
-	} else {
-		fmt.Println("No performance regressions found")
 	}
+	fmt.Println()
 
 	if hasProblem {
+		fmt.Println("Performance regression found!")
 		os.Exit(1)
+	} else {
+		fmt.Println("No performance regressions found.")
 	}
 }
 

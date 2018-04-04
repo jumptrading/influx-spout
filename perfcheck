@@ -3,7 +3,8 @@
 GO_PACKAGE=github.com/jumptrading/influx-spout
 REFERENCE_REVISION=${REFERENCE_REVISION:-aa46d4677bb8ef72848c211312d9051b879322dc}
 
-iterations=5
+max_attempts=3
+iterations=3
 orig_gopath=$GOPATH
 
 echo "Comparing working tree against $REFERENCE_REVISION"
@@ -70,25 +71,30 @@ git checkout --quiet -b perfcheck $REFERENCE_REVISION > /dev/null
 popd > /dev/null
 set +e
 
-# Remove output from previous runs
-rm -f $reference_bench_output $current_bench_output
 
 # Run the tests for the current benchmarks and reference benchmarks
 # $iterations times. The runs are interleaved to minimise the effects
 # of other load on the host.
-for i in `seq $iterations`; do
-    title "Iteration $i/$iterations"
+for a in `seq $max_attempts`; do
+    title "Attempt $a ($max_attempts max)"
 
-    title "Running current benchmarks"
-    export GOPATH=$orig_gopath
-    capture_benchmarks "$test_sizes" $current_bench_output
+    # Remove output from previous runs
+    rm -f $reference_bench_output $current_bench_output
 
-    title "Running reference benchmarks"
-    export GOPATH=$ref_gopath
-    pushd $clone_dir > /dev/null
-    capture_benchmarks "$test_sizes" $reference_bench_output
-    popd > /dev/null
+    for i in `seq $iterations`; do
+        title "Iteration $i/$iterations"
+
+        title "Running current benchmarks"
+        export GOPATH=$orig_gopath
+        capture_benchmarks "$test_sizes" $current_bench_output
+
+        title "Running reference benchmarks"
+        export GOPATH=$ref_gopath
+        pushd $clone_dir > /dev/null
+        capture_benchmarks "$test_sizes" $reference_bench_output
+        popd > /dev/null
+    done
+
+    title "Comparing benchmarks"
+    ./benchcheck/benchcheck -print $reference_bench_output $current_bench_output && exit 0
 done
-
-title "Comparing benchmarks"
-./benchcheck/benchcheck $reference_bench_output $current_bench_output
