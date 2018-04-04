@@ -311,6 +311,7 @@ type testInfluxd struct {
 	server *http.Server
 	wg     sync.WaitGroup
 	Writes chan string
+	ready  chan struct{}
 }
 
 func runTestInfluxd() *testInfluxd {
@@ -319,9 +320,17 @@ func runTestInfluxd() *testInfluxd {
 			Addr: fmt.Sprintf(":%d", influxPort),
 		},
 		Writes: make(chan string, 99),
+		ready:  make(chan struct{}),
 	}
+
 	s.wg.Add(1)
 	go s.run()
+	select {
+	case <-s.ready:
+	case <-time.After(spouttest.LongWait):
+		panic("testInfluxd failed to start")
+	}
+
 	return s
 }
 
@@ -353,6 +362,7 @@ func (s *testInfluxd) run() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/write", s.handleWrite)
 	s.server.Handler = mux
+	close(s.ready)
 	s.server.ListenAndServe()
 }
 
