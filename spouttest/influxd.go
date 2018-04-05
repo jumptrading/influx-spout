@@ -21,6 +21,7 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"time"
 )
 
 // RunFakeInfluxd starts a fake influxd instance with the HTTP port
@@ -31,11 +32,18 @@ func RunFakeInfluxd(port int) *FakeInfluxDB {
 		server: &http.Server{
 			Addr: fmt.Sprintf(":%d", port),
 		},
+		ready: make(chan struct{}),
 		lines: make(map[string][]string),
 	}
 
 	f.wg.Add(1)
 	go f.run()
+
+	select {
+	case <-f.ready:
+	case <-time.After(LongWait):
+		panic("FakeInfluxDB failed to start")
+	}
 
 	return f
 }
@@ -45,6 +53,7 @@ func RunFakeInfluxd(port int) *FakeInfluxDB {
 type FakeInfluxDB struct {
 	server *http.Server
 	wg     sync.WaitGroup
+	ready  chan struct{}
 
 	mu    sync.Mutex
 	lines map[string][]string
@@ -78,6 +87,7 @@ func (f *FakeInfluxDB) run() {
 	f.server.Handler = mux
 
 	log.Printf("fake influxd listening on %s", f.server.Addr)
+	close(f.ready)
 	f.server.ListenAndServe()
 }
 
