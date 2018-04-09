@@ -49,8 +49,21 @@ func TestInvalid(t *testing.T) {
 	assert.Equal(t, 0, s.Get("foo"))
 }
 
+func TestSnapshot(t *testing.T) {
+	s := stats.New("foo", "bar", "qaz")
+	s.Inc("foo")
+	s.Inc("bar")
+	s.Inc("bar")
+
+	assert.ElementsMatch(t, []stats.CounterPair{
+		{"foo", 1},
+		{"bar", 2},
+		{"qaz", 0},
+	}, s.Snapshot())
+}
+
 func TestClone(t *testing.T) {
-	s := stats.New("foo", "bar")
+	s := stats.New("foo", "bar", "qaz")
 	s.Inc("foo")
 	s.Inc("bar")
 	s.Inc("bar")
@@ -58,6 +71,7 @@ func TestClone(t *testing.T) {
 	s2 := s.Clone()
 	assert.Equal(t, 1, s2.Get("foo"))
 	assert.Equal(t, 2, s2.Get("bar"))
+	assert.Equal(t, 0, s2.Get("qaz"))
 
 	// Make sure they're independent
 	s2.Inc("foo")
