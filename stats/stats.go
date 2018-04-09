@@ -67,8 +67,10 @@ type CounterPair struct {
 	Value int
 }
 
+type Snapshot []CounterPair
+
 // Snapshot returns the current values of all the counters.
-func (s *Stats) Snapshot() []CounterPair {
+func (s *Stats) Snapshot() Snapshot {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
