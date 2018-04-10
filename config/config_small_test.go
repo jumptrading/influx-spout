@@ -120,6 +120,12 @@ func TestDefaultPortHTTPListener(t *testing.T) {
 	assert.Equal(t, 13337, conf.Port)
 }
 
+func TestDefaultPortMonitor(t *testing.T) {
+	conf, err := parseConfig(`mode = "monitor"`)
+	require.NoError(t, err)
+	assert.Equal(t, 9331, conf.Port)
+}
+
 func TestNoMode(t *testing.T) {
 	_, err := parseConfig("")
 	assert.EqualError(t, err, "mode not specified in config")
