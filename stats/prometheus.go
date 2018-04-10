@@ -28,7 +28,7 @@ func SnapshotToPrometheus(
 	now time.Time,
 	labels map[string]string,
 ) []byte {
-	millis := now.UnixNano() / int64(time.Millisecond)
+	millis := timeToMillis(now)
 
 	labelPairs := make(prometheus.LabelPairs, 0, len(labels))
 	for name, value := range labels {
@@ -48,4 +48,30 @@ func SnapshotToPrometheus(
 		})
 	}
 	return set.ToBytes()
+}
+
+// CounterToPrometheus generates a single Prometheus line for a counter.
+func CounterToPrometheus(name string, value int, now time.Time, labels map[string]string) []byte {
+	metric := &prometheus.Metric{
+		Name:         []byte(name),
+		Labels:       toLabelPairs(labels),
+		Value:        int64(value),
+		Milliseconds: timeToMillis(now),
+	}
+	return metric.ToBytes()
+}
+
+func timeToMillis(t time.Time) int64 {
+	return t.UnixNano() / int64(time.Millisecond)
+}
+
+func toLabelPairs(labels map[string]string) prometheus.LabelPairs {
+	labelPairs := make(prometheus.LabelPairs, 0, len(labels))
+	for name, value := range labels {
+		labelPairs = append(labelPairs, prometheus.LabelPair{
+			Name:  []byte(name),
+			Value: []byte(value),
+		})
+	}
+	return labelPairs
 }

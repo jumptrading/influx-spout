@@ -61,3 +61,12 @@ qaz{host="nyc01",level="high"} 0 1234567890000
 `[1:])
 	assert.Equal(t, expected, actual)
 }
+
+func TestCounterToPrometheus(t *testing.T) {
+	ts := time.Date(2009, 2, 13, 23, 31, 30, 0, time.UTC)
+	labels := map[string]string{"host": "nyc01"}
+
+	actual := stats.CounterToPrometheus("foo", 99, ts, labels)
+	expected := []byte(`foo{host="nyc01"} 99 1234567890000`)
+	assert.Equal(t, expected, actual)
+}
