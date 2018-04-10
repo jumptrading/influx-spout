@@ -67,6 +67,7 @@ type CounterPair struct {
 	Value int
 }
 
+// Snapshot holds the names and values of some counters.
 type Snapshot []CounterPair
 
 // Snapshot returns the current values of all the counters.
@@ -77,21 +78,6 @@ func (s *Stats) Snapshot() Snapshot {
 	out := make([]CounterPair, 0, len(s.counts))
 	for name, count := range s.counts {
 		out = append(out, CounterPair{name, count})
-	}
-	return out
-}
-
-// Clone returns a new Stats instance, copying the source Stats
-// counts.
-func (s *Stats) Clone() *Stats {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	out := &Stats{
-		counts: make(map[string]int),
-	}
-	for name, count := range s.counts {
-		out.counts[name] = count
 	}
 	return out
 }
