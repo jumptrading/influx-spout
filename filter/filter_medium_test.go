@@ -76,10 +76,10 @@ func TestFilterWorker(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Subscribe to stats output
-	statsCh := make(chan string, 10)
+	// Subscribe to monitor output
+	monitorCh := make(chan string, 10)
 	_, err = nc.Subscribe(conf.NATSSubjectMonitor, func(msg *nats.Msg) {
-		statsCh <- string(msg.Data)
+		monitorCh <- string(msg.Data)
 	})
 	require.NoError(t, err)
 
@@ -103,15 +103,14 @@ hello,host=gopher01
 goodbye,host=gopher01
 `)
 
-	// Receive total stats
-	spouttest.AssertRecvMulti(t, statsCh, "stats", `
-spout_stat_filter,filter=particle passed=2,processed=3,rejected=1,invalid-time=0
-`)
-
-	// Receive rule specific stats
-	spouttest.AssertRecvMulti(t, statsCh, "rule stats", `
-spout_stat_filter_rule,filter=particle,rule=hello-subject triggered=2
-`)
+	// Receive monitor metrics
+	spouttest.AssertMonitor(t, monitorCh, []string{
+		`passed{filter="particle"} 2`,
+		`processed{filter="particle"} 3`,
+		`rejected{filter="particle"} 1`,
+		`invalid_time{filter="particle"} 0`,
+		`triggered{filter="particle",rule="hello-subject"} 2`,
+	})
 }
 
 func TestInvalidTimeStamps(t *testing.T) {
@@ -136,10 +135,10 @@ func TestInvalidTimeStamps(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Subscribe to stats output
-	statsCh := make(chan string, 10)
+	// Subscribe to monitor output
+	monitorCh := make(chan string, 10)
 	_, err = nc.Subscribe(conf.NATSSubjectMonitor, func(msg *nats.Msg) {
-		statsCh <- string(msg.Data)
+		monitorCh <- string(msg.Data)
 	})
 	require.NoError(t, err)
 
@@ -161,13 +160,12 @@ func TestInvalidTimeStamps(t *testing.T) {
 	// Expect to see the 3rd & 4th lines.
 	spouttest.AssertRecv(t, helloCh, "helloCh", strings.Join(lines[2:], "\n"))
 
-	// Receive total stats.
-	spouttest.AssertRecvMulti(t, statsCh, "stats", `
-spout_stat_filter,filter=particle passed=2,processed=4,rejected=0,invalid-time=2
-`)
-
-	// Receive rule specific stats
-	spouttest.AssertRecvMulti(t, statsCh, "rule stats", `
-spout_stat_filter_rule,filter=particle,rule=hello-subject triggered=2
-`)
+	// Receive monitor metrics.
+	spouttest.AssertMonitor(t, monitorCh, []string{
+		`passed{filter="particle"} 2`,
+		`processed{filter="particle"} 4`,
+		`rejected{filter="particle"} 0`,
+		`invalid_time{filter="particle"} 2`,
+		`triggered{filter="particle",rule="hello-subject"} 2`,
+	})
 }

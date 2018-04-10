@@ -22,7 +22,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -296,42 +295,10 @@ func assertNoMore(t *testing.T, ch chan string) {
 }
 
 func assertMonitor(t *testing.T, monitorCh chan string, received, sent int) {
-	remaining := map[string]bool{
-		fmt.Sprintf(`received{listener="testlistener"} %d`, received): true,
-		fmt.Sprintf(`sent{listener="testlistener"} %d`, sent):         true,
-		`read_errors{listener="testlistener"} 0`:                      true,
+	expected := []string{
+		fmt.Sprintf(`received{listener="testlistener"} %d`, received),
+		fmt.Sprintf(`sent{listener="testlistener"} %d`, sent),
+		`read_errors{listener="testlistener"} 0`,
 	}
-
-	var allLines string
-	timeout := time.After(spouttest.LongWait)
-	for {
-		select {
-		case lines := <-monitorCh:
-			for _, line := range strings.Split(lines, "\n") {
-				if len(line) == 0 {
-					continue
-				}
-				line = stripTimestamp(t, line)
-				allLines += fmt.Sprintf("%q\n", line)
-				delete(remaining, line)
-			}
-			if len(remaining) < 1 {
-				return
-			}
-		case <-timeout:
-			t.Fatalf("timed out waiting for expected stats. received: %s", allLines)
-		}
-	}
-}
-
-func stripTimestamp(t *testing.T, s string) string {
-	i := strings.LastIndexByte(s, ' ')
-	require.True(t, i >= 0)
-
-	// Check that end looks like a timestamp
-	_, err := strconv.Atoi(s[i+1:])
-	require.NoError(t, err)
-
-	// Strip off the timestamp
-	return s[:i]
+	spouttest.AssertMonitor(t, monitorCh, expected)
 }

@@ -18,22 +18,23 @@ package filter
 import (
 	"fmt"
 	"log"
-	"strconv"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/jumptrading/influx-spout/config"
-	"github.com/jumptrading/influx-spout/lineformatter"
+	"github.com/jumptrading/influx-spout/prometheus"
 	"github.com/jumptrading/influx-spout/stats"
 	"github.com/nats-io/go-nats"
 )
 
 // Name for supported stats
 const (
-	linesPassed      = "passed"
-	linesProcessed   = "processed"
-	linesRejected    = "rejected"
-	linesInvalidTime = "invalid-time"
+	statPassed      = "passed"
+	statProcessed   = "processed"
+	statRejected    = "rejected"
+	statInvalidTime = "invalid_time"
 )
 
 // StartFilter creates a Filter instance, sets up its rules based on
@@ -109,10 +110,10 @@ func (f *Filter) natsConnect() (natsConn, error) {
 func initStats(rules *RuleSet) *stats.Stats {
 	// Initialise
 	statNames := []string{
-		linesPassed,
-		linesProcessed,
-		linesRejected,
-		linesInvalidTime,
+		statPassed,
+		statProcessed,
+		statRejected,
+		statInvalidTime,
 	}
 	for i := 0; i < rules.Count(); i++ {
 		statNames = append(statNames, ruleToStatsName(i))
@@ -155,40 +156,36 @@ func (f *Filter) Stop() {
 // startStatistician defines a goroutine that is responsible for
 // regularly sending the filter's statistics to the monitoring
 // backend.
-func (f *Filter) startStatistician(stats *stats.Stats, rules *RuleSet) {
+func (f *Filter) startStatistician(st *stats.Stats, rules *RuleSet) {
 	defer f.wg.Done()
 
-	totalLine := lineformatter.New(
-		"spout_stat_filter",
-		[]string{"filter"},
-		linesPassed, linesProcessed, linesRejected, linesInvalidTime,
-	)
-	ruleLine := lineformatter.New(
-		"spout_stat_filter_rule",
-		[]string{"filter", "rule"},
-		"triggered",
-	)
+	generalLabels := map[string]string{
+		"filter": f.c.Name,
+	}
 
 	for {
-		st := stats.Clone()
+		now := time.Now()
+		snap, ruleCounts := splitSnapshot(st.Snapshot())
 
-		// publish the grand stats
-		f.nc.Publish(f.c.NATSSubjectMonitor, totalLine.Format(
-			[]string{f.c.Name},
-			st.Get(linesPassed),
-			st.Get(linesProcessed),
-			st.Get(linesRejected),
-			st.Get(linesInvalidTime),
-		))
+		// publish the general stats
+		lines := stats.SnapshotToPrometheus(snap, now, generalLabels)
+		f.nc.Publish(f.c.NATSSubjectMonitor, lines)
 
 		// publish the per rule stats
+		// XXX merge with SnapshotToPrometheus
+		millis := now.UnixNano() / int64(time.Millisecond)
 		for i, subject := range rules.Subjects() {
-			f.nc.Publish(f.c.NATSSubjectMonitor,
-				ruleLine.Format(
-					[]string{f.c.Name, subject},
-					st.Get(ruleToStatsName(i)),
-				),
-			)
+			metric := &prometheus.Metric{
+				Name: []byte("triggered"),
+				Labels: prometheus.LabelPairs{
+					{[]byte("filter"), []byte(f.c.Name)},
+					{[]byte("rule"), []byte(subject)},
+				},
+				Value:        int64(ruleCounts[i]),
+				Milliseconds: millis,
+			}
+
+			f.nc.Publish(f.c.NATSSubjectMonitor, metric.ToBytes())
 		}
 
 		select {
@@ -199,8 +196,38 @@ func (f *Filter) startStatistician(stats *stats.Stats, rules *RuleSet) {
 	}
 }
 
+const rulePrefix = "rule-"
+
 // ruleToStatsName converts a rule index to a name to a key for use
 // with a stats.Stats instance.
 func ruleToStatsName(i int) string {
-	return "rule" + strconv.Itoa(i)
+	return fmt.Sprintf("%s%06d", rulePrefix, i)
+}
+
+// splitSnapshot takes a Snapshot and splits out the rule counters
+// from the others. The rule counters are returned in an ordered slice
+// while the other counters are returned as a new (smaller) Snapshot.
+func splitSnapshot(snap stats.Snapshot) (stats.Snapshot, []int) {
+	var genSnap stats.Snapshot
+	var ruleSnap stats.Snapshot
+
+	// Split up rule counters from the others.
+	for _, counter := range snap {
+		if strings.HasPrefix(counter.Name, rulePrefix) {
+			ruleSnap = append(ruleSnap, counter)
+		} else {
+			genSnap = append(genSnap, counter)
+		}
+	}
+
+	// Sort the rule counters by name and extract just the counts.
+	sort.Slice(ruleSnap, func(i, j int) bool {
+		return ruleSnap[i].Name < ruleSnap[j].Name
+	})
+	ruleCounts := make([]int, len(ruleSnap))
+	for i, counter := range ruleSnap {
+		ruleCounts[i] = counter.Value
+	}
+
+	return genSnap, ruleCounts
 }

@@ -91,13 +91,13 @@ func (w *worker) processBatch(batch []byte) {
 		if len(line) == 0 {
 			continue
 		}
-		w.stats.Inc(linesProcessed)
+		w.stats.Inc(statProcessed)
 
 		ts := extractTimestamp(line, now)
 		if minTs < ts && ts < maxTs {
 			w.processLine(line)
 		} else {
-			w.stats.Inc(linesInvalidTime)
+			w.stats.Inc(statInvalidTime)
 			if w.debug {
 				log.Printf("invalid line timestamp: %q", string(line))
 			}
@@ -112,7 +112,7 @@ func (w *worker) processLine(line []byte) {
 	idx := w.rules.Lookup(line)
 	if idx == -1 {
 		// no rule for this => junkyard
-		w.stats.Inc(linesRejected)
+		w.stats.Inc(statRejected)
 		w.junkBatch.Write(line)
 		return
 	}
@@ -120,7 +120,7 @@ func (w *worker) processLine(line []byte) {
 	// write to the corresponding batch buffer
 	w.batches[idx].Write(line)
 
-	w.stats.Inc(linesPassed)
+	w.stats.Inc(statPassed)
 	w.stats.Inc(ruleToStatsName(idx))
 }
 
