@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/jumptrading/influx-spout/config"
-	"github.com/jumptrading/influx-spout/prometheus"
 	"github.com/jumptrading/influx-spout/stats"
 	"github.com/nats-io/go-nats"
 )
@@ -172,20 +171,16 @@ func (f *Filter) startStatistician(st *stats.Stats, rules *RuleSet) {
 		f.nc.Publish(f.c.NATSSubjectMonitor, lines)
 
 		// publish the per rule stats
-		// XXX merge with SnapshotToPrometheus
-		millis := now.UnixNano() / int64(time.Millisecond)
 		for i, subject := range rules.Subjects() {
-			metric := &prometheus.Metric{
-				Name: []byte("triggered"),
-				Labels: prometheus.LabelPairs{
-					{[]byte("filter"), []byte(f.c.Name)},
-					{[]byte("rule"), []byte(subject)},
+			f.nc.Publish(f.c.NATSSubjectMonitor, stats.CounterToPrometheus(
+				"triggered",
+				ruleCounts[i],
+				now,
+				map[string]string{
+					"filter": f.c.Name,
+					"rule":   subject,
 				},
-				Value:        int64(ruleCounts[i]),
-				Milliseconds: millis,
-			}
-
-			f.nc.Publish(f.c.NATSSubjectMonitor, metric.ToBytes())
+			))
 		}
 
 		select {
