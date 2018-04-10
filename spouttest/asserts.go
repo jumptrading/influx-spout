@@ -73,14 +73,17 @@ func AssertMonitor(t *testing.T, ch chan string, expected []string) {
 					continue
 				}
 				line = stripTimestamp(t, line)
-				seenLines += fmt.Sprintf("%q\n", line)
+				seenLines += fmt.Sprintf("%s\n", line)
 				delete(remaining, line)
 			}
 			if len(remaining) < 1 {
 				return
 			}
 		case <-timeout:
-			t.Fatalf("timed out waiting for expected lines. received:\n%s", seenLines)
+			t.Fatalf("timed out waiting for expected lines. expected:\n%s\nsaw:\n%s",
+				strings.Join(expected, "\n"),
+				seenLines,
+			)
 		}
 	}
 }
