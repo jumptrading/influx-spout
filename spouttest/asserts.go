@@ -68,7 +68,23 @@ func AssertMonitor(t *testing.T, ch chan string, expected []string) {
 	}
 }
 
+// StripTimestamps takes a string containing one or more metrics
+// lines, validates that each line appears to end with a timestamp and
+// then strips the timestamp off. The returned string is the same as
+// the input but without the timestamps (for easier test comparisons).
+func StripTimestamps(t *testing.T, s string) string {
+	var out []string
+	for _, line := range strings.Split(s, "\n") {
+		out = append(out, stripTimestamp(t, line))
+	}
+	return strings.Join(out, "\n")
+}
+
 func stripTimestamp(t *testing.T, s string) string {
+	if len(s) < 1 {
+		return ""
+	}
+
 	i := strings.LastIndexByte(s, ' ')
 	require.True(t, i >= 0)
 
