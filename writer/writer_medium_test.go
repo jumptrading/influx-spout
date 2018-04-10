@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -71,9 +70,9 @@ func TestBasicWriter(t *testing.T) {
 	defer w.Stop()
 
 	// Subscribe to stats output.
-	statsCh := make(chan string, 10)
+	monitorCh := make(chan string, 10)
 	_, err := nc.Subscribe(conf.NATSSubjectMonitor, func(msg *nats.Msg) {
-		statsCh <- string(msg.Data)
+		monitorCh <- string(msg.Data)
 	})
 	require.NoError(t, err)
 
@@ -95,15 +94,18 @@ func TestBasicWriter(t *testing.T) {
 		}
 	}
 
-	// Check the stats output.
-	spouttest.AssertRecvMulti(t, statsCh, "stats",
-		strings.Join([]string{
-			"spout_stat_writer",
-			"writer=foo",
-			"influxdb_address=localhost",
-			"influxdb_port=" + strconv.Itoa(influxPort),
-			"influxdb_dbname=metrics",
-		}, ",")+" received=5,write_requests=5,failed_writes=0\n")
+	// Check the monitor output.
+	labels := "{" + strings.Join([]string{
+		`influxdb_address="localhost"`,
+		`influxdb_dbname="metrics"`,
+		fmt.Sprintf(`influxdb_port="%d"`, influxPort),
+		`writer="foo"`,
+	}, ",") + "}"
+	spouttest.AssertMonitor(t, monitorCh, []string{
+		`received` + labels + ` 5`,
+		`write_requests` + labels + ` 5`,
+		`failed_writes` + labels + ` 0`,
+	})
 }
 
 func TestBatchMBLimit(t *testing.T) {

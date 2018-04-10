@@ -39,9 +39,9 @@ import (
 
 // Writer stats counters
 const (
-	batchesReceived = "batches-received"
-	writeRequests   = "write-requests"
-	failedWrites    = "failed-writes"
+	statReceived      = "received"
+	statWriteRequests = "write_requests"
+	statFailedWrites  = "failed_writes"
 )
 
 type Writer struct {
@@ -64,7 +64,7 @@ func StartWriter(c *config.Config) (_ *Writer, err error) {
 		url:           fmt.Sprintf("http://%s:%d/write?db=%s", c.InfluxDBAddress, c.InfluxDBPort, c.DBName),
 		batchMaxBytes: c.BatchMaxMB * 1024 * 1024,
 		batchMaxAge:   time.Duration(c.BatchMaxSecs) * time.Second,
-		stats:         stats.New(batchesReceived, writeRequests, failedWrites),
+		stats:         stats.New(statReceived, statWriteRequests, statFailedWrites),
 		stop:          make(chan struct{}),
 	}
 	defer func() {
@@ -160,7 +160,7 @@ func (w *Writer) worker(jobs <-chan *nats.Msg) {
 	for {
 		select {
 		case j := <-jobs:
-			w.stats.Inc(batchesReceived)
+			w.stats.Inc(statReceived)
 			batchWrite(j.Data)
 		case <-time.After(time.Second):
 			// Wake up regularly to check batch age
@@ -169,10 +169,10 @@ func (w *Writer) worker(jobs <-chan *nats.Msg) {
 		}
 
 		if w.shouldSendBatch(batch) {
-			w.stats.Inc(writeRequests)
+			w.stats.Inc(statWriteRequests)
 
 			if err := w.sendBatch(batch, client); err != nil {
-				w.stats.Inc(failedWrites)
+				w.stats.Inc(statFailedWrites)
 				log.Printf("Error: %v", err)
 			}
 
@@ -284,37 +284,21 @@ func (w *Writer) monitorSub(sub *nats.Subscription) {
 	}
 }
 
+// This goroutine is responsible for monitoring the statistics and
+// sending it to the monitoring backend.
 func (w *Writer) startStatistician() {
 	defer w.wg.Done()
 
-	// This goroutine is responsible for monitoring the statistics and
-	// sending it to the monitoring backend.
-	statsLine := lineformatter.New(
-		"spout_stat_writer",
-		[]string{ // tag keys
-			"writer",
-			"influxdb_address",
-			"influxdb_port",
-			"influxdb_dbname",
-		},
-		"received",
-		"write_requests",
-		"failed_writes",
-	)
-	tagVals := []string{
-		w.c.Name,
-		w.c.InfluxDBAddress,
-		strconv.Itoa(w.c.InfluxDBPort),
-		w.c.DBName,
+	labels := map[string]string{
+		"writer":           w.c.Name,
+		"influxdb_address": w.c.InfluxDBAddress,
+		"influxdb_port":    strconv.Itoa(w.c.InfluxDBPort),
+		"influxdb_dbname":  w.c.DBName,
 	}
+
 	for {
-		stats := w.stats.Clone()
-		w.nc.Publish(w.c.NATSSubjectMonitor, statsLine.Format(
-			tagVals,
-			stats.Get(batchesReceived),
-			stats.Get(writeRequests),
-			stats.Get(failedWrites),
-		))
+		lines := stats.SnapshotToPrometheus(w.stats.Snapshot(), time.Now(), labels)
+		w.nc.Publish(w.c.NATSSubjectMonitor, lines)
 
 		select {
 		case <-time.After(3 * time.Second):
