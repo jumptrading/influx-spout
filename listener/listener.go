@@ -29,21 +29,18 @@ import (
 	"github.com/nats-io/go-nats"
 
 	"github.com/jumptrading/influx-spout/config"
-	"github.com/jumptrading/influx-spout/lineformatter"
 	"github.com/jumptrading/influx-spout/stats"
 )
 
 const (
 	// Listener stats counters
-	linesReceived = "lines-received"
-	batchesSent   = "batches-sent"
-	readErrors    = "read-errors"
+	statReceived   = "received"
+	statSent       = "sent"
+	statReadErrors = "read_errors"
 
 	// The maximum possible UDP read size.
 	udpMaxDatagramSize = 65536
 )
-
-var allStats = []string{linesReceived, batchesSent, readErrors}
 
 var statsInterval = 3 * time.Second
 
@@ -132,7 +129,7 @@ func newListener(c *config.Config) (*Listener, error) {
 		c:     c,
 		ready: make(chan struct{}),
 		stop:  make(chan struct{}),
-		stats: stats.New(allStats...),
+		stats: stats.New(statReceived, statSent, statReadErrors),
 		buf:   make([]byte, c.ListenerBatchBytes),
 
 		// If more than batchSizeThreshold bytes has been written to
@@ -194,7 +191,7 @@ func (l *Listener) listenUDP(sc *net.UDPConn) {
 		sc.SetReadDeadline(time.Now().Add(time.Second))
 		sz, _, err := sc.ReadFromUDP(l.buf[l.batchSize:])
 		if err != nil && !isTimeout(err) {
-			l.stats.Inc(readErrors)
+			l.stats.Inc(statReadErrors)
 		}
 
 		// Attempt to process the read even on error as Read may
@@ -221,7 +218,7 @@ func (l *Listener) setupHTTP() *http.Server {
 
 			if err != nil {
 				if err != io.EOF {
-					l.stats.Inc(readErrors)
+					l.stats.Inc(statReadErrors)
 				}
 				break
 			}
@@ -255,7 +252,7 @@ func (l *Listener) processRead(sz int) {
 		return // Empty read
 	}
 
-	linesReceived := l.stats.Inc(linesReceived)
+	statReceived := l.stats.Inc(statReceived)
 	l.batchSize += sz
 
 	if l.c.Debug {
@@ -264,8 +261,8 @@ func (l *Listener) processRead(sz int) {
 
 	// Send when sufficient reads have been batched or the batch
 	// buffer is almost full.
-	if linesReceived%l.c.BatchMessages == 0 || l.batchSize > l.batchSizeThreshold {
-		l.stats.Inc(batchesSent)
+	if statReceived%l.c.BatchMessages == 0 || l.batchSize > l.batchSizeThreshold {
+		l.stats.Inc(statSent)
 		if err := l.nc.Publish(l.c.NATSSubject[0], l.buf[:l.batchSize]); err != nil {
 			l.handleNatsError(err)
 		}
@@ -280,22 +277,13 @@ func (l *Listener) handleNatsError(err error) {
 func (l *Listener) startStatistician() {
 	defer l.wg.Done()
 
-	statsLine := lineformatter.New(
-		"spout_stat_listener",
-		[]string{"listener"},
-		"received",
-		"sent",
-		"read_errors",
-	)
-	tagVals := []string{l.c.Name}
+	labels := map[string]string{
+		"component": "listener",
+		"name":      l.c.Name,
+	}
 	for {
-		stats := l.stats.Clone() // Sample counts
-		l.nc.Publish(l.c.NATSSubjectMonitor, statsLine.Format(
-			tagVals,
-			stats.Get(linesReceived),
-			stats.Get(batchesSent),
-			stats.Get(readErrors),
-		))
+		lines := stats.SnapshotToPrometheus(l.stats.Snapshot(), time.Now(), labels)
+		l.nc.Publish(l.c.NATSSubjectMonitor, lines)
 		select {
 		case <-time.After(statsInterval):
 		case <-l.stop:

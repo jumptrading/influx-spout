@@ -295,19 +295,10 @@ func assertNoMore(t *testing.T, ch chan string) {
 }
 
 func assertMonitor(t *testing.T, monitorCh chan string, received, sent int) {
-	expected := fmt.Sprintf(
-		"spout_stat_listener,listener=testlistener received=%d,sent=%d,read_errors=0\n",
-		received, sent)
-	var line string
-	timeout := time.After(spouttest.LongWait)
-	for {
-		select {
-		case line = <-monitorCh:
-			if line == expected {
-				return
-			}
-		case <-timeout:
-			t.Fatalf("timed out waiting for expected stats. last received: %v", line)
-		}
+	expected := []string{
+		fmt.Sprintf(`received{component="listener",name="testlistener"} %d`, received),
+		fmt.Sprintf(`sent{component="listener",name="testlistener"} %d`, sent),
+		`read_errors{component="listener",name="testlistener"} 0`,
 	}
+	spouttest.AssertMonitor(t, monitorCh, expected)
 }

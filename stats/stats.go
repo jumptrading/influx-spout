@@ -60,17 +60,24 @@ func (s *Stats) Inc(name string) int {
 	return s.counts[name]
 }
 
-// Clone returns a new Stats instance, copying the source Stats
-// counts.
-func (s *Stats) Clone() *Stats {
+// CounterPair holds the and value for one Stats counter at a given
+// point in time.
+type CounterPair struct {
+	Name  string
+	Value int
+}
+
+// Snapshot holds the names and values of some counters.
+type Snapshot []CounterPair
+
+// Snapshot returns the current values of all the counters.
+func (s *Stats) Snapshot() Snapshot {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	out := &Stats{
-		counts: make(map[string]int),
-	}
+	out := make([]CounterPair, 0, len(s.counts))
 	for name, count := range s.counts {
-		out.counts[name] = count
+		out = append(out, CounterPair{name, count})
 	}
 	return out
 }

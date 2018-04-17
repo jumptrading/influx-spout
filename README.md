@@ -2,22 +2,23 @@
 
 ## Overview
 
-influx-spout is an open source messaging system that routes and processes 
-[InfluxDB line protocol] metrics from agents (for example [Telegraf]) to 
-processing and storage backends ([InfluxDB], [Kapacitor] etc.). 
+influx-spout is an open source messaging system that routes and processes
+[InfluxDB line protocol] metrics from agents (for example [Telegraf]) to
+processing and storage backends ([InfluxDB], [Kapacitor] etc.).
 
 Key features:
-- Proven ability to handle high volumes of data (>500k points per second) 
+
+- Proven ability to handle high volumes of data (>500k points per second)
   in a production environment
 - Horizontal scalability
-  - Multithreaded data processing within components
-  - Components can be distributed on multiple servers or a fleet of containers
+  * Multithreaded data processing within components
+  * Components can be distributed on multiple servers or a fleet of containers
 - Ability to add and remove endpoints without disrupting existing data flows
-- Fine-grained, regexp-based control over routing of metrics data to specific 
+- Fine-grained, regexp-based control over routing of metrics data to specific
   backends
-- Sanity checking of the data stream that prevents corrupt metrics data from 
+- Sanity checking of the data stream that prevents corrupt metrics data from
   reaching backends
-- Batching of outgoing data to larger chunks, making it easier for backends 
+- Batching of outgoing data to larger chunks, making it easier for backends
   to handle high-volume dataflows
 - Leverages the high-performance [NATS] messaging system
 
@@ -43,23 +44,23 @@ flow of data between the various components:
                      +-----------------+   +-----------------+
                               |                     |
                               v                     v
- +----------+   +-------------------------------------------------+
- |          |<--+                                                 |
- |  Filter  |   |                     NATS                        |
- |          +-->|                                                 |
- +----------+   +--------+----------------+----------------+------+
-                         |                |                |
-                         v                v                v
-                   +----------+     +----------+     +----------+
-                   |          |     |          |     |          |
-                   |  Writer  |     |  Writer  |     |  Writer  |
-                   |          |     |          |     |          |
-                   +-----+----+     +-----+----+     +-----+----+
-                         |                |                |
-                         v                v                v
-                   +----------+     +----------+     +----------+
-                   | InfluxDB |     | InfluxDB |     | InfluxDB |
-                   +----------+     +----------+     +----------+
+ +----------+   +-------------------------------------------------+   +---------+
+ |          |<--+                                                 |   |         |
+ |  Filter  |   |                     NATS                        +-->| Monitor |
+ |          +-->|                                                 |   |         |
+ +----------+   +--------+----------------+----------------+------+   +----+----+
+                         |                |                |               |
+                         v                v                v               |
+                   +----------+     +----------+     +----------+          |
+                   |          |     |          |     |          |          |
+                   |  Writer  |     |  Writer  |     |  Writer  |          |
+                   |          |     |          |     |          |          |
+                   +-----+----+     +-----+----+     +-----+----+          |
+                         |                |                |               |
+                         v                v                v               V
+                   +----------+     +----------+     +----------+   +----------------+
+                   | InfluxDB |     | InfluxDB |     | InfluxDB |   | Metrics (HTTP) |
+                   +----------+     +----------+     +----------+   +----------------+
 ```
 
 All the influx-spout components may be run on a single host or may be
@@ -131,8 +132,8 @@ batch = 10
 # support higher receive rates.
 read_buffer_bytes = 4194304
 
-# Out-of-bound metrics and diagnostic messages are published to this NATS subject
-# (in InfluxDB line protocol format).
+# The listener will publish its own metrics to this NATS subject (for consumption
+# by the monitor).
 nats_subject_monitor = "influx-spout-monitor"
 ```
 
@@ -175,8 +176,8 @@ read_buffer_bytes = 4194304
 # defaults to 1 MB).
 listener_batch_bytes = 1048576
 
-# Out-of-bound metrics and diagnostic messages are published to this NATS subject
-# (in InfluxDB line protocol format).
+# The HTTP listener will publish its own metrics to this NATS subject (for
+# consumption by the monitor).
 nats_subject_monitor = "influx-spout-monitor"
 ```
 
@@ -201,8 +202,8 @@ nats_subject = ["influx-spout"]
 # Measurements which do not match any rule (below) are sent to this NATS subject.
 nats_subject_junkyard = "influx-spout-junk"
 
-# Out-of-bound metrics and diagnostic messages are published to this NATS subject
-# (in InfluxDB line protocol format).
+# The filter will publish its own metrics to this NATS subject (for consumption
+# by the monitor).
 nats_subject_monitor = "influx-spout-monitor"
 
 # The number of filter workers to spawn.
@@ -313,8 +314,8 @@ write_timeout_secs = 30
 # this limit is reached. This helps to deal with slow InfluxDB instances.
 nats_pending_max_mb = 200
 
-# Out-of-bound metrics and diagnostic messages are published to this NATS subject
-# (in InfluxDB line protocol format).
+# The writer will publish its own metrics to this NATS subject (for consumption
+# by the monitor).
 nats_subject_monitor = "influx-spout-monitor"
 ```
 
@@ -325,6 +326,30 @@ Writers can optionally include filter rules. When filter rules are configured
 measurements which don't match a rule will be dropped by the writer instead of
 being written to InfluxDB. Rule configuration is the same as for the filter
 component, but the rule subject should be omitted.
+
+### Monitor
+
+The monitor is responsible for collecting metrics from the other
+influx-spout components and serving then over HTTP in [Prometheus data
+exposition format](https://prometheus.io/docs/instrumenting/exposition_formats/). Metrics
+are available at `/metrics` on the configured port.
+
+The supported configuration options for the writer mode follow. Defaults are
+shown.
+
+```toml
+mode = "monitor"  # Required
+
+# Address of NATS server.
+nats_address = "nats://localhost:4222"
+
+# The NATS subject used by influx-spout components to report metrics to the monitor.
+# The monitor will consume and aggregate metrics sent to this subject.
+nats_subject_monitor = "influx-spout-monitor"
+
+# The TCP port where the monitor will serve Prometheus formatted metrics over HTTP.
+port = 9331
+```
 
 ## Running tests
 

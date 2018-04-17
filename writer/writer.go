@@ -33,15 +33,14 @@ import (
 
 	"github.com/jumptrading/influx-spout/config"
 	"github.com/jumptrading/influx-spout/filter"
-	"github.com/jumptrading/influx-spout/lineformatter"
 	"github.com/jumptrading/influx-spout/stats"
 )
 
 // Writer stats counters
 const (
-	batchesReceived = "batches-received"
-	writeRequests   = "write-requests"
-	failedWrites    = "failed-writes"
+	statReceived      = "received"
+	statWriteRequests = "write_requests"
+	statFailedWrites  = "failed_writes"
 )
 
 type Writer struct {
@@ -64,7 +63,7 @@ func StartWriter(c *config.Config) (_ *Writer, err error) {
 		url:           fmt.Sprintf("http://%s:%d/write?db=%s", c.InfluxDBAddress, c.InfluxDBPort, c.DBName),
 		batchMaxBytes: c.BatchMaxMB * 1024 * 1024,
 		batchMaxAge:   time.Duration(c.BatchMaxSecs) * time.Second,
-		stats:         stats.New(batchesReceived, writeRequests, failedWrites),
+		stats:         stats.New(statReceived, statWriteRequests, statFailedWrites),
 		stop:          make(chan struct{}),
 	}
 	defer func() {
@@ -160,7 +159,7 @@ func (w *Writer) worker(jobs <-chan *nats.Msg) {
 	for {
 		select {
 		case j := <-jobs:
-			w.stats.Inc(batchesReceived)
+			w.stats.Inc(statReceived)
 			batchWrite(j.Data)
 		case <-time.After(time.Second):
 			// Wake up regularly to check batch age
@@ -169,10 +168,10 @@ func (w *Writer) worker(jobs <-chan *nats.Msg) {
 		}
 
 		if w.shouldSendBatch(batch) {
-			w.stats.Inc(writeRequests)
+			w.stats.Inc(statWriteRequests)
 
 			if err := w.sendBatch(batch, client); err != nil {
-				w.stats.Inc(failedWrites)
+				w.stats.Inc(statFailedWrites)
 				log.Printf("Error: %v", err)
 			}
 
@@ -241,17 +240,15 @@ func (w *Writer) sendBatch(batch *batchBuffer, client *http.Client) error {
 	return nil
 }
 
-var dropLine = lineformatter.New("writer_drop", nil, "total", "diff")
-
-func (w *Writer) signalDrop(drop, last int) {
+func (w *Writer) signalDrop(subject string, drop, last int) {
 	// uh, this writer is overloaded and had to drop a packet
-	log.Printf("Warning: dropped %d (now %d dropped in total)\n", drop-last, drop)
+	log.Printf("Warning: dropped %d for subject %q (total dropped: %d)", drop-last, subject, drop)
 
-	// publish to the monitor subject, so grafana can pick it up and report failures
-	w.nc.Publish(w.c.NATSSubjectMonitor, dropLine.FormatT(time.Now(), nil, drop, drop-last))
+	labels := w.metricsLabels()
+	labels["subject"] = subject
 
-	// the fact the we dropped a packet MUST reach the server
-	// immediately so we can investigate
+	line := stats.CounterToPrometheus("dropped", drop, time.Now(), labels)
+	w.nc.Publish(w.c.NATSSubjectMonitor, line)
 	w.nc.Flush()
 }
 
@@ -271,7 +268,7 @@ func (w *Writer) monitorSub(sub *nats.Subscription) {
 		}
 
 		if drop != last {
-			w.signalDrop(drop, last)
+			w.signalDrop(sub.Subject, drop, last)
 		}
 		last = drop
 
@@ -284,42 +281,30 @@ func (w *Writer) monitorSub(sub *nats.Subscription) {
 	}
 }
 
+// This goroutine is responsible for monitoring the statistics and
+// sending it to the monitoring backend.
 func (w *Writer) startStatistician() {
 	defer w.wg.Done()
 
-	// This goroutine is responsible for monitoring the statistics and
-	// sending it to the monitoring backend.
-	statsLine := lineformatter.New(
-		"spout_stat_writer",
-		[]string{ // tag keys
-			"writer",
-			"influxdb_address",
-			"influxdb_port",
-			"influxdb_dbname",
-		},
-		"received",
-		"write_requests",
-		"failed_writes",
-	)
-	tagVals := []string{
-		w.c.Name,
-		w.c.InfluxDBAddress,
-		strconv.Itoa(w.c.InfluxDBPort),
-		w.c.DBName,
-	}
+	labels := w.metricsLabels()
 	for {
-		stats := w.stats.Clone()
-		w.nc.Publish(w.c.NATSSubjectMonitor, statsLine.Format(
-			tagVals,
-			stats.Get(batchesReceived),
-			stats.Get(writeRequests),
-			stats.Get(failedWrites),
-		))
+		lines := stats.SnapshotToPrometheus(w.stats.Snapshot(), time.Now(), labels)
+		w.nc.Publish(w.c.NATSSubjectMonitor, lines)
 
 		select {
 		case <-time.After(3 * time.Second):
 		case <-w.stop:
 			return
 		}
+	}
+}
+
+func (w *Writer) metricsLabels() map[string]string {
+	return map[string]string{
+		"component":        "writer",
+		"name":             w.c.Name,
+		"influxdb_address": w.c.InfluxDBAddress,
+		"influxdb_port":    strconv.Itoa(w.c.InfluxDBPort),
+		"influxdb_dbname":  w.c.DBName,
 	}
 }

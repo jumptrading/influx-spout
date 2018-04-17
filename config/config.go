@@ -101,11 +101,18 @@ func NewConfigFromFile(fileName string) (*Config, error) {
 	if conf.Name == "" {
 		conf.Name = pathToConfigName(fileName)
 	}
-	if conf.Mode == "listener" && conf.Port == 0 {
-		conf.Port = 10001
-	} else if conf.Mode == "listener_http" && conf.Port == 0 {
-		conf.Port = 13337
+
+	if conf.Port == 0 {
+		switch conf.Mode {
+		case "listener":
+			conf.Port = 10001
+		case "listener_http":
+			conf.Port = 13337
+		case "monitor":
+			conf.Port = 9331
+		}
 	}
+
 	return conf, nil
 }
 
