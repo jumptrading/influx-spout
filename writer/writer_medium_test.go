@@ -96,10 +96,11 @@ func TestBasicWriter(t *testing.T) {
 
 	// Check the monitor output.
 	labels := "{" + strings.Join([]string{
+		`component="writer"`,
 		`influxdb_address="localhost"`,
 		`influxdb_dbname="metrics"`,
 		fmt.Sprintf(`influxdb_port="%d"`, influxPort),
-		`writer="foo"`,
+		`name="foo"`,
 	}, ",") + "}"
 	spouttest.AssertMonitor(t, monitorCh, []string{
 		`received` + labels + ` 5`,

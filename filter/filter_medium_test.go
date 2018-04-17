@@ -105,11 +105,11 @@ goodbye,host=gopher01
 
 	// Receive monitor metrics
 	spouttest.AssertMonitor(t, monitorCh, []string{
-		`passed{filter="particle"} 2`,
-		`processed{filter="particle"} 3`,
-		`rejected{filter="particle"} 1`,
-		`invalid_time{filter="particle"} 0`,
-		`triggered{filter="particle",rule="hello-subject"} 2`,
+		`passed{component="filter",name="particle"} 2`,
+		`processed{component="filter",name="particle"} 3`,
+		`rejected{component="filter",name="particle"} 1`,
+		`invalid_time{component="filter",name="particle"} 0`,
+		`triggered{component="filter",name="particle",rule="hello-subject"} 2`,
 	})
 }
 
@@ -162,10 +162,10 @@ func TestInvalidTimeStamps(t *testing.T) {
 
 	// Receive monitor metrics.
 	spouttest.AssertMonitor(t, monitorCh, []string{
-		`passed{filter="particle"} 2`,
-		`processed{filter="particle"} 4`,
-		`rejected{filter="particle"} 0`,
-		`invalid_time{filter="particle"} 2`,
-		`triggered{filter="particle",rule="hello-subject"} 2`,
+		`passed{component="filter",name="particle"} 2`,
+		`processed{component="filter",name="particle"} 4`,
+		`rejected{component="filter",name="particle"} 0`,
+		`invalid_time{component="filter",name="particle"} 2`,
+		`triggered{component="filter",name="particle",rule="hello-subject"} 2`,
 	})
 }

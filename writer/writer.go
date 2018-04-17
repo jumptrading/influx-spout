@@ -301,7 +301,8 @@ func (w *Writer) startStatistician() {
 
 func (w *Writer) metricsLabels() map[string]string {
 	return map[string]string{
-		"writer":           w.c.Name,
+		"component":        "writer",
+		"name":             w.c.Name,
 		"influxdb_address": w.c.InfluxDBAddress,
 		"influxdb_port":    strconv.Itoa(w.c.InfluxDBPort),
 		"influxdb_dbname":  w.c.DBName,

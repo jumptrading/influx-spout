@@ -159,7 +159,8 @@ func (f *Filter) startStatistician(st *stats.Stats, rules *RuleSet) {
 	defer f.wg.Done()
 
 	generalLabels := map[string]string{
-		"filter": f.c.Name,
+		"component": "filter",
+		"name":      f.c.Name,
 	}
 
 	for {
@@ -177,8 +178,9 @@ func (f *Filter) startStatistician(st *stats.Stats, rules *RuleSet) {
 				ruleCounts[i],
 				now,
 				map[string]string{
-					"filter": f.c.Name,
-					"rule":   subject,
+					"component": "filter",
+					"name":      f.c.Name,
+					"rule":      subject,
 				},
 			))
 		}

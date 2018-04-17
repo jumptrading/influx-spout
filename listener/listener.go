@@ -278,7 +278,8 @@ func (l *Listener) startStatistician() {
 	defer l.wg.Done()
 
 	labels := map[string]string{
-		"listener": l.c.Name,
+		"component": "listener",
+		"name":      l.c.Name,
 	}
 	for {
 		lines := stats.SnapshotToPrometheus(l.stats.Snapshot(), time.Now(), labels)
