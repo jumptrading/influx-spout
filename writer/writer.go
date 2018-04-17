@@ -41,6 +41,7 @@ const (
 	statReceived      = "received"
 	statWriteRequests = "write_requests"
 	statFailedWrites  = "failed_writes"
+	statMaxPending    = "max_pending"
 )
 
 type Writer struct {
@@ -63,7 +64,7 @@ func StartWriter(c *config.Config) (_ *Writer, err error) {
 		url:           fmt.Sprintf("http://%s:%d/write?db=%s", c.InfluxDBAddress, c.InfluxDBPort, c.DBName),
 		batchMaxBytes: c.BatchMaxMB * 1024 * 1024,
 		batchMaxAge:   time.Duration(c.BatchMaxSecs) * time.Second,
-		stats:         stats.New(statReceived, statWriteRequests, statFailedWrites),
+		stats:         stats.New(statReceived, statWriteRequests, statFailedWrites, statMaxPending),
 		stop:          make(chan struct{}),
 	}
 	defer func() {
@@ -262,9 +263,17 @@ func (w *Writer) monitorSub(sub *nats.Subscription) {
 	drop := last
 
 	for {
+		_, maxBytes, err := sub.MaxPending()
+		if err != nil {
+			log.Printf("NATS warning: failed to get the max pending stats from NATS: %v\n", err)
+			continue
+		}
+		w.stats.Max(statMaxPending, maxBytes)
+
 		drop, err = sub.Dropped()
 		if err != nil {
-			log.Printf("NATS Warning: Failed to get the number of dropped message from NATS: %v\n", err)
+			log.Printf("NATS warning: failed to get the number of dropped message from NATS: %v\n", err)
+			continue
 		}
 
 		if drop != last {
