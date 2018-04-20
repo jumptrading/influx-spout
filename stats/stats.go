@@ -60,6 +60,22 @@ func (s *Stats) Inc(name string) int {
 	return s.counts[name]
 }
 
+// Max updates a counter if the value supplied is greater than the
+// previous one. It panics if the name is not valid.
+func (s *Stats) Max(name string, newVal int) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	val, ok := s.counts[name]
+	if !ok {
+		panic(fmt.Sprintf("unknown stat: %q", name))
+	}
+	if newVal > val {
+		s.counts[name] = newVal
+		return newVal
+	}
+	return val
+}
+
 // CounterPair holds the and value for one Stats counter at a given
 // point in time.
 type CounterPair struct {

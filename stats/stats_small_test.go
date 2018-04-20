@@ -41,11 +41,29 @@ func TestBasics(t *testing.T) {
 	assert.Equal(t, 0, s.Get("bar"))
 }
 
+func TestMax(t *testing.T) {
+	s := stats.New("foo")
+
+	assert.Equal(t, 0, s.Get("foo"))
+	assert.Equal(t, 0, s.Max("foo", 0))
+	assert.Equal(t, 0, s.Get("foo"))
+
+	assert.Equal(t, 4, s.Max("foo", 4))
+	assert.Equal(t, 4, s.Get("foo"))
+
+	assert.Equal(t, 4, s.Max("foo", 3))
+	assert.Equal(t, 4, s.Get("foo"))
+
+	assert.Equal(t, 5, s.Max("foo", 5))
+	assert.Equal(t, 5, s.Get("foo"))
+}
+
 func TestInvalid(t *testing.T) {
 	s := stats.New("foo")
 
 	assert.Panics(t, func() { s.Get("bar") })
 	assert.Panics(t, func() { s.Inc("bar") })
+	assert.Panics(t, func() { s.Max("bar", 1) })
 	assert.Equal(t, 0, s.Get("foo"))
 }
 

@@ -22,6 +22,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -128,9 +129,10 @@ func TestEndToEnd(t *testing.T) {
 	}
 
 	// Check metrics published by monitor component.
-	expectedMetrics := `
+	expectedMetrics := regexp.MustCompile(`
 failed_writes{component="writer",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44501",name="writer"} 0
 invalid_time{component="filter",name="filter"} 0
+max_pending{component="writer",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44501",name="writer"} \d+
 passed{component="filter",name="filter"} 10
 processed{component="filter",name="filter"} 20
 read_errors{component="listener",name="listener"} 0
@@ -140,7 +142,7 @@ rejected{component="filter",name="filter"} 10
 sent{component="listener",name="listener"} 1
 triggered{component="filter",name="filter",rule="system"} 10
 write_requests{component="writer",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44501",name="writer"} 2
-`[1:]
+$`[1:])
 	var lines string
 	for try := 0; try < 20; try++ {
 		resp, err := http.Get(fmt.Sprintf("http://localhost:%d/metrics", monitorPort))
@@ -150,7 +152,7 @@ write_requests{component="writer",influxdb_address="localhost",influxdb_dbname="
 		require.NoError(t, err)
 
 		lines = spouttest.StripTimestamps(t, string(raw))
-		if lines == expectedMetrics {
+		if expectedMetrics.MatchString(lines) {
 			return
 		}
 		time.Sleep(500 * time.Millisecond)
