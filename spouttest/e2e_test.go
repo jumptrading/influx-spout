@@ -133,6 +133,7 @@ func TestEndToEnd(t *testing.T) {
 failed_writes{component="writer",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44501",name="writer"} 0
 invalid_time{component="filter",name="filter"} 0
 max_pending{component="writer",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44501",name="writer"} \d+
+nats_dropped{component="filter",name="filter"} 0
 passed{component="filter",name="filter"} 10
 processed{component="filter",name="filter"} 20
 read_errors{component="listener",name="listener"} 0
