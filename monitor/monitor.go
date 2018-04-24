@@ -99,7 +99,7 @@ func (m *Monitor) Stop() {
 }
 
 func (m *Monitor) natsConnect() (*nats.Conn, error) {
-	nc, err := nats.Connect(m.c.NATSAddress)
+	nc, err := nats.Connect(m.c.NATSAddress, nats.MaxReconnects(-1))
 	if err != nil {
 		return nil, fmt.Errorf("NATS: failed to connect: %v", err)
 	}
