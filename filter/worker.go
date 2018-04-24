@@ -128,15 +128,25 @@ func (w *worker) sendOff() {
 	for i, subject := range w.rules.Subjects() {
 		batch := w.batches[i]
 		if batch.Len() > 0 {
-			w.nc.Publish(subject, batch.Bytes())
+			w.publish(subject, batch.Bytes())
 			batch.Reset()
 		}
 	}
 
 	// send the junk batch
 	if w.junkBatch.Len() > 0 {
-		w.nc.Publish(w.junkSubject, w.junkBatch.Bytes())
+		w.publish(w.junkSubject, w.junkBatch.Bytes())
 		w.junkBatch.Reset()
+	}
+}
+
+func (w *worker) publish(subject string, data []byte) {
+	err := w.nc.Publish(subject, data)
+	if err != nil {
+		w.stats.Inc(statFailedNATSPublish)
+		if w.debug {
+			log.Printf("NATS publish failed: %v", err)
+		}
 	}
 }
 

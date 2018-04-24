@@ -30,11 +30,12 @@ import (
 
 // Name for supported stats
 const (
-	statPassed      = "passed"
-	statProcessed   = "processed"
-	statRejected    = "rejected"
-	statInvalidTime = "invalid_time"
-	statNATSDropped = "nats_dropped"
+	statPassed            = "passed"
+	statProcessed         = "processed"
+	statRejected          = "rejected"
+	statInvalidTime       = "invalid_time"
+	statFailedNATSPublish = "failed_nats_publish"
+	statNATSDropped       = "nats_dropped"
 )
 
 // StartFilter creates a Filter instance, sets up its rules based on
@@ -114,6 +115,7 @@ func initStats(rules *RuleSet) *stats.Stats {
 		statProcessed,
 		statRejected,
 		statInvalidTime,
+		statFailedNATSPublish,
 		statNATSDropped,
 	}
 	for i := 0; i < rules.Count(); i++ {

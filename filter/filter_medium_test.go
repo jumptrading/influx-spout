@@ -109,6 +109,7 @@ goodbye,host=gopher01
 		`processed{component="filter",name="particle"} 3`,
 		`rejected{component="filter",name="particle"} 1`,
 		`invalid_time{component="filter",name="particle"} 0`,
+		`failed_nats_publish{component="filter",name="particle"} 0`,
 		`nats_dropped{component="filter",name="particle"} 0`,
 		`triggered{component="filter",name="particle",rule="hello-subject"} 2`,
 	})
@@ -167,6 +168,7 @@ func TestInvalidTimeStamps(t *testing.T) {
 		`processed{component="filter",name="particle"} 4`,
 		`rejected{component="filter",name="particle"} 0`,
 		`invalid_time{component="filter",name="particle"} 2`,
+		`failed_nats_publish{component="filter",name="particle"} 0`,
 		`nats_dropped{component="filter",name="particle"} 0`,
 		`triggered{component="filter",name="particle",rule="hello-subject"} 2`,
 	})
