@@ -42,6 +42,7 @@ const (
 	statWriteRequests = "write_requests"
 	statFailedWrites  = "failed_writes"
 	statMaxPending    = "max_pending"
+	statNATSDropped   = "nats_dropped"
 )
 
 type Writer struct {
@@ -93,7 +94,8 @@ func StartWriter(c *config.Config) (_ *Writer, err error) {
 		go w.worker(jobs)
 	}
 
-	// subscribe this writer to the NATS subject.
+	// Subscribe the writer to the configured NATS subjects.
+	subs := make([]*nats.Subscription, 0, len(c.NATSSubject))
 	maxPendingBytes := c.NATSPendingMaxMB * 1024 * 1024
 	for _, subject := range c.NATSSubject {
 		sub, err := w.nc.Subscribe(subject, func(msg *nats.Msg) {
@@ -105,19 +107,17 @@ func StartWriter(c *config.Config) (_ *Writer, err error) {
 		if err := sub.SetPendingLimits(-1, maxPendingBytes); err != nil {
 			return nil, fmt.Errorf("NATS: failed to set pending limits: %v", err)
 		}
-
-		w.wg.Add(1)
-		go w.monitorSub(sub)
+		subs = append(subs, sub)
 	}
 
-	// Subscriptions don't always seem to be reliable without flushing
-	// after subscribing.
+	// Subscriptions don't seem to be reliable without flushing after
+	// subscribing.
 	if err := w.nc.Flush(); err != nil {
 		return nil, fmt.Errorf("NATS flush error: %v", err)
 	}
 
 	w.wg.Add(1)
-	go w.startStatistician()
+	go w.startStatistician(subs)
 
 	log.Printf("writer subscribed to [%v] at %s with %d workers",
 		c.NATSSubject, c.NATSAddress, c.Workers)
@@ -237,79 +237,43 @@ func (w *Writer) sendBatch(batch *batchBuffer, client *http.Client) error {
 	return nil
 }
 
-func (w *Writer) signalDrop(subject string, drop, last int) {
-	// uh, this writer is overloaded and had to drop a packet
-	log.Printf("Warning: dropped %d for subject %q (total dropped: %d)", drop-last, subject, drop)
-
-	labels := w.metricsLabels()
-	labels["subject"] = subject
-
-	line := stats.CounterToPrometheus("dropped", drop, time.Now(), labels)
-	w.nc.Publish(w.c.NATSSubjectMonitor, line)
-	w.nc.Flush()
-}
-
-func (w *Writer) monitorSub(sub *nats.Subscription) {
-	defer w.wg.Done()
-
-	last, err := sub.Dropped()
-	if err != nil {
-		log.Printf("NATS Warning: Failed to get the number of dropped message from NATS: %v\n", err)
-	}
-	drop := last
-
-	for {
-		_, maxBytes, err := sub.MaxPending()
-		if err != nil {
-			log.Printf("NATS warning: failed to get the max pending stats from NATS: %v\n", err)
-			continue
-		}
-		w.stats.Max(statMaxPending, maxBytes)
-
-		drop, err = sub.Dropped()
-		if err != nil {
-			log.Printf("NATS warning: failed to get the number of dropped message from NATS: %v\n", err)
-			continue
-		}
-
-		if drop != last {
-			w.signalDrop(sub.Subject, drop, last)
-		}
-		last = drop
-
-		select {
-		case <-time.After(time.Second):
-		case <-w.stop:
-			sub.Unsubscribe()
-			return
-		}
-	}
-}
-
 // This goroutine is responsible for monitoring the statistics and
 // sending it to the monitoring backend.
-func (w *Writer) startStatistician() {
+func (w *Writer) startStatistician(subs []*nats.Subscription) {
 	defer w.wg.Done()
 
-	labels := w.metricsLabels()
 	for {
-		lines := stats.SnapshotToPrometheus(w.stats.Snapshot(), time.Now(), labels)
+		labels := map[string]string{
+			"component":        "writer",
+			"name":             w.c.Name,
+			"influxdb_address": w.c.InfluxDBAddress,
+			"influxdb_port":    strconv.Itoa(w.c.InfluxDBPort),
+			"influxdb_dbname":  w.c.DBName,
+		}
+		now := time.Now()
+
+		// Publish general stats.
+		lines := stats.SnapshotToPrometheus(w.stats.Snapshot(), now, labels)
 		w.nc.Publish(w.c.NATSSubjectMonitor, lines)
+
+		// Publish per-subscription NATS drop counters.
+		for _, sub := range subs {
+			dropped, err := sub.Dropped()
+			if err != nil {
+				log.Printf("NATS: failed to get dropped count: %v", err)
+				continue
+			}
+			labels["subject"] = sub.Subject
+			line := stats.CounterToPrometheus(statNATSDropped, dropped, now, labels)
+			w.nc.Publish(w.c.NATSSubjectMonitor, line)
+		}
+
+		w.nc.Flush()
 
 		select {
 		case <-time.After(3 * time.Second):
 		case <-w.stop:
 			return
 		}
-	}
-}
-
-func (w *Writer) metricsLabels() map[string]string {
-	return map[string]string{
-		"component":        "writer",
-		"name":             w.c.Name,
-		"influxdb_address": w.c.InfluxDBAddress,
-		"influxdb_port":    strconv.Itoa(w.c.InfluxDBPort),
-		"influxdb_dbname":  w.c.DBName,
 	}
 }
