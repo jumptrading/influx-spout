@@ -135,6 +135,7 @@ failed_writes{component="writer",influxdb_address="localhost",influxdb_dbname="t
 invalid_time{component="filter",name="filter"} 0
 max_pending{component="writer",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44501",name="writer"} \d+
 nats_dropped{component="filter",name="filter"} 0
+nats_dropped{component="writer",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44501",name="writer",subject="system"} 0
 passed{component="filter",name="filter"} 10
 processed{component="filter",name="filter"} 20
 read_errors{component="listener",name="listener"} 0
