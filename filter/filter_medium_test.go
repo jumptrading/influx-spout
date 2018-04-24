@@ -38,6 +38,7 @@ func testConfig() *config.Config {
 		NATSSubject:         []string{"filter-test"},
 		NATSSubjectMonitor:  "filter-test-monitor",
 		NATSSubjectJunkyard: "filter-junkyard",
+		NATSPendingMaxMB:    32,
 		Workers:             1,
 		MaxTimeDeltaSecs:    600,
 		Rule: []config.Rule{{

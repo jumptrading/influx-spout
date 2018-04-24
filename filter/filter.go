@@ -91,6 +91,9 @@ func StartFilter(conf *config.Config) (_ *Filter, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("NATS: failed to subscribe: %v", err)
 	}
+	if err := f.sub.SetPendingLimits(-1, conf.NATSPendingMaxMB*1024*1024); err != nil {
+		return nil, fmt.Errorf("NATS: failed to set pending limits: %v", err)
+	}
 
 	f.wg.Add(1)
 	go f.startStatistician(stats, rules)

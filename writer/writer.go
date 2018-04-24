@@ -100,10 +100,10 @@ func StartWriter(c *config.Config) (_ *Writer, err error) {
 			jobs <- msg
 		})
 		if err != nil {
-			return nil, fmt.Errorf("subscription for %q failed: %v", subject, err)
+			return nil, fmt.Errorf("NATS: subscription for %q failed: %v", subject, err)
 		}
 		if err := sub.SetPendingLimits(-1, maxPendingBytes); err != nil {
-			return nil, fmt.Errorf("failed to set pending limits: %v", err)
+			return nil, fmt.Errorf("NATS: failed to set pending limits: %v", err)
 		}
 
 		w.wg.Add(1)
