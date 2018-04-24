@@ -206,6 +206,11 @@ nats_subject_junkyard = "influx-spout-junk"
 # by the monitor).
 nats_subject_monitor = "influx-spout-monitor"
 
+# The maximum size that the pending buffer for the NATS subject that the filter
+# is reading from may become (in megabytes). Measurements will be dropped if
+# this limit is reached.
+nats_pending_max_mb = 200
+
 # The number of filter workers to spawn.
 workers = 8
 
