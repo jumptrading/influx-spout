@@ -34,6 +34,7 @@ const (
 	statProcessed   = "processed"
 	statRejected    = "rejected"
 	statInvalidTime = "invalid_time"
+	statNATSDropped = "nats_dropped"
 )
 
 // StartFilter creates a Filter instance, sets up its rules based on
@@ -113,6 +114,7 @@ func initStats(rules *RuleSet) *stats.Stats {
 		statProcessed,
 		statRejected,
 		statInvalidTime,
+		statNATSDropped,
 	}
 	for i := 0; i < rules.Count(); i++ {
 		statNames = append(statNames, ruleToStatsName(i))
@@ -164,6 +166,8 @@ func (f *Filter) startStatistician(st *stats.Stats, rules *RuleSet) {
 	}
 
 	for {
+		f.updateNATSDropped(st)
+
 		now := time.Now()
 		snap, ruleCounts := splitSnapshot(st.Snapshot())
 
@@ -191,6 +195,15 @@ func (f *Filter) startStatistician(st *stats.Stats, rules *RuleSet) {
 			return
 		}
 	}
+}
+
+func (f *Filter) updateNATSDropped(st *stats.Stats) {
+	dropped, err := f.sub.Dropped()
+	if err != nil {
+		log.Printf("NATS: failed to read subscription drops: %v", err)
+		return
+	}
+	st.Max(statNATSDropped, dropped)
 }
 
 const rulePrefix = "rule-"
