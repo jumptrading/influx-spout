@@ -101,7 +101,7 @@ func StartFilter(conf *config.Config) (_ *Filter, err error) {
 }
 
 func (f *Filter) natsConnect() (natsConn, error) {
-	nc, err := nats.Connect(f.c.NATSAddress)
+	nc, err := nats.Connect(f.c.NATSAddress, nats.MaxReconnects(-1))
 	if err != nil {
 		return nil, fmt.Errorf("NATS: failed to connect: %v", err)
 	}

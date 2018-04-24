@@ -80,14 +80,10 @@ func StartWriter(c *config.Config) (_ *Writer, err error) {
 		return nil, err
 	}
 
-	w.nc, err = nats.Connect(c.NATSAddress)
+	w.nc, err = nats.Connect(c.NATSAddress, nats.MaxReconnects(-1))
 	if err != nil {
 		return nil, fmt.Errorf("NATS Error: can't connect: %v", err)
 	}
-
-	// if we disconnect, we want to try reconnecting as many times as
-	// we can
-	w.nc.Opts.MaxReconnect = -1
 
 	http.DefaultTransport.(*http.Transport).MaxIdleConnsPerHost = 100
 

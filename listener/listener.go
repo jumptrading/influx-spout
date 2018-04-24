@@ -139,12 +139,10 @@ func newListener(c *config.Config) (*Listener, error) {
 		batchSizeThreshold: c.ListenerBatchBytes - udpMaxDatagramSize,
 	}
 
-	nc, err := nats.Connect(l.c.NATSAddress)
+	nc, err := nats.Connect(l.c.NATSAddress, nats.MaxReconnects(-1))
 	if err != nil {
 		return nil, err
 	}
-	// If we disconnect, we want to try reconnecting as many times as we can.
-	nc.Opts.MaxReconnect = -1
 	l.nc = nc
 
 	return l, nil
