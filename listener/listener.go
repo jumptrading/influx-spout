@@ -34,9 +34,10 @@ import (
 
 const (
 	// Listener stats counters
-	statReceived   = "received"
-	statSent       = "sent"
-	statReadErrors = "read_errors"
+	statReceived          = "received"
+	statSent              = "sent"
+	statReadErrors        = "read_errors"
+	statFailedNATSPublish = "failed_nats_publish"
 
 	// The maximum possible UDP read size.
 	udpMaxDatagramSize = 65536
@@ -129,8 +130,13 @@ func newListener(c *config.Config) (*Listener, error) {
 		c:     c,
 		ready: make(chan struct{}),
 		stop:  make(chan struct{}),
-		stats: stats.New(statReceived, statSent, statReadErrors),
-		buf:   make([]byte, c.ListenerBatchBytes),
+		stats: stats.New(
+			statReceived,
+			statSent,
+			statReadErrors,
+			statFailedNATSPublish,
+		),
+		buf: make([]byte, c.ListenerBatchBytes),
 
 		// If more than batchSizeThreshold bytes has been written to
 		// the current batch buffer, the batch will be sent. We allow
@@ -262,6 +268,7 @@ func (l *Listener) processRead(sz int) {
 	if statReceived%l.c.BatchMessages == 0 || l.batchSize > l.batchSizeThreshold {
 		l.stats.Inc(statSent)
 		if err := l.nc.Publish(l.c.NATSSubject[0], l.buf[:l.batchSize]); err != nil {
+			l.stats.Inc(statFailedNATSPublish)
 			l.handleNatsError(err)
 		}
 		l.batchSize = 0
