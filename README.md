@@ -183,8 +183,10 @@ nats_subject_monitor = "influx-spout-monitor"
 
 ### Filter
 
-The filter is responsible for filtering measurements published to NATS by the
-listener, and forwarding them on to other NATS subjects.
+The filter is responsible for filtering measurements published to NATS
+by the listener, and forwarding them on to other NATS
+subjects. Multiple filters may be run to distribute the filtering
+workload across machines.
 
 The supported configuration options for the filter mode follow. Defaults are
 shown.
