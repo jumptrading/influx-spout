@@ -82,7 +82,11 @@ func StartFilter(conf *config.Config) (_ *Filter, err error) {
 		go w.run(jobs, f.stop, f.wg)
 	}
 
-	f.sub, err = f.nc.Subscribe(f.c.NATSSubject[0], func(msg *nats.Msg) {
+	// A fixed queue name is used to avoid a potential source of
+	// misconfiguration. Queue groups are tied to the subject being
+	// subscribed to and it's unlikely we'll want different queue
+	// groups for a single NATS subject.
+	f.sub, err = f.nc.QueueSubscribe(f.c.NATSSubject[0], "filter", func(msg *nats.Msg) {
 		if conf.Debug {
 			log.Printf("filter received %d bytes", len(msg.Data))
 		}
@@ -130,7 +134,7 @@ func initStats(rules *RuleSet) *stats.Stats {
 // natsConn allows a mock nats.Conn to be substituted in during tests.
 type natsConn interface {
 	Publish(string, []byte) error
-	Subscribe(string, nats.MsgHandler) (*nats.Subscription, error)
+	QueueSubscribe(string, string, nats.MsgHandler) (*nats.Subscription, error)
 	Close()
 }
 
