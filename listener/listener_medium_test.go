@@ -299,6 +299,7 @@ func assertMonitor(t *testing.T, monitorCh chan string, received, sent int) {
 		fmt.Sprintf(`received{component="listener",name="testlistener"} %d`, received),
 		fmt.Sprintf(`sent{component="listener",name="testlistener"} %d`, sent),
 		`read_errors{component="listener",name="testlistener"} 0`,
+		`failed_nats_publish{component="listener",name="testlistener"} 0`,
 	}
 	spouttest.AssertMonitor(t, monitorCh, expected)
 }

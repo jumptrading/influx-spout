@@ -131,6 +131,7 @@ func TestEndToEnd(t *testing.T) {
 	// Check metrics published by monitor component.
 	expectedMetrics := regexp.MustCompile(`
 failed_nats_publish{component="filter",name="filter"} 0
+failed_nats_publish{component="listener",name="listener"} 0
 failed_writes{component="writer",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44501",name="writer"} 0
 invalid_time{component="filter",name="filter"} 0
 max_pending{component="writer",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44501",name="writer"} \d+
