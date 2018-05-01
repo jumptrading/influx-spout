@@ -25,8 +25,14 @@ import (
 
 // Probes defines the available operations for a probes listener.
 type Probes interface {
+	// SetAlive sets the liveness state - true means alive/healthy.
 	SetAlive(bool)
+
+	// SetReady sets the readiness state - true means ready.
 	SetReady(bool)
+
+	// Close shuts down the probes listener. It blocks until the
+	// listener has stopped.
 	Close()
 }
 
@@ -37,7 +43,14 @@ type Probes interface {
 //
 // Liveness probes are served at /healthz.
 // Readiness probes are served at /readyz.
+//
+// If port is 0 or less, no listener is started and a "do nothing"
+// instance is returned.
 func Listen(port int) Probes {
+	if port <= 0 {
+		return new(nullListener)
+	}
+
 	p := &listener{
 		alive: new(atomic.Value),
 		ready: new(atomic.Value),
@@ -69,18 +82,14 @@ type listener struct {
 	wg     sync.WaitGroup
 }
 
-// SetAlive set the liveness state - true means alive/healthy.
 func (p *listener) SetAlive(alive bool) {
 	p.alive.Store(alive)
 }
 
-// SetReady set the readiness state - true means ready.
 func (p *listener) SetReady(ready bool) {
 	p.ready.Store(ready)
 }
 
-// Close shuts down the probes listener. It blocks until the listener
-// has stopped.
 func (p *listener) Close() {
 	p.server.Close()
 	p.wg.Wait()
@@ -95,3 +104,9 @@ func newHandler(value *atomic.Value) http.HandlerFunc {
 		http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
 	}
 }
+
+type nullListener struct{}
+
+func (p *nullListener) SetAlive(bool) {}
+func (p *nullListener) SetReady(bool) {}
+func (p *nullListener) Close()        {}

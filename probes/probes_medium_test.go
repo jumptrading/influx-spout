@@ -14,7 +14,7 @@
 
 // +build medium
 
-package probes_test
+package probes
 
 import (
 	"fmt"
@@ -23,14 +23,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/jumptrading/influx-spout/probes"
 )
 
 const probesPort = 44450
 
 func TestProbes(t *testing.T) {
-	p := probes.Listen(probesPort)
+	p := Listen(probesPort)
 	defer p.Close()
 
 	// Starting state is alive but not ready.
@@ -48,6 +46,17 @@ func TestProbes(t *testing.T) {
 	assertReady(t)
 	p.SetReady(false)
 	assertNotReady(t)
+}
+
+func TestDisabled(t *testing.T) {
+	p := Listen(0)
+	defer p.Close()
+
+	assert.IsType(t, new(nullListener), p)
+
+	// Exercise methods (won't do anything).
+	p.SetAlive(false)
+	p.SetReady(false)
 }
 
 func assertAlive(t *testing.T) {
