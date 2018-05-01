@@ -23,6 +23,13 @@ import (
 	"sync/atomic"
 )
 
+// Probes defines the available operations for a probes listener.
+type Probes interface {
+	SetAlive(bool)
+	SetReady(bool)
+	Close()
+}
+
 // Listen starts a simple HTTP listener for responding to Kubernetes
 // liveness and readiness probes on the port specified. The returned
 // Probes instance has methods for setting the liveness and readiness
@@ -30,8 +37,8 @@ import (
 //
 // Liveness probes are served at /healthz.
 // Readiness probes are served at /readyz.
-func Listen(port int) *Probes {
-	p := &Probes{
+func Listen(port int) Probes {
+	p := &listener{
 		alive: new(atomic.Value),
 		ready: new(atomic.Value),
 		server: &http.Server{
@@ -55,9 +62,7 @@ func Listen(port int) *Probes {
 	return p
 }
 
-// Probes contains a simple HTTP listener for serving Kubernetes
-// liveness and readiness probes.
-type Probes struct {
+type listener struct {
 	alive  *atomic.Value
 	ready  *atomic.Value
 	server *http.Server
@@ -65,18 +70,18 @@ type Probes struct {
 }
 
 // SetAlive set the liveness state - true means alive/healthy.
-func (p *Probes) SetAlive(alive bool) {
+func (p *listener) SetAlive(alive bool) {
 	p.alive.Store(alive)
 }
 
 // SetReady set the readiness state - true means ready.
-func (p *Probes) SetReady(ready bool) {
+func (p *listener) SetReady(ready bool) {
 	p.ready.Store(ready)
 }
 
 // Close shuts down the probes listener. It blocks until the listener
 // has stopped.
-func (p *Probes) Close() {
+func (p *listener) Close() {
 	p.server.Close()
 	p.wg.Wait()
 }
