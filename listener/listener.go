@@ -29,6 +29,7 @@ import (
 	"github.com/nats-io/go-nats"
 
 	"github.com/jumptrading/influx-spout/config"
+	"github.com/jumptrading/influx-spout/probes"
 	"github.com/jumptrading/influx-spout/stats"
 )
 
@@ -98,45 +99,43 @@ func StartHTTPListener(c *config.Config) (*Listener, error) {
 // UDP or HTTP, batches them and then publishes them to a NATS
 // subject.
 type Listener struct {
-	c     *config.Config
-	nc    *nats.Conn
-	stats *stats.Stats
+	c      *config.Config
+	nc     *nats.Conn
+	stats  *stats.Stats
+	probes probes.Probes
 
 	buf                []byte
 	batchSize          int
 	batchSizeThreshold int
 
-	wg    sync.WaitGroup
-	ready chan struct{} // Is close once the listener is listening
-	stop  chan struct{}
-}
-
-// Ready returns a channel which is closed once the listener is
-// actually listening for incoming data.
-func (l *Listener) Ready() <-chan struct{} {
-	return l.ready
+	wg   sync.WaitGroup
+	stop chan struct{}
 }
 
 // Stop shuts down a running listener. It should be called exactly
 // once for every Listener instance.
 func (l *Listener) Stop() {
+	l.probes.SetReady(false)
+	l.probes.SetAlive(false)
+
 	close(l.stop)
 	l.wg.Wait()
 	l.nc.Close()
+	l.probes.Close()
 }
 
 func newListener(c *config.Config) (*Listener, error) {
 	l := &Listener{
-		c:     c,
-		ready: make(chan struct{}),
-		stop:  make(chan struct{}),
+		c:    c,
+		stop: make(chan struct{}),
 		stats: stats.New(
 			statReceived,
 			statSent,
 			statReadErrors,
 			statFailedNATSPublish,
 		),
-		buf: make([]byte, c.ListenerBatchBytes),
+		probes: probes.Listen(c.ProbePort),
+		buf:    make([]byte, c.ListenerBatchBytes),
 
 		// If more than batchSizeThreshold bytes has been written to
 		// the current batch buffer, the batch will be sent. We allow
@@ -190,7 +189,7 @@ func (l *Listener) listenUDP(sc *net.UDPConn) {
 		l.wg.Done()
 	}()
 
-	close(l.ready)
+	l.probes.SetReady(true)
 	for {
 		sc.SetReadDeadline(time.Now().Add(time.Second))
 		sz, _, err := sc.ReadFromUDP(l.buf[l.batchSize:])
@@ -238,7 +237,7 @@ func (l *Listener) listenHTTP(server *http.Server) {
 	defer l.wg.Done()
 
 	go func() {
-		close(l.ready)
+		l.probes.SetReady(true)
 		err := server.ListenAndServe()
 		if err == nil || err == http.ErrServerClosed {
 			return

@@ -37,6 +37,7 @@ import (
 const (
 	natsPort           = 44444
 	listenPort         = 44445
+	probePort          = 44446
 	natsSubject        = "listener-test"
 	natsMonitorSubject = natsSubject + "-monitor"
 )
@@ -81,6 +82,7 @@ func testConfig() *config.Config {
 		ReadBufferBytes:    4 * 1024 * 1024,
 		ListenerBatchBytes: 1024 * 1024,
 		Port:               listenPort,
+		ProbePort:          probePort,
 	}
 }
 
@@ -181,9 +183,10 @@ loop:
 }
 
 func TestHTTPListener(t *testing.T) {
-	listener, err := StartHTTPListener(testConfig())
+	conf := testConfig()
+	listener, err := StartHTTPListener(conf)
 	require.NoError(t, err)
-	assertListenerStarted(t, listener)
+	spouttest.AssertReadyProbe(t, conf.ProbePort)
 	defer listener.Stop()
 
 	listenerCh, unsubListener := subListener(t)
@@ -228,17 +231,8 @@ func BenchmarkListenerLatency(b *testing.B) {
 func startListener(t require.TestingT, conf *config.Config) *Listener {
 	listener, err := StartListener(conf)
 	require.NoError(t, err)
-	assertListenerStarted(t, listener)
+	spouttest.AssertReadyProbe(t, conf.ProbePort)
 	return listener
-}
-
-func assertListenerStarted(t require.TestingT, listener *Listener) {
-	select {
-	case <-listener.Ready():
-	case <-time.After(spouttest.LongWait):
-		listener.Stop()
-		t.Errorf("listener failed to start up")
-	}
 }
 
 // dialListener creates a UDP connection to the listener's inbound port.
