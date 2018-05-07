@@ -97,11 +97,13 @@ func stripTimestamp(t *testing.T, s string) string {
 	return s[:i]
 }
 
-// AssertReadyProbe repeatedly tries a readiness probe on the given
-// port. It will fail a test if no successful readiness probe is
+// CheckReadyProbe repeatedly tries a readiness probe on the given
+// port. It will return true if a successful readiness probe is
 // observed within LongWait.
-func AssertReadyProbe(t require.TestingT, probePort int) {
-	require.True(t, probePort > 0, "probe port must be greater than 0")
+func CheckReadyProbe(probePort int) bool {
+	if probePort <= 0 {
+		panic("probe port must be greater than 0")
+	}
 	maxTime := time.Now().Add(LongWait)
 
 	url := fmt.Sprintf("http://localhost:%d/readyz", probePort)
@@ -109,11 +111,19 @@ func AssertReadyProbe(t require.TestingT, probePort int) {
 	for time.Now().Before(maxTime) {
 		resp, err := client.Get(url)
 		if err == nil && resp.StatusCode == 200 {
-			return
+			return true
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
 
+	return false
+}
+
+// AssertReadyProbe fails a test if CheckReadyProbe returns false.
+func AssertReadyProbe(t require.TestingT, probePort int) {
+	if CheckReadyProbe(probePort) {
+		return
+	}
 	t.Errorf("timed out waiting for successful ready probe")
 	t.FailNow()
 }

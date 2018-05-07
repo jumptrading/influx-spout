@@ -231,7 +231,11 @@ func BenchmarkListenerLatency(b *testing.B) {
 func startListener(t require.TestingT, conf *config.Config) *Listener {
 	listener, err := StartListener(conf)
 	require.NoError(t, err)
-	spouttest.AssertReadyProbe(t, conf.ProbePort)
+	if !spouttest.CheckReadyProbe(conf.ProbePort) {
+		listener.Stop()
+		t.Errorf("listener not ready")
+		t.FailNow()
+	}
 	return listener
 }
 

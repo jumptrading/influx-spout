@@ -178,6 +178,9 @@ func TestInvalidTimeStamps(t *testing.T) {
 func startFilter(t *testing.T, conf *config.Config) *Filter {
 	filter, err := StartFilter(conf)
 	require.NoError(t, err)
-	spouttest.AssertReadyProbe(t, conf.ProbePort)
+	if !spouttest.CheckReadyProbe(conf.ProbePort) {
+		filter.Stop()
+		t.Fatal("filter not ready")
+	}
 	return filter
 }
