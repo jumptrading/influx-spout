@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/jumptrading/influx-spout/config"
+	"github.com/jumptrading/influx-spout/probes"
 	"github.com/jumptrading/influx-spout/stats"
 	"github.com/nats-io/go-nats"
 )
@@ -43,9 +44,10 @@ const (
 // NATS topic.
 func StartFilter(conf *config.Config) (_ *Filter, err error) {
 	f := &Filter{
-		c:    conf,
-		stop: make(chan struct{}),
-		wg:   new(sync.WaitGroup),
+		c:      conf,
+		stop:   make(chan struct{}),
+		wg:     new(sync.WaitGroup),
+		probes: probes.Listen(conf.ProbePort),
 	}
 	defer func() {
 		if err != nil {
@@ -104,6 +106,8 @@ func StartFilter(conf *config.Config) (_ *Filter, err error) {
 
 	log.Printf("filter subscribed to [%s] at %s with %d rules\n",
 		f.c.NATSSubject[0], f.c.NATSAddress, rules.Count())
+
+	f.probes.SetReady(true)
 	return f, nil
 }
 
@@ -141,15 +145,19 @@ type natsConn interface {
 // Filter is a struct that contains the configuration we are running with
 // and the NATS bus connection
 type Filter struct {
-	c    *config.Config
-	nc   natsConn
-	sub  *nats.Subscription
-	wg   *sync.WaitGroup
-	stop chan struct{}
+	c      *config.Config
+	nc     natsConn
+	sub    *nats.Subscription
+	wg     *sync.WaitGroup
+	probes probes.Probes
+	stop   chan struct{}
 }
 
 // Stop shuts down goroutines and closes resources related to the filter.
 func (f *Filter) Stop() {
+	f.probes.SetReady(false)
+	f.probes.SetAlive(false)
+
 	// Stop receiving lines to filter.
 	f.sub.Unsubscribe()
 
@@ -161,6 +169,8 @@ func (f *Filter) Stop() {
 	if f.nc != nil {
 		f.nc.Close()
 	}
+
+	f.probes.Close()
 }
 
 // startStatistician defines a goroutine that is responsible for
