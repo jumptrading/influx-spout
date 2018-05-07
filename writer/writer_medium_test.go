@@ -33,8 +33,9 @@ import (
 	"github.com/jumptrading/influx-spout/spouttest"
 )
 
-const influxPort = 44445
 const natsPort = 44443
+const influxPort = 44445
+const probePort = 44446
 
 var natsAddress = fmt.Sprintf("nats://127.0.0.1:%d", natsPort)
 
@@ -54,6 +55,7 @@ func testConfig() *config.Config {
 		Port:               influxPort,
 		Workers:            96,
 		NATSPendingMaxMB:   32,
+		ProbePort:          probePort,
 	}
 }
 
@@ -302,6 +304,11 @@ func runGnatsd(t FatalTestingT) (*nats.Conn, func()) {
 func startWriter(t require.TestingT, conf *config.Config) *Writer {
 	w, err := StartWriter(conf)
 	require.NoError(t, err)
+	if !spouttest.CheckReadyProbe(conf.ProbePort) {
+		w.Stop()
+		t.Errorf("writer not ready")
+		t.FailNow()
+	}
 	return w
 }
 
