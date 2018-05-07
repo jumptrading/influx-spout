@@ -21,9 +21,11 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/jumptrading/influx-spout/config"
-	"github.com/jumptrading/influx-spout/prometheus"
 	"github.com/nats-io/go-nats"
+
+	"github.com/jumptrading/influx-spout/config"
+	"github.com/jumptrading/influx-spout/probes"
+	"github.com/jumptrading/influx-spout/prometheus"
 )
 
 // Start initialises, starts and returns a new Monitor instance based
@@ -31,9 +33,9 @@ import (
 func Start(conf *config.Config) (_ *Monitor, err error) {
 	m := &Monitor{
 		c:       conf,
-		ready:   make(chan struct{}),
 		stop:    make(chan struct{}),
 		metrics: prometheus.NewMetricSet(),
+		probes:  probes.Listen(conf.ProbePort),
 	}
 	defer func() {
 		if err != nil {
@@ -66,25 +68,22 @@ func Start(conf *config.Config) (_ *Monitor, err error) {
 // runtime statistics from the other influx-spout components and
 // makes them available via a HTTP endpoint in Prometheus format.
 type Monitor struct {
-	c     *config.Config
-	nc    *nats.Conn
-	sub   *nats.Subscription
-	wg    sync.WaitGroup
-	ready chan struct{}
-	stop  chan struct{}
+	c      *config.Config
+	nc     *nats.Conn
+	sub    *nats.Subscription
+	wg     sync.WaitGroup
+	stop   chan struct{}
+	probes probes.Probes
 
 	mu      sync.Mutex
 	metrics *prometheus.MetricSet
 }
 
-// Ready returns a channel which is closed once the monitor is
-// actually listening for HTTP metrics requests.
-func (m *Monitor) Ready() <-chan struct{} {
-	return m.ready
-}
-
 // Stop shuts down goroutines and closes resources related to the filter.
 func (m *Monitor) Stop() {
+	m.probes.SetReady(false)
+	m.probes.SetAlive(false)
+
 	// Stop receiving lines from NATS.
 	m.sub.Unsubscribe()
 
@@ -96,6 +95,8 @@ func (m *Monitor) Stop() {
 	if m.nc != nil {
 		m.nc.Close()
 	}
+
+	m.probes.Close()
 }
 
 func (m *Monitor) natsConnect() (*nats.Conn, error) {
@@ -125,7 +126,7 @@ func (m *Monitor) serveHTTP() {
 	}
 
 	go func() {
-		close(m.ready)
+		m.probes.SetReady(true)
 		err := server.ListenAndServe()
 		if err == nil || err == http.ErrServerClosed {
 			return
