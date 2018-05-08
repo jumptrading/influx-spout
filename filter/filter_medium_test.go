@@ -29,8 +29,8 @@ import (
 	"github.com/jumptrading/influx-spout/spouttest"
 )
 
-const natsPort = 44446
-const probePort = 44447
+const natsPort = 44100
+const probePort = 44101
 
 func testConfig() *config.Config {
 	return &config.Config{

@@ -35,9 +35,9 @@ import (
 )
 
 const (
-	natsPort           = 44444
-	listenPort         = 44445
-	probePort          = 44446
+	natsPort           = 44000
+	listenPort         = 44001
+	probePort          = 44002
 	natsSubject        = "listener-test"
 	natsMonitorSubject = natsSubject + "-monitor"
 )

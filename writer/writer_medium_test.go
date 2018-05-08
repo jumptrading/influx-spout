@@ -33,9 +33,9 @@ import (
 	"github.com/jumptrading/influx-spout/spouttest"
 )
 
-const natsPort = 44443
-const influxPort = 44445
-const probePort = 44446
+const natsPort = 44200
+const influxPort = 44201
+const probePort = 44202
 
 var natsAddress = fmt.Sprintf("nats://127.0.0.1:%d", natsPort)
 

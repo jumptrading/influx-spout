@@ -38,21 +38,21 @@ import (
 )
 
 const (
-	natsPort    = 44500
-	influxdPort = 44501
+	natsPort    = 44600
+	influxdPort = 44601
 
-	listenerPort      = 44502
-	listenerProbePort = 55502
+	listenerPort      = 44610
+	listenerProbePort = 44611
 
-	httpListenerPort      = 44503
-	httpListenerProbePort = 55503
+	httpListenerPort      = 44620
+	httpListenerProbePort = 44621
 
-	filterProbePort = 55504
+	filterProbePort = 44631
 
-	writerProbePort = 55505
+	writerProbePort = 44641
 
-	monitorPort      = 44506
-	monitorProbePort = 55506
+	monitorPort      = 44650
+	monitorProbePort = 44651
 
 	influxDBName = "test"
 	sendCount    = 10
@@ -143,20 +143,20 @@ func TestEndToEnd(t *testing.T) {
 	expectedMetrics := regexp.MustCompile(`
 failed_nats_publish{component="filter",name="filter"} 0
 failed_nats_publish{component="listener",name="listener"} 0
-failed_writes{component="writer",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44501",name="writer"} 0
+failed_writes{component="writer",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44601",name="writer"} 0
 invalid_time{component="filter",name="filter"} 0
-max_pending{component="writer",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44501",name="writer"} \d+
+max_pending{component="writer",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44601",name="writer"} \d+
 nats_dropped{component="filter",name="filter"} 0
-nats_dropped{component="writer",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44501",name="writer",subject="system"} 0
+nats_dropped{component="writer",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44601",name="writer",subject="system"} 0
 passed{component="filter",name="filter"} 10
 processed{component="filter",name="filter"} 20
 read_errors{component="listener",name="listener"} 0
 received{component="listener",name="listener"} 5
-received{component="writer",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44501",name="writer"} 2
+received{component="writer",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44601",name="writer"} 2
 rejected{component="filter",name="filter"} 10
 sent{component="listener",name="listener"} 1
 triggered{component="filter",name="filter",rule="system"} 10
-write_requests{component="writer",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44501",name="writer"} 2
+write_requests{component="writer",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44601",name="writer"} 2
 $`[1:])
 	var lines string
 	for try := 0; try < 20; try++ {
