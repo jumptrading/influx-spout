@@ -21,7 +21,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jumptrading/influx-spout/convert"
+	"github.com/jumptrading/influx-spout/influx"
 	"github.com/jumptrading/influx-spout/stats"
 )
 
@@ -150,33 +150,19 @@ func (w *worker) publish(subject string, data []byte) {
 	}
 }
 
-// Any realistic timestamp will be 18 or 19 characters long.
+// Any realistic nanosecond timestamp will be at least 18 characters
+// long.
 const minTsLen = 18
-const maxTsLen = 19
 
 func extractTimestamp(line []byte, defaultTs int64) int64 {
-	length := len(line)
-
 	// Reject lines that are too short to have a timestamp.
-	if length <= minTsLen+6 {
+	if len(line) <= minTsLen+6 {
 		return defaultTs
 	}
 
-	// Remove trailing newline.
-	if line[length-1] == '\n' {
-		length--
-		line = line[:length]
+	out, _ := influx.ExtractTimestamp(line)
+	if out == -1 {
+		return defaultTs
 	}
-
-	// Expect a space just before the timestamp.
-	for i := length - maxTsLen - 1; i < length-minTsLen; i++ {
-		if line[i] == ' ' {
-			out, err := convert.ToInt(line[i+1:])
-			if err != nil {
-				return defaultTs
-			}
-			return out
-		}
-	}
-	return defaultTs
+	return out
 }
