@@ -32,8 +32,9 @@ import (
 	"github.com/jumptrading/influx-spout/spouttest"
 )
 
-const natsPort = 44447
-const httpPort = 44448
+const natsPort = 44300
+const httpPort = 44301
+const probePort = 44302
 
 var natsAddress = fmt.Sprintf("nats://127.0.0.1:%d", natsPort)
 
@@ -43,6 +44,7 @@ func testConfig() *config.Config {
 		NATSAddress:        natsAddress,
 		NATSSubjectMonitor: "monitor-test-monitor",
 		Port:               httpPort,
+		ProbePort:          probePort,
 	}
 }
 
@@ -55,12 +57,7 @@ func TestMonitor(t *testing.T) {
 	mon, err := monitor.Start(conf)
 	require.NoError(t, err)
 	defer mon.Stop()
-
-	select {
-	case <-mon.Ready():
-	case <-time.After(spouttest.LongWait):
-		t.Fatal("timed out waiting for monitor to be ready")
-	}
+	spouttest.AssertReadyProbe(t, conf.ProbePort)
 
 	publish := func(data []byte) {
 		err := nc.Publish(conf.NATSSubjectMonitor, data)

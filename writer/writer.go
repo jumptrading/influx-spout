@@ -33,6 +33,7 @@ import (
 
 	"github.com/jumptrading/influx-spout/config"
 	"github.com/jumptrading/influx-spout/filter"
+	"github.com/jumptrading/influx-spout/probes"
 	"github.com/jumptrading/influx-spout/stats"
 )
 
@@ -54,6 +55,7 @@ type Writer struct {
 	rules         *filter.RuleSet
 	stats         *stats.Stats
 	wg            sync.WaitGroup
+	probes        probes.Probes
 	stop          chan struct{}
 }
 
@@ -66,6 +68,7 @@ func StartWriter(c *config.Config) (_ *Writer, err error) {
 		batchMaxBytes: c.BatchMaxMB * 1024 * 1024,
 		batchMaxAge:   time.Duration(c.BatchMaxSecs) * time.Second,
 		stats:         stats.New(statReceived, statWriteRequests, statFailedWrites, statMaxPending),
+		probes:        probes.Listen(c.ProbePort),
 		stop:          make(chan struct{}),
 	}
 	defer func() {
@@ -124,6 +127,8 @@ func StartWriter(c *config.Config) (_ *Writer, err error) {
 	log.Printf("POST timeout: %ds", c.WriteTimeoutSecs)
 	log.Printf("maximum NATS subject size: %dMB", c.NATSPendingMaxMB)
 
+	w.probes.SetReady(true)
+
 	return w, nil
 }
 
@@ -131,11 +136,16 @@ func StartWriter(c *config.Config) (_ *Writer, err error) {
 // connection to NATS. It will be block until all Writer goroutines
 // have stopped.
 func (w *Writer) Stop() {
+	w.probes.SetReady(false)
+	w.probes.SetAlive(false)
+
 	close(w.stop)
 	w.wg.Wait()
 	if w.nc != nil {
 		w.nc.Close()
 	}
+
+	w.probes.Close()
 }
 
 func (w *Writer) worker(jobs <-chan *nats.Msg) {

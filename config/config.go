@@ -51,6 +51,7 @@ type Config struct {
 	ListenerBatchBytes  int      `toml:"listener_batch_bytes"`
 	Rule                []Rule   `toml:"rule"`
 	MaxTimeDeltaSecs    int      `toml:"max_time_delta_secs"`
+	ProbePort           int      `toml:"probe_port"`
 	Debug               bool     `toml:"debug"`
 }
 
@@ -79,6 +80,7 @@ func newDefaultConfig() *Config {
 		NATSPendingMaxMB:    200,
 		ListenerBatchBytes:  1024 * 1024,
 		MaxTimeDeltaSecs:    600,
+		ProbePort:           0,
 	}
 }
 

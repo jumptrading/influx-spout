@@ -55,6 +55,8 @@ read_buffer_bytes = 43210
 nats_pending_max_mb = 100
 listener_batch_bytes = 4096
 max_time_delta_secs = 789
+
+probe_port = 6789
 `
 	conf, err := parseConfig(validConfigSample)
 	require.NoError(t, err, "Couldn't parse a valid config: %v\n", err)
@@ -79,6 +81,8 @@ max_time_delta_secs = 789
 	assert.Equal(t, "spout", conf.NATSSubject[0], "Subject must match")
 	assert.Equal(t, "spout-monitor", conf.NATSSubjectMonitor, "Monitor subject must match")
 	assert.Equal(t, "nats://localhost:4222", conf.NATSAddress, "Address must match")
+
+	assert.Equal(t, 6789, conf.ProbePort)
 }
 
 func TestAllDefaults(t *testing.T) {
@@ -104,6 +108,7 @@ func TestAllDefaults(t *testing.T) {
 	assert.Equal(t, 200, conf.NATSPendingMaxMB)
 	assert.Equal(t, 1048576, conf.ListenerBatchBytes)
 	assert.Equal(t, 600, conf.MaxTimeDeltaSecs)
+	assert.Equal(t, 0, conf.ProbePort)
 	assert.Equal(t, false, conf.Debug)
 	assert.Len(t, conf.Rule, 0)
 }

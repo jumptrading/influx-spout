@@ -2,6 +2,7 @@ package spouttest
 
 import (
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 	"testing"
@@ -94,4 +95,35 @@ func stripTimestamp(t *testing.T, s string) string {
 
 	// Strip off the timestamp
 	return s[:i]
+}
+
+// CheckReadyProbe repeatedly tries a readiness probe on the given
+// port. It will return true if a successful readiness probe is
+// observed within LongWait.
+func CheckReadyProbe(probePort int) bool {
+	if probePort <= 0 {
+		panic("probe port must be greater than 0")
+	}
+	maxTime := time.Now().Add(LongWait)
+
+	url := fmt.Sprintf("http://localhost:%d/readyz", probePort)
+	client := &http.Client{Timeout: time.Second}
+	for time.Now().Before(maxTime) {
+		resp, err := client.Get(url)
+		if err == nil && resp.StatusCode == 200 {
+			return true
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	return false
+}
+
+// AssertReadyProbe fails a test if CheckReadyProbe returns false.
+func AssertReadyProbe(t require.TestingT, probePort int) {
+	if CheckReadyProbe(probePort) {
+		return
+	}
+	t.Errorf("timed out waiting for successful ready probe")
+	t.FailNow()
 }

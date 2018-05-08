@@ -135,6 +135,10 @@ read_buffer_bytes = 4194304
 # The listener will publish its own metrics to this NATS subject (for consumption
 # by the monitor).
 nats_subject_monitor = "influx-spout-monitor"
+
+# The listener will serve Kubernetes liveness and readiness probes on this port
+# at /healthz and /readyz. Set to 0 (the default) to disable probes support.
+probe_port = 0
 ```
 
 ### HTTP Listener
@@ -179,6 +183,10 @@ listener_batch_bytes = 1048576
 # The HTTP listener will publish its own metrics to this NATS subject (for
 # consumption by the monitor).
 nats_subject_monitor = "influx-spout-monitor"
+
+# The HTTP listener will serve Kubernetes liveness and readiness probes on this
+# port at /healthz and /readyz. Set to 0 (the default) to disable probes support.
+probe_port = 0
 ```
 
 ### Filter
@@ -215,6 +223,10 @@ nats_pending_max_mb = 200
 
 # The number of filter workers to spawn.
 workers = 8
+
+# The filter will serve Kubernetes liveness and readiness probes on this port at
+# /healthz and /readyz. Set to 0 (the default) to disable probes support.
+probe_port = 0
 
 # Incoming metrics with timestamps ± this value from the current time will be
 # rejected. Metrics with timestamps that are significantly different from previously
@@ -324,6 +336,10 @@ nats_pending_max_mb = 200
 # The writer will publish its own metrics to this NATS subject (for consumption
 # by the monitor).
 nats_subject_monitor = "influx-spout-monitor"
+
+# The writer will serve Kubernetes liveness and readiness probes on this port at
+# /healthz and /readyz. Set to 0 (the default) to disable probes support.
+probe_port = 0
 ```
 
 A writer will batch up messages until one of the limits defined by the
@@ -356,6 +372,10 @@ nats_subject_monitor = "influx-spout-monitor"
 
 # The TCP port where the monitor will serve Prometheus formatted metrics over HTTP.
 port = 9331
+
+# The monitor will serve Kubernetes liveness and readiness probes on this port
+# at /healthz and /readyz. Set to 0 (the default) to disable probes support.
+probe_port = 0
 ```
 
 ## Running tests

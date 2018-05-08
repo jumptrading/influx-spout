@@ -29,7 +29,8 @@ import (
 	"github.com/jumptrading/influx-spout/spouttest"
 )
 
-const natsPort = 44446
+const natsPort = 44100
+const probePort = 44101
 
 func testConfig() *config.Config {
 	return &config.Config{
@@ -46,6 +47,7 @@ func testConfig() *config.Config {
 			Match:   "hello",
 			Subject: "hello-subject",
 		}},
+		ProbePort: probePort,
 	}
 }
 
@@ -55,8 +57,7 @@ func TestFilterWorker(t *testing.T) {
 
 	conf := testConfig()
 
-	filter, err := StartFilter(conf)
-	require.NoError(t, err)
+	filter := startFilter(t, conf)
 	defer filter.Stop()
 
 	nc, err := nats.Connect(conf.NATSAddress)
@@ -123,8 +124,7 @@ func TestInvalidTimeStamps(t *testing.T) {
 	conf := testConfig()
 	conf.MaxTimeDeltaSecs = 10
 
-	filter, err := StartFilter(conf)
-	require.NoError(t, err)
+	filter := startFilter(t, conf)
 	defer filter.Stop()
 
 	nc, err := nats.Connect(conf.NATSAddress)
@@ -173,4 +173,14 @@ func TestInvalidTimeStamps(t *testing.T) {
 		`nats_dropped{component="filter",name="particle"} 0`,
 		`triggered{component="filter",name="particle",rule="hello-subject"} 2`,
 	})
+}
+
+func startFilter(t *testing.T, conf *config.Config) *Filter {
+	filter, err := StartFilter(conf)
+	require.NoError(t, err)
+	if !spouttest.CheckReadyProbe(conf.ProbePort) {
+		filter.Stop()
+		t.Fatal("filter not ready")
+	}
+	return filter
 }
