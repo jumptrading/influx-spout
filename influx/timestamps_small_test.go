@@ -17,6 +17,7 @@
 package influx_test
 
 import (
+	"math"
 	"strconv"
 	"testing"
 	"time"
@@ -59,4 +60,84 @@ func TestExtractTimestamp(t *testing.T) {
 	noTimestamp("weather temp=99 11520761485803180202") // too long
 	noTimestamp("weather temp=99 -" + tsStr)            // negative
 	noTimestamp(tsStr)                                  // timestamp only
+}
+
+func TestSafeCalcTime(t *testing.T) {
+	tests := []struct {
+		name      string
+		ts        int64
+		precision string
+		exp       time.Time
+	}{
+		{
+			name:      "nanosecond by default",
+			ts:        946730096789012345,
+			precision: "",
+			exp:       time.Unix(0, 946730096789012345),
+		},
+		{
+			name:      "nanosecond",
+			ts:        946730096789012345,
+			precision: "n",
+			exp:       time.Unix(0, 946730096789012345),
+		},
+		{
+			name:      "microsecond",
+			ts:        946730096789012,
+			precision: "u",
+			exp:       time.Unix(0, 946730096789012000),
+		},
+		{
+			name:      "millisecond",
+			ts:        946730096789,
+			precision: "ms",
+			exp:       time.Unix(0, 946730096789000000),
+		},
+		{
+			name:      "second",
+			ts:        946730096,
+			precision: "s",
+			exp:       time.Unix(0, 946730096000000000),
+		},
+		{
+			name:      "minute",
+			ts:        15778834,
+			precision: "m",
+			exp:       time.Unix(0, 946730040000000000),
+		},
+		{
+			name:      "hour",
+			ts:        262980,
+			precision: "h",
+			exp:       time.Unix(0, 946728000000000000),
+		},
+	}
+
+	for _, test := range tests {
+		ts, err := influx.SafeCalcTime(test.ts, test.precision)
+		assert.NoError(t, err, `%s: SafeCalcTime() failed. got %s`, test.name, err)
+		assert.True(t, ts.Equal(test.exp), "%s: expected %s, got %s", test.name, test.exp, ts)
+	}
+}
+
+func TestSafeCalcTimeOutOfRange(t *testing.T) {
+	invalid := []int64{
+		int64(math.MinInt64),
+		int64(math.MinInt64) + 1,
+		int64(math.MaxInt64),
+	}
+	for _, invalidTs := range invalid {
+		_, err := influx.SafeCalcTime(invalidTs, "")
+		assert.Equal(t, err, influx.ErrTimeOutOfRange,
+			`SafeCalcTime() didn't fail as expected for %s`, invalidTs)
+	}
+
+	ok := []int64{
+		int64(math.MinInt64) + 2,
+		int64(math.MaxInt64) - 1,
+	}
+	for _, validTs := range ok {
+		_, err := influx.SafeCalcTime(validTs, "")
+		assert.NoError(t, err)
+	}
 }
