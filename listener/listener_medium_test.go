@@ -243,6 +243,62 @@ func TestHTTPListenerBigPOST(t *testing.T) {
 	assertMonitor(t, monitorCh, 1, 1)
 }
 
+func TestHTTPListenerConcurrency(t *testing.T) {
+	conf := testConfig()
+	listener, err := StartHTTPListener(conf)
+	require.NoError(t, err)
+	spouttest.AssertReadyProbe(t, conf.ProbePort)
+	defer listener.Stop()
+
+	listenerCh, unsubListener := subListener(t)
+	defer unsubListener()
+
+	// Send the same line many times from multiple goroutines.
+	const senders = 10
+	const sendCount = 100
+	const totalLines = senders * sendCount
+	sendLine := fmt.Sprintf("cpu load=0.69 foo=bar %d\n", time.Now().UnixNano())
+
+	url := fmt.Sprintf("http://localhost:%d/write", listenPort)
+	errs := make(chan error, senders)
+	for sender := 0; sender < senders; sender++ {
+		go func() {
+			client := new(http.Client)
+			for i := 0; i < sendCount; i++ {
+				_, err := client.Post(url, "text/plain", bytes.NewBufferString(sendLine))
+				if err != nil {
+					errs <- err
+				}
+			}
+			errs <- nil
+		}()
+	}
+
+	// Wait for the senders to be done sending, and all the lines to
+	// be returned.
+	sendersDone := 0
+	received := 0
+	timeout := time.After(spouttest.LongWait)
+	for received < totalLines || sendersDone < senders {
+		select {
+		case lines := <-listenerCh:
+			for _, line := range strings.SplitAfter(lines, "\n") {
+				if len(line) > 0 {
+					require.Equal(t, sendLine, line)
+					received++
+				}
+			}
+		case err := <-errs:
+			require.NoError(t, err)
+			sendersDone++
+		case <-timeout:
+			t.Fatal("timed out waiting for lines")
+		}
+	}
+
+	assertNoMore(t, listenerCh)
+}
+
 func BenchmarkListenerLatency(b *testing.B) {
 	listener := startListener(b, testConfig())
 	defer listener.Stop()

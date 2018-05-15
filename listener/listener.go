@@ -107,6 +107,7 @@ type Listener struct {
 
 	wg   sync.WaitGroup
 	stop chan struct{}
+	mu   sync.Mutex // only used for HTTP listener
 }
 
 // Stop shuts down a running listener. It should be called exactly
@@ -205,7 +206,9 @@ func (l *Listener) listenUDP(sc *net.UDPConn) {
 func (l *Listener) setupHTTP() *http.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/write", func(w http.ResponseWriter, r *http.Request) {
+		l.mu.Lock()
 		bytesRead, err := l.batch.readFrom(r.Body)
+		l.mu.Unlock()
 		if err != nil {
 			l.stats.Inc(statReadErrors)
 		}
@@ -213,7 +216,9 @@ func (l *Listener) setupHTTP() *http.Server {
 			if l.c.Debug {
 				log.Printf("HTTP listener read %d bytes", bytesRead)
 			}
+			l.mu.Lock()
 			l.processRead()
+			l.mu.Unlock()
 		}
 	})
 	return &http.Server{
