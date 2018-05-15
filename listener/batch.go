@@ -14,7 +14,9 @@
 
 package listener
 
-import "io"
+import (
+	"io"
+)
 
 // newBatch returns a new batch buffer with the initial capacity
 // specified.
@@ -45,6 +47,35 @@ func (b *batch) readOnceFrom(r io.Reader) (int, error) {
 	return n, err
 }
 
+// readFrom reads everything from an io.Reader, growing the batch if
+// required.
+func (b *batch) readFrom(r io.Reader) (int, error) {
+	total := 0
+	for {
+		// If there's not much capacity left, grow the buffer.
+		if b.remaining() <= 512 {
+			b.grow()
+		}
+		n, err := r.Read(b.buf[len(b.buf):cap(b.buf)])
+		if n > 0 {
+			b.buf = b.buf[:len(b.buf)+n]
+			total += n
+		}
+
+		if err != nil {
+			if err == io.EOF {
+				err = nil
+			}
+			return total, err
+		}
+	}
+}
+
+// size returns the number of bytes currently stored in the batch.
+func (b *batch) size() int {
+	return len(b.buf)
+}
+
 // remaining returns the number of bytes still unused in the batch.
 func (b *batch) remaining() int {
 	return cap(b.buf) - len(b.buf)
@@ -59,4 +90,13 @@ func (b *batch) reset() {
 // is valid only until the next modifying call to the batch.
 func (b *batch) bytes() []byte {
 	return b.buf
+}
+
+// grow doubles the size of the batch's internal buffer. This is
+// expensive and should be avoided where possible.
+func (b *batch) grow() {
+	newBuf := make([]byte, int(cap(b.buf)*2))
+	copy(newBuf, b.buf)
+	newBuf = newBuf[:len(b.buf)]
+	b.buf = newBuf
 }

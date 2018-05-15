@@ -18,7 +18,6 @@ package listener
 
 import (
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"net/http"
@@ -206,20 +205,15 @@ func (l *Listener) listenUDP(sc *net.UDPConn) {
 func (l *Listener) setupHTTP() *http.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/write", func(w http.ResponseWriter, r *http.Request) {
-		for {
-			bytesRead, err := l.batch.readOnceFrom(r.Body)
-			if bytesRead > 0 {
-				if l.c.Debug {
-					log.Printf("HTTP listener read %d bytes", bytesRead)
-				}
-				l.processRead()
+		bytesRead, err := l.batch.readFrom(r.Body)
+		if err != nil {
+			l.stats.Inc(statReadErrors)
+		}
+		if bytesRead > 0 {
+			if l.c.Debug {
+				log.Printf("HTTP listener read %d bytes", bytesRead)
 			}
-			if err != nil {
-				if err != io.EOF {
-					l.stats.Inc(statReadErrors)
-				}
-				return
-			}
+			l.processRead()
 		}
 	})
 	return &http.Server{
@@ -251,12 +245,10 @@ func (l *Listener) processRead() {
 	// Send when the configured number of reads have been batched or
 	// the batch buffer is almost full.
 
-	// If the batch has less capacity left than the size of a maximum
-	// UDP datagram, then force a send to avoid growing the batch
-	// unnecessarily (allocations hurt performance). UDP datagrams of
-	// this size are practically unlikely but it's a nice number to
-	// use.
-	batchNearlyFull := l.batch.remaining() <= maxUDPDatagramSize
+	// If the batch size is within a (maximum) UDP datagram of the
+	// configured target batch size, then force a send to avoid
+	// growing the batch unnecessarily (allocations hurt performance).
+	batchNearlyFull := l.c.ListenerBatchBytes-l.batch.size() <= maxUDPDatagramSize
 
 	if statReceived%l.c.BatchMessages == 0 || batchNearlyFull {
 		l.stats.Inc(statSent)
