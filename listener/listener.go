@@ -220,6 +220,7 @@ func (l *Listener) setupHTTP() *http.Server {
 			l.processRead()
 			l.mu.Unlock()
 		}
+		w.WriteHeader(http.StatusNoContent)
 	})
 	return &http.Server{
 		Addr:    fmt.Sprintf(":%d", l.c.Port),
