@@ -210,6 +210,39 @@ func TestHTTPListener(t *testing.T) {
 	assertMonitor(t, monitorCh, numLines, numLines)
 }
 
+func TestHTTPListenerBigPOST(t *testing.T) {
+	conf := testConfig()
+	conf.ListenerBatchBytes = 1024
+	// Use a batch size > 1. Even though a single write will be made,
+	// the batch should still get sent because the buffer size limit
+	// is exceeded.
+	conf.BatchMessages = 10
+
+	listener, err := StartHTTPListener(conf)
+	require.NoError(t, err)
+	spouttest.AssertReadyProbe(t, conf.ProbePort)
+	defer listener.Stop()
+
+	listenerCh, unsubListener := subListener(t)
+	defer unsubListener()
+
+	monitorCh, unsubMonitor := subMonitor(t)
+	defer unsubMonitor()
+
+	// Send a post that's bigger than the configured batch size. This
+	// will force the batch buffer to grow.
+	buf := make([]byte, conf.ListenerBatchBytes+200)
+
+	url := fmt.Sprintf("http://localhost:%d/write", listenPort)
+	_, err = http.Post(url, "text/plain", bytes.NewBuffer(buf))
+	require.NoError(t, err)
+
+	assertBatch(t, listenerCh, string(buf))
+	assertNoMore(t, listenerCh)
+
+	assertMonitor(t, monitorCh, 1, 1)
+}
+
 func BenchmarkListenerLatency(b *testing.B) {
 	listener := startListener(b, testConfig())
 	defer listener.Stop()

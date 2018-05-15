@@ -18,7 +18,6 @@ package listener
 
 import (
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"net/http"
@@ -41,7 +40,7 @@ const (
 	statFailedNATSPublish = "failed_nats_publish"
 
 	// The maximum possible UDP read size.
-	udpMaxDatagramSize = 65536
+	maxUDPDatagramSize = 65536
 )
 
 var statsInterval = 3 * time.Second
@@ -104,9 +103,7 @@ type Listener struct {
 	stats  *stats.Stats
 	probes probes.Probes
 
-	buf                []byte
-	batchSize          int
-	batchSizeThreshold int
+	batch *batch
 
 	wg   sync.WaitGroup
 	stop chan struct{}
@@ -135,13 +132,7 @@ func newListener(c *config.Config) (*Listener, error) {
 			statFailedNATSPublish,
 		),
 		probes: probes.Listen(c.ProbePort),
-		buf:    make([]byte, c.ListenerBatchBytes),
-
-		// If more than batchSizeThreshold bytes has been written to
-		// the current batch buffer, the batch will be sent. We allow
-		// for the maximum UDP datagram size to be read from the
-		// socket (unlikely but possible).
-		batchSizeThreshold: c.ListenerBatchBytes - udpMaxDatagramSize,
+		batch:  newBatch(c.ListenerBatchBytes),
 	}
 
 	nc, err := nats.Connect(l.c.NATSAddress, nats.MaxReconnects(-1))
@@ -192,14 +183,16 @@ func (l *Listener) listenUDP(sc *net.UDPConn) {
 	l.probes.SetReady(true)
 	for {
 		sc.SetReadDeadline(time.Now().Add(time.Second))
-		sz, _, err := sc.ReadFromUDP(l.buf[l.batchSize:])
+		bytesRead, err := l.batch.readOnceFrom(sc)
 		if err != nil && !isTimeout(err) {
 			l.stats.Inc(statReadErrors)
 		}
-
-		// Attempt to process the read even on error as Read may
-		// still have read some bytes successfully.
-		l.processRead(sz)
+		if bytesRead > 0 {
+			if l.c.Debug {
+				log.Printf("listener read %d bytes", bytesRead)
+			}
+			l.processRead()
+		}
 
 		select {
 		case <-l.stop:
@@ -212,19 +205,15 @@ func (l *Listener) listenUDP(sc *net.UDPConn) {
 func (l *Listener) setupHTTP() *http.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/write", func(w http.ResponseWriter, r *http.Request) {
-		for {
-			sz, err := r.Body.Read(l.buf[l.batchSize:])
-
-			// Attempt to process the read even on error has Read may
-			// still have read some bytes successfully.
-			l.processRead(sz)
-
-			if err != nil {
-				if err != io.EOF {
-					l.stats.Inc(statReadErrors)
-				}
-				break
+		bytesRead, err := l.batch.readFrom(r.Body)
+		if err != nil {
+			l.stats.Inc(statReadErrors)
+		}
+		if bytesRead > 0 {
+			if l.c.Debug {
+				log.Printf("HTTP listener read %d bytes", bytesRead)
 			}
+			l.processRead()
 		}
 	})
 	return &http.Server{
@@ -250,27 +239,24 @@ func (l *Listener) listenHTTP(server *http.Server) {
 	server.Close()
 }
 
-func (l *Listener) processRead(sz int) {
-	if sz < 1 {
-		return // Empty read
-	}
-
+func (l *Listener) processRead() {
 	statReceived := l.stats.Inc(statReceived)
-	l.batchSize += sz
 
-	if l.c.Debug {
-		log.Printf("listener read %d bytes\n", sz)
-	}
+	// Send when the configured number of reads have been batched or
+	// the batch buffer is almost full.
 
-	// Send when sufficient reads have been batched or the batch
-	// buffer is almost full.
-	if statReceived%l.c.BatchMessages == 0 || l.batchSize > l.batchSizeThreshold {
+	// If the batch size is within a (maximum) UDP datagram of the
+	// configured target batch size, then force a send to avoid
+	// growing the batch unnecessarily (allocations hurt performance).
+	batchNearlyFull := l.c.ListenerBatchBytes-l.batch.size() <= maxUDPDatagramSize
+
+	if statReceived%l.c.BatchMessages == 0 || batchNearlyFull {
 		l.stats.Inc(statSent)
-		if err := l.nc.Publish(l.c.NATSSubject[0], l.buf[:l.batchSize]); err != nil {
+		if err := l.nc.Publish(l.c.NATSSubject[0], l.batch.bytes()); err != nil {
 			l.stats.Inc(statFailedNATSPublish)
 			l.handleNatsError(err)
 		}
-		l.batchSize = 0
+		l.batch.reset()
 	}
 }
 
