@@ -22,8 +22,7 @@ capture_benchmarks() {
     test_sizes=$1
     output=$2
 
-    packages=`go list ./... | grep -v vendor`
-    go test -tags="$test_sizes" -run='^$' -bench=. $packages &>> $output
+    go test -tags="$test_sizes" -run='^$' -bench=. ./... &>> $output
     if [[ $? -ne 0 ]]; then
         cat $output
         exit 1
