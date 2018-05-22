@@ -350,6 +350,46 @@ func BenchmarkListenerLatency(b *testing.B) {
 	b.StopTimer()
 }
 
+func BenchmarkHTTPListener(b *testing.B) {
+	listener := startHTTPListener(b, testConfig())
+	defer listener.Stop()
+
+	listenerCh, unsubscribe := subListener(b)
+	defer unsubscribe()
+
+	url := fmt.Sprintf("http://localhost:%d/write", listenPort)
+	line := []byte(fmt.Sprintf("foo bar=2 %d", time.Now().UnixNano()))
+	reader := bytes.NewReader(line)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		http.Post(url, "text/plain", reader)
+		reader.Seek(0, 0)
+		<-listenerCh
+	}
+	b.StopTimer()
+}
+
+func BenchmarkHTTPListenerWithPrecision(b *testing.B) {
+	listener := startHTTPListener(b, testConfig())
+	defer listener.Stop()
+
+	listenerCh, unsubscribe := subListener(b)
+	defer unsubscribe()
+
+	url := fmt.Sprintf("http://localhost:%d/write?precision=s", listenPort)
+	line := []byte(fmt.Sprintf("foo bar=2 %d", time.Now().UnixNano()/int64(time.Second)))
+	reader := bytes.NewReader(line)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		http.Post(url, "text/plain", reader)
+		reader.Seek(0, 0)
+		<-listenerCh
+	}
+	b.StopTimer()
+}
+
 func startListener(t require.TestingT, conf *config.Config) *Listener {
 	listener, err := StartListener(conf)
 	require.NoError(t, err)
