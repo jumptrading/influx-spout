@@ -71,6 +71,19 @@ func (b *batch) readFrom(r io.Reader) (int, error) {
 	}
 }
 
+// appendBytes adds some bytes to the batch, growing the batch if
+// required.
+func (b *batch) appendBytes(more []byte) {
+	lenMore := len(more)
+	for b.remaining() < lenMore {
+		b.grow()
+	}
+
+	lenBatch := len(b.buf)
+	b.buf = b.buf[:lenBatch+lenMore]
+	copy(b.buf[lenBatch:], more)
+}
+
 // size returns the number of bytes currently stored in the batch.
 func (b *batch) size() int {
 	return len(b.buf)

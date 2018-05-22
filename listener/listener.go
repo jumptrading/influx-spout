@@ -17,19 +17,22 @@
 package listener
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
 	"log"
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
-	"github.com/nats-io/go-nats"
-
 	"github.com/jumptrading/influx-spout/config"
+	"github.com/jumptrading/influx-spout/influx"
 	"github.com/jumptrading/influx-spout/probes"
 	"github.com/jumptrading/influx-spout/stats"
+	nats "github.com/nats-io/go-nats"
 )
 
 const (
@@ -205,27 +208,107 @@ func (l *Listener) listenUDP(sc *net.UDPConn) {
 
 func (l *Listener) setupHTTP() *http.Server {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/write", func(w http.ResponseWriter, r *http.Request) {
-		l.mu.Lock()
-		bytesRead, err := l.batch.readFrom(r.Body)
-		l.mu.Unlock()
-		if err != nil {
-			l.stats.Inc(statReadErrors)
-		}
-		if bytesRead > 0 {
-			if l.c.Debug {
-				log.Printf("HTTP listener read %d bytes", bytesRead)
-			}
-			l.mu.Lock()
-			l.processRead()
-			l.mu.Unlock()
-		}
-		w.WriteHeader(http.StatusNoContent)
-	})
+	mux.HandleFunc("/write", l.handleHTTPWrite)
 	return &http.Server{
 		Addr:    fmt.Sprintf(":%d", l.c.Port),
 		Handler: mux,
 	}
+}
+
+func (l *Listener) handleHTTPWrite(w http.ResponseWriter, r *http.Request) {
+	bytesRead, err := l.readHTTPBody(r)
+	if bytesRead > 0 {
+		if l.c.Debug {
+			log.Printf("HTTP listener read %d bytes", bytesRead)
+		}
+		l.mu.Lock()
+		l.processRead()
+		l.mu.Unlock()
+	}
+	if err != nil {
+		l.stats.Inc(statReadErrors)
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (l *Listener) readHTTPBody(r *http.Request) (int, error) {
+	precision := r.URL.Query().Get("precision")
+
+	if precision == "" || precision == "ns" {
+		// Fast-path when timestamps are already in nanoseconds - no
+		// need for conversion.
+		return l.readHTTPBodyNanos(r)
+	}
+
+	// Non-nanosecond precison specified. Read lines individually and
+	// convert timestamps to nanoseconds.
+	return l.readHTTPBodyWithPrecision(r, precision)
+}
+
+func (l *Listener) readHTTPBodyNanos(r *http.Request) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.batch.readFrom(r.Body)
+}
+
+func (l *Listener) readHTTPBodyWithPrecision(r *http.Request, precision string) (int, error) {
+	scanner := bufio.NewScanner(r.Body)
+
+	// scanLines is like bufio.ScanLines but the returned lines
+	// includes the trailing newlines. Leaving the newline on the line
+	// is useful for incoming lines that don't contain a timestamp and
+	// therefore should pass through unchanged.
+	scanner.Split(scanLines)
+
+	bytesRead := 0
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		bytesRead += len(line)
+		if len(line) <= 1 {
+			continue
+		}
+
+		newLine := applyTimestampPrecision(line, precision)
+		l.mu.Lock()
+		l.batch.appendBytes(newLine)
+		l.mu.Unlock()
+	}
+	return bytesRead, scanner.Err()
+}
+
+func scanLines(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	if atEOF && len(data) == 0 {
+		return 0, nil, nil
+	}
+	if i := bytes.IndexByte(data, '\n'); i >= 0 {
+		// We have a full newline-terminated line.
+		return i + 1, data[0 : i+1], nil
+
+	}
+	// If we're at EOF, we have a final, non-terminated line. Return it.
+	if atEOF {
+		return len(data), data, nil
+
+	}
+	// Request more data.
+	return 0, nil, nil
+}
+
+func applyTimestampPrecision(line []byte, precision string) []byte {
+	ts, offset := influx.ExtractTimestamp(line)
+	if offset == -1 {
+		return line
+	}
+
+	newTs, err := influx.SafeCalcTime(ts, precision)
+	if err != nil {
+		return line
+	}
+
+	newLine := make([]byte, offset, offset+influx.MaxTsLen+1)
+	copy(newLine, line[:offset])
+	newLine = strconv.AppendInt(newLine, newTs, 10)
+	return append(newLine, '\n')
 }
 
 func (l *Listener) listenHTTP(server *http.Server) {

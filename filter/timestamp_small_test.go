@@ -37,21 +37,9 @@ func TestExtractTimestamp(t *testing.T) {
 	}
 
 	check("", defaultTs)
-	check(" ", defaultTs)
-	check("weather temp=99", defaultTs)
 	check("weather,city=paris temp=60", defaultTs)
-	check("weather,city=paris temp=99,humidity=100", defaultTs)
 	check("weather temp=99 "+tsStr, ts)
 	check("weather temp=99 "+tsStr+"\n", ts)
-	check("weather,city=paris temp=60 "+tsStr, ts)
 	check("weather,city=paris temp=60,humidity=100 "+tsStr, ts)
 	check("weather,city=paris temp=60,humidity=100 "+tsStr+"\n", ts)
-
-	// Various invalid timestamps
-	check("weather temp=99 "+tsStr+" ", defaultTs)
-	check("weather temp=99 xxxxxxxxxxxxxxxxxxx", defaultTs)
-	check("weather temp=99 152076148x803180202", defaultTs)  // non-digit embedded
-	check("weather temp=99 11520761485803180202", defaultTs) // too long
-	check("weather temp=99 -"+tsStr, defaultTs)
-	check(tsStr, defaultTs)
 }
