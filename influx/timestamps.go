@@ -126,15 +126,15 @@ func ExtractNanos(line []byte) (int64, int) {
 
 // SafeCalcTime safely calculates the time given. Will return error if
 // the time is outside the supported range.
-func SafeCalcTime(timestamp int64, precision string) (time.Time, error) {
+func SafeCalcTime(timestamp int64, precision string) (int64, error) {
 	mult := getPrecisionMultiplier(precision)
 	if t, ok := safeSignedMult(timestamp, mult); ok {
 		if t < minNanoTime || t > maxNanoTime {
-			return time.Time{}, ErrTimeOutOfRange
+			return 0, ErrTimeOutOfRange
 		}
-		return time.Unix(0, t).UTC(), nil
+		return t, nil
 	}
-	return time.Time{}, ErrTimeOutOfRange
+	return 0, ErrTimeOutOfRange
 }
 
 // getPrecisionMultiplier will return a multiplier for the precision specified.

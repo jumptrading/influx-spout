@@ -103,56 +103,56 @@ func TestSafeCalcTime(t *testing.T) {
 		name      string
 		ts        int64
 		precision string
-		exp       time.Time
+		exp       int64
 	}{
 		{
 			name:      "nanosecond by default",
 			ts:        946730096789012345,
 			precision: "",
-			exp:       time.Unix(0, 946730096789012345),
+			exp:       946730096789012345,
 		},
 		{
 			name:      "nanosecond",
 			ts:        946730096789012345,
 			precision: "n",
-			exp:       time.Unix(0, 946730096789012345),
+			exp:       946730096789012345,
 		},
 		{
 			name:      "microsecond",
 			ts:        946730096789012,
 			precision: "u",
-			exp:       time.Unix(0, 946730096789012000),
+			exp:       946730096789012000,
 		},
 		{
 			name:      "millisecond",
 			ts:        946730096789,
 			precision: "ms",
-			exp:       time.Unix(0, 946730096789000000),
+			exp:       946730096789000000,
 		},
 		{
 			name:      "second",
 			ts:        946730096,
 			precision: "s",
-			exp:       time.Unix(0, 946730096000000000),
+			exp:       946730096000000000,
 		},
 		{
 			name:      "minute",
 			ts:        15778834,
 			precision: "m",
-			exp:       time.Unix(0, 946730040000000000),
+			exp:       946730040000000000,
 		},
 		{
 			name:      "hour",
 			ts:        262980,
 			precision: "h",
-			exp:       time.Unix(0, 946728000000000000),
+			exp:       946728000000000000,
 		},
 	}
 
 	for _, test := range tests {
 		ts, err := influx.SafeCalcTime(test.ts, test.precision)
 		assert.NoError(t, err, `%s: SafeCalcTime() failed. got %s`, test.name, err)
-		assert.True(t, ts.Equal(test.exp), "%s: expected %s, got %s", test.name, test.exp, ts)
+		assert.Equal(t, test.exp, ts, "%s: expected %s, got %s", test.name, test.exp, ts)
 	}
 }
 

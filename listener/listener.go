@@ -307,7 +307,7 @@ func applyTimestampPrecision(line []byte, precision string) []byte {
 
 	newLine := make([]byte, offset, offset+influx.MaxTsLen+1)
 	copy(newLine, line[:offset])
-	newLine = strconv.AppendInt(newLine, newTs.UnixNano(), 10)
+	newLine = strconv.AppendInt(newLine, newTs, 10)
 	return append(newLine, '\n')
 }
 
