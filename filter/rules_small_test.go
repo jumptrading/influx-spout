@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jumptrading/influx-spout/spouttest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -153,6 +154,9 @@ func TestMeasurementName(t *testing.T) {
 var result int
 
 func BenchmarkLineLookup(b *testing.B) {
+	spouttest.SuppressLogs()
+	defer spouttest.RestoreLogs()
+
 	rs := new(RuleSet)
 	rs.Append(CreateBasicRule("hello", ""))
 	line := []byte("hello world=42")
@@ -164,6 +168,9 @@ func BenchmarkLineLookup(b *testing.B) {
 }
 
 func BenchmarkLineLookupRegex(b *testing.B) {
+	spouttest.SuppressLogs()
+	defer spouttest.RestoreLogs()
+
 	rs := new(RuleSet)
 	rs.Append(CreateRegexRule("hello|abcde", ""))
 	line := []byte("hello world=42")
@@ -175,6 +182,9 @@ func BenchmarkLineLookupRegex(b *testing.B) {
 }
 
 func BenchmarkLineLookupNegativeRegex(b *testing.B) {
+	spouttest.SuppressLogs()
+	defer spouttest.RestoreLogs()
+
 	rs := new(RuleSet)
 	rs.Append(CreateNegativeRegexRule("hello|abcde", ""))
 	line := []byte("hello world=42")
@@ -186,6 +196,9 @@ func BenchmarkLineLookupNegativeRegex(b *testing.B) {
 }
 
 func BenchmarkProcessBatch(b *testing.B) {
+	spouttest.SuppressLogs()
+	defer spouttest.RestoreLogs()
+
 	// Run the Filter worker with a fake NATS connection.
 	rs := new(RuleSet)
 	rs.Append(CreateBasicRule("hello", "hello-out"))
