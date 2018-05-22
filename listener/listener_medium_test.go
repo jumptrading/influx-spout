@@ -184,9 +184,7 @@ loop:
 
 func TestHTTPListener(t *testing.T) {
 	conf := testConfig()
-	listener, err := StartHTTPListener(conf)
-	require.NoError(t, err)
-	spouttest.AssertReadyProbe(t, conf.ProbePort)
+	listener := startHTTPListener(t, conf)
 	defer listener.Stop()
 
 	listenerCh, unsubListener := subListener(t)
@@ -245,9 +243,7 @@ func TestHTTPListenerBigPOST(t *testing.T) {
 
 func TestHTTPListenerConcurrency(t *testing.T) {
 	conf := testConfig()
-	listener, err := StartHTTPListener(conf)
-	require.NoError(t, err)
-	spouttest.AssertReadyProbe(t, conf.ProbePort)
+	listener := startHTTPListener(t, conf)
 	defer listener.Stop()
 
 	listenerCh, unsubListener := subListener(t)
@@ -299,6 +295,43 @@ func TestHTTPListenerConcurrency(t *testing.T) {
 	assertNoMore(t, listenerCh)
 }
 
+func TestHTTPListenerWithPrecision(t *testing.T) {
+	conf := testConfig()
+	listener := startHTTPListener(t, conf)
+	defer listener.Stop()
+
+	listenerCh, unsubListener := subListener(t)
+	defer unsubListener()
+
+	// Construct lines with timestamps. Seconds based timestamps will
+	// be sent into the listener which it should convert to nanosecond
+	// based timestamps on the way out.
+	in := bytes.NewBuffer(nil)
+	out := bytes.NewBuffer(nil)
+	for i, line := range poetry {
+		if i == 0 {
+			// No timestamp on the first line.
+			in.WriteString(line)
+			out.WriteString(line)
+		} else {
+			line = strings.TrimRight(line, "\n")
+			secs := int64(1500000000 + i)
+			nanos := secs * int64(time.Second)
+			in.WriteString(line + fmt.Sprintf(" %d\n", secs))
+			out.WriteString(line + fmt.Sprintf(" %d\n", nanos))
+		}
+	}
+
+	// Send the input lines.
+	url := fmt.Sprintf("http://localhost:%d/write?precision=s", listenPort)
+	_, err := http.Post(url, "text/plain", in)
+	require.NoError(t, err)
+
+	// Check for the expected output.
+	assertBatch(t, listenerCh, out.String())
+	assertNoMore(t, listenerCh)
+}
+
 func BenchmarkListenerLatency(b *testing.B) {
 	listener := startListener(b, testConfig())
 	defer listener.Stop()
@@ -323,6 +356,17 @@ func startListener(t require.TestingT, conf *config.Config) *Listener {
 	if !spouttest.CheckReadyProbe(conf.ProbePort) {
 		listener.Stop()
 		t.Errorf("listener not ready")
+		t.FailNow()
+	}
+	return listener
+}
+
+func startHTTPListener(t require.TestingT, conf *config.Config) *Listener {
+	listener, err := StartHTTPListener(conf)
+	require.NoError(t, err)
+	if !spouttest.CheckReadyProbe(conf.ProbePort) {
+		listener.Stop()
+		t.Errorf("HTTP listener not ready")
 		t.FailNow()
 	}
 	return listener
