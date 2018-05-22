@@ -50,8 +50,8 @@ const (
 )
 
 var (
-	// maxTsLen is maximum number of characters a valid timestamp can be.
-	maxTsLen = len(fmt.Sprint(maxNanoTime))
+	// MaxTsLen is maximum number of characters a valid timestamp can be.
+	MaxTsLen = len(fmt.Sprint(maxNanoTime))
 
 	// ErrTimeOutOfRange gets returned when time is out of the representable range using int64 nanoseconds since the epoch.
 	ErrTimeOutOfRange = fmt.Errorf("time outside range %d - %d", minNanoTime, maxNanoTime)
@@ -61,6 +61,40 @@ var (
 // InfluxDB line protocol line. If no valid timestamp is present, an
 // offset of -1 is returned.
 func ExtractTimestamp(line []byte) (int64, int) {
+	length := len(line)
+	if length < 6 {
+		return -1, -1
+	}
+
+	// Remove trailing newline, if present.
+	if line[length-1] == '\n' {
+		length--
+		line = line[:length]
+	}
+
+	to := length - MaxTsLen - 1
+	if to < 0 {
+		to = 0
+	}
+	for i := length - 1; i >= to; i-- {
+		if line[i] == ' ' {
+			out, err := convert.ToInt(line[i+1:])
+			if err != nil {
+				return -1, -1
+			}
+			return out, i + 1
+		}
+	}
+
+	return -1, -1
+}
+
+// ExtractNanos returns the value and offset of the timestamp in a
+// InfluxDB line protocol line. It is optimised for - and only works
+// for - timestamps in nanosecond precision. Use ExtractTimestamp() if
+// timestamps in other precisions may be present. If no valid
+// timestamp is present, an offset of -1 is returned.
+func ExtractNanos(line []byte) (int64, int) {
 	length := len(line)
 
 	if length < 6 {
@@ -74,7 +108,7 @@ func ExtractTimestamp(line []byte) (int64, int) {
 	}
 
 	// Expect a space just before the timestamp.
-	from := length - maxTsLen - 1
+	from := length - MaxTsLen - 1
 	if from < 0 {
 		from = 0
 	}

@@ -27,7 +27,7 @@ import (
 )
 
 func TestExtractTimestamp(t *testing.T) {
-	ts := time.Date(1997, 6, 5, 4, 3, 2, 1, time.UTC).UnixNano()
+	ts := int64(12345)
 	tsStr := strconv.FormatInt(ts, 10)
 
 	check := func(input string, expectedTs int64, expectedOffset int) {
@@ -40,6 +40,42 @@ func TestExtractTimestamp(t *testing.T) {
 		ts, offset := influx.ExtractTimestamp([]byte(input))
 		assert.Equal(t, -1, offset, "ExtractTimestamp(%q)", input)
 		assert.Equal(t, int64(-1), ts, "ExtractTimestamp(%q)", input)
+	}
+
+	noTimestamp("")
+	noTimestamp(" ")
+	noTimestamp("weather temp=99")
+	noTimestamp("weather,city=paris temp=60")
+	noTimestamp("weather,city=paris temp=99,humidity=100")
+	check("weather temp=99 "+tsStr, ts, 16)
+	check("weather temp=99 "+tsStr+"\n", ts, 16)
+	check("weather,city=paris temp=60 "+tsStr, ts, 27)
+	check("weather,city=paris temp=60,humidity=100 "+tsStr, ts, 40)
+	check("weather,city=paris temp=60,humidity=100 "+tsStr+"\n", ts, 40)
+
+	// Various invalid timestamps
+	noTimestamp("weather temp=99 " + tsStr + " ")       // trailing whitespace
+	noTimestamp("weather temp=99 xxxxx")                // not digits
+	noTimestamp("weather temp=99 15x07")                // embedded non-digit
+	noTimestamp("weather temp=99 00000000000000000001") // too long
+	noTimestamp("weather temp=99 -" + tsStr)            // negative
+	noTimestamp(tsStr)                                  // timestamp only
+}
+
+func TestExtractNanos(t *testing.T) {
+	ts := time.Date(1997, 6, 5, 4, 3, 2, 1, time.UTC).UnixNano()
+	tsStr := strconv.FormatInt(ts, 10)
+
+	check := func(input string, expectedTs int64, expectedOffset int) {
+		ts, offset := influx.ExtractNanos([]byte(input))
+		assert.Equal(t, expectedTs, ts, "ExtractNanos(%q)", input)
+		assert.Equal(t, expectedOffset, offset, "ExtractNanos(%q)", input)
+	}
+
+	noTimestamp := func(input string) {
+		ts, offset := influx.ExtractNanos([]byte(input))
+		assert.Equal(t, -1, offset, "ExtractNanos(%q)", input)
+		assert.Equal(t, int64(-1), ts, "ExtractNanos(%q)", input)
 	}
 
 	noTimestamp("")

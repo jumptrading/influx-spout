@@ -160,7 +160,7 @@ func extractTimestamp(line []byte, defaultTs int64) int64 {
 		return defaultTs
 	}
 
-	out, _ := influx.ExtractTimestamp(line)
+	out, _ := influx.ExtractNanos(line)
 	if out == -1 {
 		return defaultTs
 	}
