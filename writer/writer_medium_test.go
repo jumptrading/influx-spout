@@ -263,6 +263,9 @@ func TestNegativeRegexFilterRule(t *testing.T) {
 }
 
 func BenchmarkWriterLatency(b *testing.B) {
+	spouttest.SuppressLogs()
+	defer spouttest.RestoreLogs()
+
 	nc, closeNATS := runGnatsd(b)
 	defer closeNATS()
 

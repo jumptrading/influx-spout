@@ -300,6 +300,12 @@ func TestHTTPListenerConcurrency(t *testing.T) {
 }
 
 func BenchmarkListenerLatency(b *testing.B) {
+	spouttest.SuppressLogs()
+	defer spouttest.RestoreLogs()
+
+	s := spouttest.RunGnatsd(natsPort)
+	defer s.Shutdown()
+
 	listener := startListener(b, testConfig())
 	defer listener.Stop()
 
