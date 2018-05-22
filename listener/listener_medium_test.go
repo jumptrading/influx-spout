@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -61,16 +60,6 @@ func init() {
 	statsInterval = 500 * time.Millisecond
 }
 
-func TestMain(m *testing.M) {
-	os.Exit(runMain(m))
-}
-
-func runMain(m *testing.M) int {
-	s := spouttest.RunGnatsd(natsPort)
-	defer s.Shutdown()
-	return m.Run()
-}
-
 func testConfig() *config.Config {
 	return &config.Config{
 		Mode:               "listener",
@@ -87,6 +76,9 @@ func testConfig() *config.Config {
 }
 
 func TestBatching(t *testing.T) {
+	s := spouttest.RunGnatsd(natsPort)
+	defer s.Shutdown()
+
 	conf := testConfig()
 	conf.BatchMessages = numLines // batch messages into one packet
 
@@ -115,6 +107,9 @@ func TestBatching(t *testing.T) {
 }
 
 func TestWhatComesAroundGoesAround(t *testing.T) {
+	s := spouttest.RunGnatsd(natsPort)
+	defer s.Shutdown()
+
 	listener := startListener(t, testConfig())
 	defer listener.Stop()
 
@@ -141,6 +136,9 @@ func TestWhatComesAroundGoesAround(t *testing.T) {
 }
 
 func TestBatchBufferFull(t *testing.T) {
+	s := spouttest.RunGnatsd(natsPort)
+	defer s.Shutdown()
+
 	conf := testConfig()
 	// Set batch size high so that the batch will only send due to the
 	// batch buffer filling up.
@@ -183,6 +181,9 @@ loop:
 }
 
 func TestHTTPListener(t *testing.T) {
+	s := spouttest.RunGnatsd(natsPort)
+	defer s.Shutdown()
+
 	conf := testConfig()
 	listener, err := StartHTTPListener(conf)
 	require.NoError(t, err)
@@ -211,6 +212,9 @@ func TestHTTPListener(t *testing.T) {
 }
 
 func TestHTTPListenerBigPOST(t *testing.T) {
+	s := spouttest.RunGnatsd(natsPort)
+	defer s.Shutdown()
+
 	conf := testConfig()
 	conf.ListenerBatchBytes = 1024
 	// Use a batch size > 1. Even though a single write will be made,
@@ -244,6 +248,9 @@ func TestHTTPListenerBigPOST(t *testing.T) {
 }
 
 func TestHTTPListenerConcurrency(t *testing.T) {
+	s := spouttest.RunGnatsd(natsPort)
+	defer s.Shutdown()
+
 	conf := testConfig()
 	listener, err := StartHTTPListener(conf)
 	require.NoError(t, err)
