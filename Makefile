@@ -9,7 +9,7 @@ ifeq ($(GOPATH),)
 abort:
 	$(error Ensure Go 1.9+ is available and the GOPATH env variable is set)
 endif
-		
+
 all: deps check-git influx-spout influx-spout-tap
 
 
@@ -47,7 +47,7 @@ influx-spout:
 	@export CGO_ENABLED=0
 
 	# Build a static version of influx-spout
-	go build -a -tags netgo -installsuffix netgo -v -x -ldflags '-X main.version=$(VERSION) -X main.builtOn=$(BUILT_ON) -w -extldflags "-static"'
+	go build -a -tags netgo -installsuffix netgo -v -x -ldflags '-X main.version=$(VERSION) -X main.builtOn=$(BUILT_ON) -w -extldflags "-static"' ./cmd/influx-spout
 	@ls -l influx-spout
 
 influx-spout-tap:

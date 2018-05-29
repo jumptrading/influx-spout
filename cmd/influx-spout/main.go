@@ -12,12 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cmd
+package main
 
 import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"runtime"
 
 	// Profiling support
@@ -30,14 +31,54 @@ import (
 	"github.com/jumptrading/influx-spout/writer"
 )
 
-// Stoppable defines something this is a capable of being stopped.
-type Stoppable interface {
+// These are set at build time.
+var version string
+var builtOn string
+
+func main() {
+	configFile := getConfigFileName()
+
+	log.Printf("Running %v version %s, built on %s, %s\n", os.Args[0], version, builtOn, runtime.Version())
+
+	if _, err := runComponent(configFile); err != nil {
+		log.Fatalf("%s", err)
+	}
+	runtime.Goexit()
+}
+
+// getConfigFileName returns the configuration file provided on the
+// command line. It will exit the program if the wrong number of
+// command line arguments have been given.
+func getConfigFileName() string {
+	if len(os.Args) != 2 {
+		usageExit()
+	}
+	return os.Args[1]
+}
+
+// usageExit will print a formatted output of the usage, then exit.
+func usageExit() {
+	fmt.Print(`
+influx-spout receives incoming metrics (typically from telegraf),
+filters them and selectively publishes them to one or more InfluxDB
+endpoints. 
+
+It is comprised of a number of components which communicate via a NATS
+bus. This binary can run as any of the components according to the
+supplied configuration.
+
+Usage:  influx-spout <configuration-file>
+`[1:])
+	os.Exit(1)
+}
+
+type stoppable interface {
 	Stop()
 }
 
-// Run parses the configuration file provided and starts influx-spout
-// in the appropriate mode.
-func Run(configFile string) (out Stoppable, err error) {
+// runComponent parses the configuration file provided and starts
+// influx-spout in the appropriate mode.
+func runComponent(configFile string) (out stoppable, err error) {
 	c, err := config.NewConfigFromFile(configFile)
 	if err != nil {
 		return nil, fmt.Errorf("Error while loading config file: %v", err)

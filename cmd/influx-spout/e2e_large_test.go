@@ -14,7 +14,7 @@
 
 // +build large
 
-package spouttest_test
+package main
 
 import (
 	"bytes"
@@ -32,7 +32,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jumptrading/influx-spout/cmd"
 	"github.com/jumptrading/influx-spout/config"
 	"github.com/jumptrading/influx-spout/spouttest"
 )
@@ -191,7 +190,7 @@ foo,env=dev bar=99 %d
 	return out
 }
 
-func startListener(t *testing.T, fs afero.Fs) cmd.Stoppable {
+func startListener(t *testing.T, fs afero.Fs) stoppable {
 	return startComponent(t, fs, "listener", fmt.Sprintf(`
 mode = "listener"
 port = %d
@@ -203,7 +202,7 @@ probe_port = %d
 `, listenerPort, natsPort, listenerProbePort))
 }
 
-func startHTTPListener(t *testing.T, fs afero.Fs) cmd.Stoppable {
+func startHTTPListener(t *testing.T, fs afero.Fs) stoppable {
 	return startComponent(t, fs, "listener", fmt.Sprintf(`
 mode = "listener_http"
 port = %d
@@ -215,7 +214,7 @@ probe_port = %d
 `, httpListenerPort, natsPort, httpListenerProbePort))
 }
 
-func startFilter(t *testing.T, fs afero.Fs) cmd.Stoppable {
+func startFilter(t *testing.T, fs afero.Fs) stoppable {
 	return startComponent(t, fs, "filter", fmt.Sprintf(`
 mode = "filter"
 nats_address = "nats://localhost:%d"
@@ -230,7 +229,7 @@ subject = "system"
 `, natsPort, filterProbePort))
 }
 
-func startWriter(t *testing.T, fs afero.Fs) cmd.Stoppable {
+func startWriter(t *testing.T, fs afero.Fs) stoppable {
 	return startComponent(t, fs, "writer", fmt.Sprintf(`
 mode = "writer"
 nats_address = "nats://localhost:%d"
@@ -245,7 +244,7 @@ probe_port = %d
 `, natsPort, influxdPort, influxDBName, writerProbePort))
 }
 
-func startMonitor(t *testing.T, fs afero.Fs) cmd.Stoppable {
+func startMonitor(t *testing.T, fs afero.Fs) stoppable {
 	return startComponent(t, fs, "monitor", fmt.Sprintf(`
 mode = "monitor"
 nats_address = "nats://localhost:%d"
@@ -255,11 +254,11 @@ probe_port = %d
 `, natsPort, monitorPort, monitorProbePort))
 }
 
-func startComponent(t *testing.T, fs afero.Fs, name, config string) cmd.Stoppable {
+func startComponent(t *testing.T, fs afero.Fs, name, config string) stoppable {
 	configFilename := name + ".toml"
 	err := afero.WriteFile(fs, configFilename, []byte(config), 0600)
 	require.NoError(t, err)
-	s, err := cmd.Run(configFilename)
+	s, err := runComponent(configFilename)
 	require.NoError(t, err)
 	return s
 }
