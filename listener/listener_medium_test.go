@@ -303,6 +303,9 @@ func TestHTTPListenerConcurrency(t *testing.T) {
 }
 
 func TestHTTPListenerWithPrecision(t *testing.T) {
+	s := spouttest.RunGnatsd(natsPort)
+	defer s.Shutdown()
+
 	conf := testConfig()
 	listener := startHTTPListener(t, conf)
 	defer listener.Stop()
@@ -364,6 +367,12 @@ func BenchmarkListenerLatency(b *testing.B) {
 }
 
 func BenchmarkHTTPListener(b *testing.B) {
+	spouttest.SuppressLogs()
+	defer spouttest.RestoreLogs()
+
+	s := spouttest.RunGnatsd(natsPort)
+	defer s.Shutdown()
+
 	listener := startHTTPListener(b, testConfig())
 	defer listener.Stop()
 
@@ -384,6 +393,12 @@ func BenchmarkHTTPListener(b *testing.B) {
 }
 
 func BenchmarkHTTPListenerWithPrecision(b *testing.B) {
+	spouttest.SuppressLogs()
+	defer spouttest.RestoreLogs()
+
+	s := spouttest.RunGnatsd(natsPort)
+	defer s.Shutdown()
+
 	listener := startHTTPListener(b, testConfig())
 	defer listener.Stop()
 
