@@ -16,71 +16,58 @@ package stats
 
 import (
 	"fmt"
-	"sync"
 )
 
 // New creates a new Stats instance using the provided stats names.
 func New(names ...string) *Stats {
-	s := &Stats{
-		counts: make(map[string]int),
+	nameIndex := make(map[string]int)
+	for i, name := range names {
+		nameIndex[name] = i
 	}
-	for _, name := range names {
-		s.counts[name] = 0
+	return &Stats{
+		counts:    NewAnon(len(names)),
+		nameIndex: nameIndex,
 	}
-	return s
 }
 
-// Stats tracks a number of counters in a goroutine safe way.
+// Stats tracks a number of named counters in a goroutine safe way. It
+// wraps an AnonStats.
 type Stats struct {
-	mu     sync.Mutex
-	counts map[string]int
+	counts    *AnonStats
+	nameIndex map[string]int
 }
 
 // Get retrieves the current value of a counter. It panics if the
 // counter is not valid.
-func (s *Stats) Get(name string) int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	count, ok := s.counts[name]
-	if !ok {
-		panic(fmt.Sprintf("unknown stat: %q", name))
-	}
-	return count
+func (s *Stats) Get(name string) uint64 {
+	return s.counts.Get(s.lookup(name))
 }
 
 // Inc increments a stats counter, returning the new value. It panics
 // if the counter is not valid.
-func (s *Stats) Inc(name string) int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if _, ok := s.counts[name]; !ok {
-		panic(fmt.Sprintf("unknown stat: %q", name))
-	}
-	s.counts[name]++
-	return s.counts[name]
+func (s *Stats) Inc(name string) uint64 {
+	return s.counts.Inc(s.lookup(name))
 }
 
 // Max updates a counter if the value supplied is greater than the
 // previous one. It panics if the name is not valid.
-func (s *Stats) Max(name string, newVal int) int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	val, ok := s.counts[name]
+func (s *Stats) Max(name string, newVal uint64) uint64 {
+	return s.counts.Max(s.lookup(name), newVal)
+}
+
+func (s *Stats) lookup(name string) int {
+	i, ok := s.nameIndex[name]
 	if !ok {
 		panic(fmt.Sprintf("unknown stat: %q", name))
 	}
-	if newVal > val {
-		s.counts[name] = newVal
-		return newVal
-	}
-	return val
+	return i
 }
 
 // CounterPair holds the and value for one Stats counter at a given
 // point in time.
 type CounterPair struct {
 	Name  string
-	Value int
+	Value uint64
 }
 
 // Snapshot holds the names and values of some counters.
@@ -88,12 +75,9 @@ type Snapshot []CounterPair
 
 // Snapshot returns the current values of all the counters.
 func (s *Stats) Snapshot() Snapshot {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	out := make([]CounterPair, 0, len(s.counts))
-	for name, count := range s.counts {
-		out = append(out, CounterPair{name, count})
+	out := make([]CounterPair, 0, len(s.nameIndex))
+	for name, i := range s.nameIndex {
+		out = append(out, CounterPair{name, s.counts.Get(i)})
 	}
 	return out
 }

@@ -208,7 +208,7 @@ func (f *Filter) updateNATSDropped(st *stats.Stats) {
 		log.Printf("NATS: failed to read subscription drops: %v", err)
 		return
 	}
-	st.Max(statNATSDropped, dropped)
+	st.Max(statNATSDropped, uint64(dropped))
 }
 
 func initStats() *stats.Stats {

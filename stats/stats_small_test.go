@@ -27,44 +27,45 @@ import (
 func TestBasics(t *testing.T) {
 	s := stats.New("foo", "bar")
 
-	assert.Equal(t, 0, s.Get("foo"))
-	assert.Equal(t, 0, s.Get("bar"))
+	assert.Equal(t, uint64(0), s.Get("foo"))
+	assert.Equal(t, uint64(0), s.Get("bar"))
 
-	assert.Equal(t, 1, s.Inc("foo"))
-	assert.Equal(t, 1, s.Get("foo"))
-	assert.Equal(t, 2, s.Inc("foo"))
-	assert.Equal(t, 2, s.Get("foo"))
-	assert.Equal(t, 3, s.Inc("foo"))
-	assert.Equal(t, 4, s.Inc("foo"))
-	assert.Equal(t, 4, s.Get("foo"))
+	assert.Equal(t, uint64(1), s.Inc("foo"))
+	assert.Equal(t, uint64(1), s.Get("foo"))
+	assert.Equal(t, uint64(2), s.Inc("foo"))
+	assert.Equal(t, uint64(2), s.Get("foo"))
+	assert.Equal(t, uint64(3), s.Inc("foo"))
+	assert.Equal(t, uint64(4), s.Inc("foo"))
+	assert.Equal(t, uint64(4), s.Get("foo"))
 
-	assert.Equal(t, 0, s.Get("bar"))
+	assert.Equal(t, uint64(0), s.Get("bar"))
 }
 
 func TestMax(t *testing.T) {
 	s := stats.New("foo")
 
-	assert.Equal(t, 0, s.Get("foo"))
-	assert.Equal(t, 0, s.Max("foo", 0))
-	assert.Equal(t, 0, s.Get("foo"))
+	assert.Equal(t, uint64(0), s.Get("foo"))
+	assert.Equal(t, uint64(0), s.Max("foo", 0))
+	assert.Equal(t, uint64(0), s.Get("foo"))
 
-	assert.Equal(t, 4, s.Max("foo", 4))
-	assert.Equal(t, 4, s.Get("foo"))
+	assert.Equal(t, uint64(4), s.Max("foo", 4))
+	assert.Equal(t, uint64(4), s.Get("foo"))
 
-	assert.Equal(t, 4, s.Max("foo", 3))
-	assert.Equal(t, 4, s.Get("foo"))
+	assert.Equal(t, uint64(4), s.Max("foo", 3))
+	assert.Equal(t, uint64(4), s.Get("foo"))
 
-	assert.Equal(t, 5, s.Max("foo", 5))
-	assert.Equal(t, 5, s.Get("foo"))
+	assert.Equal(t, uint64(5), s.Max("foo", 5))
+	assert.Equal(t, uint64(5), s.Get("foo"))
 }
 
 func TestInvalid(t *testing.T) {
 	s := stats.New("foo")
 
+	assert.Equal(t, uint64(0), s.Get("foo"))
 	assert.Panics(t, func() { s.Get("bar") })
 	assert.Panics(t, func() { s.Inc("bar") })
 	assert.Panics(t, func() { s.Max("bar", 1) })
-	assert.Equal(t, 0, s.Get("foo"))
+	assert.Equal(t, uint64(0), s.Get("foo"))
 }
 
 func TestSnapshot(t *testing.T) {
@@ -74,9 +75,9 @@ func TestSnapshot(t *testing.T) {
 	s.Inc("bar")
 
 	assert.ElementsMatch(t, []stats.CounterPair{
-		{"foo", 1},
-		{"bar", 2},
-		{"qaz", 0},
+		{Name: "foo", Value: uint64(1)},
+		{Name: "bar", Value: uint64(2)},
+		{Name: "qaz", Value: uint64(0)},
 	}, s.Snapshot())
 }
 

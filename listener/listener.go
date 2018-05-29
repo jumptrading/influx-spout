@@ -339,7 +339,7 @@ func (l *Listener) processRead() {
 	// growing the batch unnecessarily (allocations hurt performance).
 	batchNearlyFull := l.c.ListenerBatchBytes-l.batch.size() <= maxUDPDatagramSize
 
-	if statReceived%l.c.BatchMessages == 0 || batchNearlyFull {
+	if statReceived%uint64(l.c.BatchMessages) == 0 || batchNearlyFull {
 		l.stats.Inc(statSent)
 		if err := l.nc.Publish(l.c.NATSSubject[0], l.batch.bytes()); err != nil {
 			l.stats.Inc(statFailedNATSPublish)
