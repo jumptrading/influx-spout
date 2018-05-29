@@ -52,6 +52,7 @@ type Config struct {
 	Rule                []Rule   `toml:"rule"`
 	MaxTimeDeltaSecs    int      `toml:"max_time_delta_secs"`
 	ProbePort           int      `toml:"probe_port"`
+	PprofPort           int      `toml:"pprof_port"`
 	Debug               bool     `toml:"debug"`
 }
 
@@ -81,6 +82,7 @@ func newDefaultConfig() *Config {
 		ListenerBatchBytes:  1024 * 1024,
 		MaxTimeDeltaSecs:    600,
 		ProbePort:           0,
+		PprofPort:           0,
 	}
 }
 

@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"net/http"
-	_ "net/http/pprof" // for profiling a nasty memleak
 
 	"github.com/nats-io/go-nats"
 
@@ -76,8 +75,6 @@ func StartWriter(c *config.Config) (_ *Writer, err error) {
 			w.Stop()
 		}
 	}()
-
-	go http.ListenAndServe(":8080", nil) // for pprof profiling
 
 	w.rules, err = filter.RuleSetFromConfig(c)
 	if err != nil {

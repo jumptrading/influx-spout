@@ -16,7 +16,12 @@ package cmd
 
 import (
 	"fmt"
+	"log"
+	"net/http"
 	"runtime"
+
+	// Profiling support
+	_ "net/http/pprof"
 
 	"github.com/jumptrading/influx-spout/config"
 	"github.com/jumptrading/influx-spout/filter"
@@ -36,6 +41,16 @@ func Run(configFile string) (out Stoppable, err error) {
 	c, err := config.NewConfigFromFile(configFile)
 	if err != nil {
 		return nil, fmt.Errorf("Error while loading config file: %v", err)
+	}
+
+	if c.PprofPort > 0 {
+		go func() {
+			log.Printf("starting pprof listener on port %d", c.PprofPort)
+			err := http.ListenAndServe(fmt.Sprintf(":%d", c.PprofPort), nil)
+			if err != nil {
+				log.Printf("pprof listener exited: %v", err)
+			}
+		}()
 	}
 
 	switch c.Mode {
