@@ -53,7 +53,7 @@ influx-spout:
 influx-spout-tap:
 	go build utils/influx-spout-tap.go
 
-docker: influx-spout
+docker: influx-spout influx-spout-tap
 	$(info Building the docker image $(DOCKER_IMAGE) with $(PROJECT) $(VERSION))
 	docker build -t "$(DOCKER_IMAGE)" .
 
