@@ -15,7 +15,7 @@ all: deps check-git influx-spout influx-spout-tap
 
 clean:
 	go clean
-	rm -f influx-spout-tap
+	rm -f influx-spout influx-spout-tap reference.bench current.bench
 
 check-git:
 	@# See these files with:
@@ -51,7 +51,7 @@ influx-spout:
 	@ls -l influx-spout
 
 influx-spout-tap:
-	go build utils/influx-spout-tap.go
+	go build ./cmd/influx-spout-tap
 
 docker: influx-spout influx-spout-tap
 	$(info Building the docker image $(DOCKER_IMAGE) with $(PROJECT) $(VERSION))
