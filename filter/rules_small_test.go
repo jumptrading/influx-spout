@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/jumptrading/influx-spout/spouttest"
+	"github.com/jumptrading/influx-spout/stats"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -204,7 +205,15 @@ func BenchmarkProcessBatch(b *testing.B) {
 	rs.Append(CreateBasicRule("hello", "hello-out"))
 	rs.Append(CreateRegexRule("foo|bar", "foobar-out"))
 
-	w, err := newWorker(600, rs, initStats(rs), false, nullNATSConnect, "junk")
+	w, err := newWorker(
+		600,
+		rs,
+		initStats(),
+		stats.NewAnon(rs.Count()),
+		false,
+		nullNATSConnect,
+		"junk",
+	)
 	require.NoError(b, err)
 
 	lines := []string{

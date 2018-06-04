@@ -18,15 +18,14 @@ package filter
 import (
 	"fmt"
 	"log"
-	"sort"
-	"strings"
 	"sync"
 	"time"
+
+	"github.com/nats-io/go-nats"
 
 	"github.com/jumptrading/influx-spout/config"
 	"github.com/jumptrading/influx-spout/probes"
 	"github.com/jumptrading/influx-spout/stats"
-	"github.com/nats-io/go-nats"
 )
 
 // Name for supported stats
@@ -60,7 +59,8 @@ func StartFilter(conf *config.Config) (_ *Filter, err error) {
 		return nil, err
 	}
 
-	stats := initStats(rules)
+	st := initStats()
+	ruleSt := stats.NewAnon(rules.Count())
 
 	f.nc, err = f.natsConnect()
 	if err != nil {
@@ -72,7 +72,8 @@ func StartFilter(conf *config.Config) (_ *Filter, err error) {
 		w, err := newWorker(
 			f.c.MaxTimeDeltaSecs,
 			rules,
-			stats,
+			st,
+			ruleSt,
 			f.c.Debug,
 			f.natsConnect,
 			f.c.NATSSubjectJunkyard,
@@ -102,7 +103,7 @@ func StartFilter(conf *config.Config) (_ *Filter, err error) {
 	}
 
 	f.wg.Add(1)
-	go f.startStatistician(stats, rules)
+	go f.startStatistician(st, ruleSt, rules)
 
 	log.Printf("filter subscribed to [%s] at %s with %d rules\n",
 		f.c.NATSSubject[0], f.c.NATSAddress, rules.Count())
@@ -117,22 +118,6 @@ func (f *Filter) natsConnect() (natsConn, error) {
 		return nil, fmt.Errorf("NATS: failed to connect: %v", err)
 	}
 	return nc, nil
-}
-
-func initStats(rules *RuleSet) *stats.Stats {
-	// Initialise
-	statNames := []string{
-		statPassed,
-		statProcessed,
-		statRejected,
-		statInvalidTime,
-		statFailedNATSPublish,
-		statNATSDropped,
-	}
-	for i := 0; i < rules.Count(); i++ {
-		statNames = append(statNames, ruleToStatsName(i))
-	}
-	return stats.New(statNames...)
 }
 
 // natsConn allows a mock nats.Conn to be substituted in during tests.
@@ -176,7 +161,7 @@ func (f *Filter) Stop() {
 // startStatistician defines a goroutine that is responsible for
 // regularly sending the filter's statistics to the monitoring
 // backend.
-func (f *Filter) startStatistician(st *stats.Stats, rules *RuleSet) {
+func (f *Filter) startStatistician(st *stats.Stats, ruleSt *stats.AnonStats, rules *RuleSet) {
 	defer f.wg.Done()
 
 	generalLabels := map[string]string{
@@ -188,7 +173,8 @@ func (f *Filter) startStatistician(st *stats.Stats, rules *RuleSet) {
 		f.updateNATSDropped(st)
 
 		now := time.Now()
-		snap, ruleCounts := splitSnapshot(st.Snapshot())
+		snap := st.Snapshot()
+		ruleCounts := ruleSt.Snapshot()
 
 		// publish the general stats
 		lines := stats.SnapshotToPrometheus(snap, now, generalLabels)
@@ -198,7 +184,7 @@ func (f *Filter) startStatistician(st *stats.Stats, rules *RuleSet) {
 		for i, subject := range rules.Subjects() {
 			f.nc.Publish(f.c.NATSSubjectMonitor, stats.CounterToPrometheus(
 				"triggered",
-				ruleCounts[i],
+				int(ruleCounts[i]),
 				now,
 				map[string]string{
 					"component": "filter",
@@ -222,41 +208,16 @@ func (f *Filter) updateNATSDropped(st *stats.Stats) {
 		log.Printf("NATS: failed to read subscription drops: %v", err)
 		return
 	}
-	st.Max(statNATSDropped, dropped)
+	st.Max(statNATSDropped, uint64(dropped))
 }
 
-const rulePrefix = "rule-"
-
-// ruleToStatsName converts a rule index to a name to a key for use
-// with a stats.Stats instance.
-func ruleToStatsName(i int) string {
-	return fmt.Sprintf("%s%06d", rulePrefix, i)
-}
-
-// splitSnapshot takes a Snapshot and splits out the rule counters
-// from the others. The rule counters are returned in an ordered slice
-// while the other counters are returned as a new (smaller) Snapshot.
-func splitSnapshot(snap stats.Snapshot) (stats.Snapshot, []int) {
-	var genSnap stats.Snapshot
-	var ruleSnap stats.Snapshot
-
-	// Split up rule counters from the others.
-	for _, counter := range snap {
-		if strings.HasPrefix(counter.Name, rulePrefix) {
-			ruleSnap = append(ruleSnap, counter)
-		} else {
-			genSnap = append(genSnap, counter)
-		}
-	}
-
-	// Sort the rule counters by name and extract just the counts.
-	sort.Slice(ruleSnap, func(i, j int) bool {
-		return ruleSnap[i].Name < ruleSnap[j].Name
-	})
-	ruleCounts := make([]int, len(ruleSnap))
-	for i, counter := range ruleSnap {
-		ruleCounts[i] = counter.Value
-	}
-
-	return genSnap, ruleCounts
+func initStats() *stats.Stats {
+	return stats.New(
+		statPassed,
+		statProcessed,
+		statRejected,
+		statInvalidTime,
+		statFailedNATSPublish,
+		statNATSDropped,
+	)
 }

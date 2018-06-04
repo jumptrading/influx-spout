@@ -28,7 +28,8 @@ import (
 type worker struct {
 	maxTsDeltaNs int64
 	rules        *RuleSet
-	stats        *stats.Stats
+	st           *stats.Stats
+	ruleSt       *stats.AnonStats
 	debug        bool
 	nc           natsConn
 	junkSubject  string
@@ -39,7 +40,8 @@ type worker struct {
 func newWorker(
 	maxTsDeltaSecs int,
 	rules *RuleSet,
-	stats *stats.Stats,
+	st *stats.Stats,
+	ruleSt *stats.AnonStats,
 	debug bool,
 	natsConnect func() (natsConn, error),
 	junkSubject string,
@@ -58,7 +60,8 @@ func newWorker(
 	return &worker{
 		maxTsDeltaNs: int64(maxTsDeltaSecs) * 1e9,
 		rules:        rules,
-		stats:        stats,
+		st:           st,
+		ruleSt:       ruleSt,
 		nc:           nc,
 		batches:      batches,
 		junkBatch:    new(bytes.Buffer),
@@ -91,13 +94,13 @@ func (w *worker) processBatch(batch []byte) {
 		if len(line) == 0 {
 			continue
 		}
-		w.stats.Inc(statProcessed)
+		w.st.Inc(statProcessed)
 
 		ts := extractTimestamp(line, now)
 		if minTs < ts && ts < maxTs {
 			w.processLine(line)
 		} else {
-			w.stats.Inc(statInvalidTime)
+			w.st.Inc(statInvalidTime)
 			if w.debug {
 				log.Printf("invalid line timestamp: %q", string(line))
 			}
@@ -112,7 +115,7 @@ func (w *worker) processLine(line []byte) {
 	idx := w.rules.Lookup(line)
 	if idx == -1 {
 		// no rule for this => junkyard
-		w.stats.Inc(statRejected)
+		w.st.Inc(statRejected)
 		w.junkBatch.Write(line)
 		return
 	}
@@ -120,8 +123,8 @@ func (w *worker) processLine(line []byte) {
 	// write to the corresponding batch buffer
 	w.batches[idx].Write(line)
 
-	w.stats.Inc(statPassed)
-	w.stats.Inc(ruleToStatsName(idx))
+	w.st.Inc(statPassed)
+	w.ruleSt.Inc(idx)
 }
 
 func (w *worker) sendOff() {
@@ -143,7 +146,7 @@ func (w *worker) sendOff() {
 func (w *worker) publish(subject string, data []byte) {
 	err := w.nc.Publish(subject, data)
 	if err != nil {
-		w.stats.Inc(statFailedNATSPublish)
+		w.st.Inc(statFailedNATSPublish)
 		if w.debug {
 			log.Printf("NATS publish failed: %v", err)
 		}
