@@ -57,6 +57,7 @@ listener_batch_bytes = 4096
 max_time_delta_secs = 789
 
 probe_port = 6789
+pprof_port = 5432
 `
 	conf, err := parseConfig(validConfigSample)
 	require.NoError(t, err, "Couldn't parse a valid config: %v\n", err)
@@ -83,6 +84,7 @@ probe_port = 6789
 	assert.Equal(t, "nats://localhost:4222", conf.NATSAddress, "Address must match")
 
 	assert.Equal(t, 6789, conf.ProbePort)
+	assert.Equal(t, 5432, conf.PprofPort)
 }
 
 func TestAllDefaults(t *testing.T) {
@@ -109,6 +111,7 @@ func TestAllDefaults(t *testing.T) {
 	assert.Equal(t, 1048576, conf.ListenerBatchBytes)
 	assert.Equal(t, 600, conf.MaxTimeDeltaSecs)
 	assert.Equal(t, 0, conf.ProbePort)
+	assert.Equal(t, 0, conf.PprofPort)
 	assert.Equal(t, false, conf.Debug)
 	assert.Len(t, conf.Rule, 0)
 }

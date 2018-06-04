@@ -139,6 +139,10 @@ nats_subject_monitor = "influx-spout-monitor"
 # The listener will serve Kubernetes liveness and readiness probes on this port
 # at /healthz and /readyz. Set to 0 (the default) to disable probes support.
 probe_port = 0
+
+# The listener will serve Go pprof requests at this port. Set to 0 (the
+default) to disable pprof support.
+pprof_port = 0
 ```
 
 ### HTTP Listener
@@ -187,6 +191,10 @@ nats_subject_monitor = "influx-spout-monitor"
 # The HTTP listener will serve Kubernetes liveness and readiness probes on this
 # port at /healthz and /readyz. Set to 0 (the default) to disable probes support.
 probe_port = 0
+
+# The HTTP listener will serve Go pprof requests at this port. Set to 0 (the
+default) to disable pprof support.
+pprof_port = 0
 ```
 
 ### Filter
@@ -227,6 +235,10 @@ workers = 8
 # The filter will serve Kubernetes liveness and readiness probes on this port at
 # /healthz and /readyz. Set to 0 (the default) to disable probes support.
 probe_port = 0
+
+# The filter will serve Go pprof requests at this port. Set to 0 (the default)
+# to disable pprof support.
+pprof_port = 0
 
 # Incoming metrics with timestamps ± this value from the current time will be
 # rejected. Metrics with timestamps that are significantly different from previously
@@ -340,6 +352,10 @@ nats_subject_monitor = "influx-spout-monitor"
 # The writer will serve Kubernetes liveness and readiness probes on this port at
 # /healthz and /readyz. Set to 0 (the default) to disable probes support.
 probe_port = 0
+
+# The writer will serve Go pprof requests at this port. Set to 0 (the default)
+# to disable pprof support.
+pprof_port = 0
 ```
 
 A writer will batch up messages until one of the limits defined by the
@@ -376,6 +392,10 @@ port = 9331
 # The monitor will serve Kubernetes liveness and readiness probes on this port
 # at /healthz and /readyz. Set to 0 (the default) to disable probes support.
 probe_port = 0
+
+# The monitor will serve Go pprof requests at this port. Set to 0 (the default)
+# to disable pprof support.
+pprof_port = 0
 ```
 
 ## Running tests
