@@ -9,13 +9,13 @@ ifeq ($(GOPATH),)
 abort:
 	$(error Ensure Go 1.9+ is available and the GOPATH env variable is set)
 endif
-		
+
 all: deps check-git influx-spout influx-spout-tap
 
 
 clean:
 	go clean
-	rm -f influx-spout-tap
+	rm -f influx-spout influx-spout-tap reference.bench current.bench
 
 check-git:
 	@# See these files with:
@@ -47,13 +47,13 @@ influx-spout:
 	@export CGO_ENABLED=0
 
 	# Build a static version of influx-spout
-	go build -a -tags netgo -installsuffix netgo -v -x -ldflags '-X main.version=$(VERSION) -X main.builtOn=$(BUILT_ON) -w -extldflags "-static"'
+	go build -a -tags netgo -installsuffix netgo -v -x -ldflags '-X main.version=$(VERSION) -X main.builtOn=$(BUILT_ON) -w -extldflags "-static"' ./cmd/influx-spout
 	@ls -l influx-spout
 
 influx-spout-tap:
-	go build utils/influx-spout-tap.go
+	go build ./cmd/influx-spout-tap
 
-docker: influx-spout
+docker: influx-spout influx-spout-tap
 	$(info Building the docker image $(DOCKER_IMAGE) with $(PROJECT) $(VERSION))
 	docker build -t "$(DOCKER_IMAGE)" .
 
