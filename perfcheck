@@ -45,7 +45,8 @@ current_bench_output="$PWD/current.bench"
 reference_bench_output="$PWD/reference.bench"
 
 title "Building benchcheck tool"
-go build -o benchcheck/benchcheck ./benchcheck || exit 1
+benchcheck_bin=cmd/benchcheck/benchcheck
+go build -o $benchcheck_bin ./cmd/benchcheck || exit 1
 
 title "Setting up reference branch"
 
@@ -95,5 +96,5 @@ for a in `seq $max_attempts`; do
     done
 
     title "Comparing benchmarks"
-    ./benchcheck/benchcheck -print $reference_bench_output $current_bench_output && exit 0
+    $benchcheck_bin -print $reference_bench_output $current_bench_output && exit 0
 done
