@@ -151,6 +151,6 @@ $RECYCLE.BIN/
 *.lnk
 
 # End of https://www.gitignore.io/api/c,go,c++,linux,macos,windows
-/benchcheck/benchcheck
 *.bench
 /slowinfluxd
+/cmd/benchcheck/benchcheck
