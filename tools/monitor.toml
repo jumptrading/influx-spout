@@ -1,0 +1,4 @@
+mode = "monitor"
+nats_address = "nats://localhost:4222"
+nats_subject_monitor = "monitor"
+port = 9331
