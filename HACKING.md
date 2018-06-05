@@ -51,3 +51,28 @@ processes will be emitted every 2s as well as being written out to
 `writer-mem.dat`. This file can be directly plotted by tools like
 [gnuplot](http://gnuplot.info/) or imported into a spreadsheet for
 analysis.
+
+## Slow consumer testing
+
+It can be useful to check the effect of a slow InfluxDB instance on
+influx-spout. Slow consumers have historically caused problems for
+influx-spout.
+
+To run a slow consumer test, start influx-spout as described above but
+replace InfluxDB with the `slowinfluxd` utility provided with
+influx-spout.
+
+* Build `slowinfluxd`: `go install github.com/jumptrading/influx-spout/cmd/slowinfluxd`
+* Ensure `influxd` isn't running (`sudo systemctl stop influxdb`)
+* Run `slowinfluxd`
+* Ensure `gnatsd` is running (as above).
+* Run the various influx-spout components as described above. Run the
+  writers using the `watchmem` tool above.
+
+Any measurements fed into influx-spout will now end up being written
+to the `slowinfluxd` server which holds up the writer(s) by delaying
+responses to write requests. Even with a high rate of measurements
+into the listener, memory usage for all the influx-spout components
+should increase to some threshold and then plateau. If memory
+consumption increases without bound, there could be a configuration
+problem or a bug in influx-spout.
