@@ -1,0 +1,17 @@
+mode = "writer"
+
+nats_address = "nats://localhost:4222"
+nats_subject = ["cpu", "smi"]
+nats_subject_monitor = "monitor"
+
+influxdb_address = "127.0.0.1"
+influxdb_port = 8086
+influxdb_dbname = "spout"
+
+workers = 10
+batch = 10
+batch_max_mb = 100
+write_timeout_secs = 10
+
+debug = true
+pprof_port = 4003

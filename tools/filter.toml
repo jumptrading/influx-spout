@@ -1,0 +1,18 @@
+mode = "filter"
+nats_address = "nats://localhost:4222"
+nats_subject = ["spout"]
+nats_subject_monitor = "monitor"
+nats_subject_junkyard = "junk"
+
+debug = true
+pprof_port = 4002
+
+[[rule]]
+type="basic"
+match="cpu"
+subject="cpu"
+
+[[rule]]
+type="regex"
+match=".+smi_count.+"
+subject="smi"

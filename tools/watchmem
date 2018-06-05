@@ -1,0 +1,21 @@
+#!/bin/bash
+
+if [[ $# -lt 2 ]]; then
+    echo "usage watchmem <output-file> <program> [ args... ]"
+    exit 1
+fi
+
+out_file=$1
+shift
+
+$@ &
+child_pid=$!
+
+# kill the child process when the script exits
+trap "kill $child_pid; exit" INT TERM EXIT
+
+rm -f $out_file
+while true; do
+    ps -o etimes=,rss= -p $child_pid | tee -a $out_file
+    sleep 2
+done
