@@ -28,6 +28,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jumptrading/influx-spout/batch"
 	"github.com/jumptrading/influx-spout/config"
 	"github.com/jumptrading/influx-spout/influx"
 	"github.com/jumptrading/influx-spout/probes"
@@ -51,8 +52,8 @@ var statsInterval = 3 * time.Second
 // StartListener initialises a listener, starts its statistician
 // goroutine and runs it's main loop. It never returns.
 //
-// The listener reads incoming UDP packets, batches them up and send
-// batches onwards to a NATS subject.
+// The listener reads incoming UDP packets, batches them up and sends
+// them onwards to a NATS subject.
 func StartListener(c *config.Config) (_ *Listener, err error) {
 	listener, err := newListener(c)
 	if err != nil {
@@ -106,7 +107,7 @@ type Listener struct {
 	stats  *stats.Stats
 	probes probes.Probes
 
-	batch *batch
+	batch *batch.Batch
 
 	wg   sync.WaitGroup
 	stop chan struct{}
@@ -136,7 +137,7 @@ func newListener(c *config.Config) (*Listener, error) {
 			statFailedNATSPublish,
 		),
 		probes: probes.Listen(c.ProbePort),
-		batch:  newBatch(c.ListenerBatchBytes),
+		batch:  batch.New(c.ListenerBatchBytes),
 	}
 
 	nc, err := nats.Connect(l.c.NATSAddress, nats.MaxReconnects(-1))
@@ -153,6 +154,7 @@ func (l *Listener) setupUDP(configBufSize int) (*net.UDPConn, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create UDP socket: %v", err)
 	}
+	fmt.Println("listening on", serverAddr)
 	sc, err := net.ListenUDP("udp", serverAddr)
 	if err != nil {
 		return nil, err
@@ -187,7 +189,7 @@ func (l *Listener) listenUDP(sc *net.UDPConn) {
 	l.probes.SetReady(true)
 	for {
 		sc.SetReadDeadline(time.Now().Add(time.Second))
-		bytesRead, err := l.batch.readOnceFrom(sc)
+		bytesRead, err := l.batch.ReadOnceFrom(sc)
 		if err != nil && !isTimeout(err) {
 			l.stats.Inc(statReadErrors)
 		}
@@ -231,7 +233,7 @@ func (l *Listener) handleHTTPWrite(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (l *Listener) readHTTPBody(r *http.Request) (int, error) {
+func (l *Listener) readHTTPBody(r *http.Request) (int64, error) {
 	precision := r.URL.Query().Get("precision")
 
 	if precision == "" || precision == "ns" {
@@ -242,13 +244,14 @@ func (l *Listener) readHTTPBody(r *http.Request) (int, error) {
 
 	// Non-nanosecond precison specified. Read lines individually and
 	// convert timestamps to nanoseconds.
-	return l.readHTTPBodyWithPrecision(r, precision)
+	count, err := l.readHTTPBodyWithPrecision(r, precision)
+	return int64(count), err
 }
 
-func (l *Listener) readHTTPBodyNanos(r *http.Request) (int, error) {
+func (l *Listener) readHTTPBodyNanos(r *http.Request) (int64, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return l.batch.readFrom(r.Body)
+	return l.batch.ReadFrom(r.Body)
 }
 
 func (l *Listener) readHTTPBodyWithPrecision(r *http.Request, precision string) (int, error) {
@@ -270,7 +273,7 @@ func (l *Listener) readHTTPBodyWithPrecision(r *http.Request, precision string) 
 
 		newLine := applyTimestampPrecision(line, precision)
 		l.mu.Lock()
-		l.batch.appendBytes(newLine)
+		l.batch.Append(newLine)
 		l.mu.Unlock()
 	}
 	return bytesRead, scanner.Err()
@@ -337,15 +340,15 @@ func (l *Listener) processRead() {
 	// If the batch size is within a (maximum) UDP datagram of the
 	// configured target batch size, then force a send to avoid
 	// growing the batch unnecessarily (allocations hurt performance).
-	batchNearlyFull := l.c.ListenerBatchBytes-l.batch.size() <= maxUDPDatagramSize
+	batchNearlyFull := l.c.ListenerBatchBytes-l.batch.Size() <= maxUDPDatagramSize
 
 	if statReceived%uint64(l.c.BatchMessages) == 0 || batchNearlyFull {
 		l.stats.Inc(statSent)
-		if err := l.nc.Publish(l.c.NATSSubject[0], l.batch.bytes()); err != nil {
+		if err := l.nc.Publish(l.c.NATSSubject[0], l.batch.Bytes()); err != nil {
 			l.stats.Inc(statFailedNATSPublish)
 			l.handleNatsError(err)
 		}
-		l.batch.reset()
+		l.batch.Reset()
 	}
 }
 
