@@ -107,31 +107,38 @@ func TestReset(t *testing.T) {
 }
 
 func TestAge(t *testing.T) {
+	// Batch shouldn't age if there's no data in it.
 	b := New(10)
+	assert.Equal(t, time.Duration(0), b.Age())
+	testClock.advance(time.Minute)
+	assert.Equal(t, time.Duration(0), b.Age())
+	testClock.advance(time.Minute)
+	assert.Equal(t, time.Duration(0), b.Age())
+
+	// First write.
+	b.Append([]byte("foo"))
 	assert.Equal(t, time.Duration(0), b.Age())
 
 	testClock.advance(time.Minute)
+	assert.Equal(t, time.Minute, b.Age())
+
+	b.Append([]byte("bar"))
 	assert.Equal(t, time.Minute, b.Age())
 
 	testClock.advance(time.Minute)
 	assert.Equal(t, 2*time.Minute, b.Age())
-
-	// First write should reset the age.
-	b.Append([]byte("foo"))
-	assert.Equal(t, time.Duration(0), b.Age())
-
-	// But later writes shouldn't
-	testClock.advance(time.Minute)
-	b.Append([]byte("foo"))
-	assert.Equal(t, time.Minute, b.Age())
 
 	// Reset should reset the age again
 	testClock.advance(time.Minute)
 	b.Reset()
 	assert.Equal(t, time.Duration(0), b.Age())
 
-	testClock.advance(time.Minute)
-	assert.Equal(t, time.Minute, b.Age())
+	testClock.advance(time.Second)
+	b.Append([]byte("foo"))
+	assert.Equal(t, time.Duration(0), b.Age())
+
+	testClock.advance(time.Second)
+	assert.Equal(t, time.Second, b.Age())
 }
 
 type fakeClock struct {

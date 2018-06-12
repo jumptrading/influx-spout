@@ -73,6 +73,9 @@ func (b *Batch) Writes() int {
 // Age returns the time since the first write to the batch after
 // the last reset.
 func (b *Batch) Age() time.Duration {
+	if b.writes <= 0 {
+		return time.Duration(0)
+	}
 	return clock.Since(b.created)
 }
 
