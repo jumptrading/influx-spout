@@ -124,6 +124,15 @@ nats_subject = ["influx-spout"]
 # latency.
 batch = 10
 
+# The maximum amount of time the listener will hold on to batched
+# lines. If this age is reached, the batch is written to NATS.
+batch_max_secs = 300
+
+# The maximum number of bytes that the listener should send at once to NATS.
+# This should be no bigger than the NATS server's max_payload setting (which
+# defaults to 1 MB).
+listener_batch_bytes = 1048576
+
 # Maximum UDP socket receive buffer size in bytes. A higher value this increases
 # the peak inbound traffic the listener can handle at the cost of higher memory
 # consumption.
@@ -171,13 +180,9 @@ nats_subject = ["influx-spout"]
 # latency.
 batch = 10
 
-# Maximum UDP socket receive buffer size in bytes. A higher value this increases
-# the peak inbound traffic the listener can handle at the cost of higher memory
-# consumption.
-#
-# The default value is good for low to medium loads but should be increased to
-# support higher receive rates.
-read_buffer_bytes = 4194304
+# The maximum amount of time the listener will hold on to batched
+# lines. If this age is reached, the batch is written to NATS.
+batch_max_secs = 300
 
 # The maximum number of bytes that the listener should send at once to NATS.
 # This should be no bigger than the NATS server's max_payload setting (which
