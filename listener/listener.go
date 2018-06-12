@@ -156,7 +156,6 @@ func (l *Listener) setupUDP(configBufSize int) (*net.UDPConn, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create UDP socket: %v", err)
 	}
-	fmt.Println("listening on", serverAddr)
 	sc, err := net.ListenUDP("udp", serverAddr)
 	if err != nil {
 		return nil, err
