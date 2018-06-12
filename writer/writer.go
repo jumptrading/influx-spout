@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -30,6 +31,7 @@ import (
 
 	"github.com/nats-io/go-nats"
 
+	"github.com/jumptrading/influx-spout/batch"
 	"github.com/jumptrading/influx-spout/config"
 	"github.com/jumptrading/influx-spout/filter"
 	"github.com/jumptrading/influx-spout/probes"
@@ -158,20 +160,20 @@ func (w *Writer) worker(jobs <-chan *nats.Msg) {
 		Timeout:   time.Duration(w.c.WriteTimeoutSecs) * time.Second,
 	}
 
-	batch := newBatchBuffer()
-	batchWrite := w.getBatchWriteFunc(batch)
+	batch := batch.New(32 * os.Getpagesize())
+	batchAppend := w.getBatchWriteFunc(batch)
 	for {
 		select {
 		case j := <-jobs:
 			w.stats.Inc(statReceived)
-			batchWrite(j.Data)
+			batchAppend(j.Data)
 		case <-time.After(time.Second):
 			// Wake up regularly to check batch age
 		case <-w.stop:
 			return
 		}
 
-		if w.shouldSendBatch(batch) {
+		if w.shouldSend(batch) {
 			w.stats.Inc(statWriteRequests)
 
 			if err := w.sendBatch(batch, client); err != nil {
@@ -185,17 +187,11 @@ func (w *Writer) worker(jobs <-chan *nats.Msg) {
 	}
 }
 
-func (w *Writer) getBatchWriteFunc(batch *batchBuffer) func([]byte) {
-	batchWrite := func(data []byte) {
-		if err := batch.Write(data); err != nil {
-			log.Printf("Error: %v", err)
-		}
-	}
-
+func (w *Writer) getBatchWriteFunc(batch *batch.Batch) func([]byte) {
 	if w.rules.Count() == 0 {
 		// No rules - just append the received data straight onto the
 		// batch buffer.
-		return batchWrite
+		return batch.Append
 	}
 
 	return func(data []byte) {
@@ -203,7 +199,7 @@ func (w *Writer) getBatchWriteFunc(batch *batchBuffer) func([]byte) {
 		// filters.
 		for _, line := range bytes.SplitAfter(data, []byte("\n")) {
 			if w.filterLine(line) {
-				batchWrite(line)
+				batch.Append(line)
 			}
 		}
 	}
@@ -216,15 +212,16 @@ func (w *Writer) filterLine(line []byte) bool {
 	return w.rules.Lookup(line) != -1
 }
 
-func (w *Writer) shouldSendBatch(batch *batchBuffer) bool {
+func (w *Writer) shouldSend(batch *batch.Batch) bool {
 	return batch.Writes() >= w.c.BatchMessages ||
 		batch.Size() >= w.batchMaxBytes ||
 		batch.Age() >= w.batchMaxAge
 }
 
 // sendBatch sends the accumulated batch via HTTP to InfluxDB.
-func (w *Writer) sendBatch(batch *batchBuffer, client *http.Client) error {
-	resp, err := client.Post(w.url, "application/json; charset=UTF-8", batch.Data())
+func (w *Writer) sendBatch(batch *batch.Batch, client *http.Client) error {
+	reader := bytes.NewReader(batch.Bytes())
+	resp, err := client.Post(w.url, "application/json; charset=UTF-8", reader)
 	if err != nil {
 		return fmt.Errorf("failed to send HTTP request: %v\n", err)
 	}
