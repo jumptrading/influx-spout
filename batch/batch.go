@@ -17,6 +17,7 @@ package batch
 
 import (
 	"io"
+	"time"
 )
 
 const minReadSize = 1024
@@ -25,7 +26,8 @@ const minReadSize = 1024
 // specified (in bytes).
 func New(capacity int) *Batch {
 	return &Batch{
-		buf: make([]byte, 0, capacity),
+		buf:     make([]byte, 0, capacity),
+		created: clock.Now(),
 	}
 }
 
@@ -37,8 +39,13 @@ func New(capacity int) *Batch {
 // Some ideas are borrowed from bytes.Buffer. One difference is the
 // ReadOnceFrom method which reads just once from an io.Reader. This
 // is required to avoid grouping UDP reads together.
+//
+// The other difference is that Batch tracks the age of the oldest
+// bytes stored in it and a count of the number of write operations.
 type Batch struct {
-	buf []byte
+	buf     []byte
+	writes  int
+	created time.Time
 }
 
 // Size returns the number of bytes currently stored in the Batch.
@@ -57,13 +64,29 @@ func (b *Batch) Bytes() []byte {
 	return b.buf
 }
 
+// Writes returns the number of write operations to the batch since it
+// was last reset (or created, if never reset).
+func (b *Batch) Writes() int {
+	return b.writes
+}
+
+// Age returns the time since the first write to the batch after
+// the last reset.
+func (b *Batch) Age() time.Duration {
+	return clock.Since(b.created)
+}
+
 // Reset clears the Batch so that it no longer holds data.
 func (b *Batch) Reset() {
 	b.buf = b.buf[:0]
+	b.writes = 0
+	b.created = clock.Now()
 }
 
 // Append adds some bytes to the Batch, growing the Batch if required.
 func (b *Batch) Append(more []byte) {
+	b.countWrite()
+
 	lenMore := len(more)
 	for b.Remaining() < lenMore {
 		b.grow()
@@ -77,6 +100,8 @@ func (b *Batch) Append(more []byte) {
 // ReadFrom reads everything from an io.Reader, growing the Batch if
 // required.
 func (b *Batch) ReadFrom(r io.Reader) (int64, error) {
+	b.countWrite()
+
 	var total int64
 	for {
 		// If there's not much capacity left, grow the buffer.
@@ -100,6 +125,8 @@ func (b *Batch) ReadFrom(r io.Reader) (int64, error) {
 
 // ReadOnceFrom reads into the Batch just once from an io.Reader.
 func (b *Batch) ReadOnceFrom(r io.Reader) (int, error) {
+	b.countWrite()
+
 	// If there's not much capacity left, grow the buffer.
 	if b.Remaining() <= minReadSize {
 		b.grow()
@@ -120,3 +147,23 @@ func (b *Batch) grow() {
 	newBuf = newBuf[:len(b.buf)]
 	b.buf = newBuf
 }
+
+func (b *Batch) countWrite() {
+	// Reset the age timestamp on first write.
+	if b.writes == 0 {
+		b.created = clock.Now()
+	}
+	b.writes++
+}
+
+type sincer interface {
+	Now() time.Time
+	Since(t time.Time) time.Duration
+}
+
+type realClock struct{}
+
+func (realClock) Now() time.Time                  { return time.Now() }
+func (realClock) Since(t time.Time) time.Duration { return time.Since(t) }
+
+var clock = sincer(new(realClock))

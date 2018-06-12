@@ -14,56 +14,61 @@
 
 // +build small
 
-package batch_test
+package batch
 
 import (
 	"bytes"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/jumptrading/influx-spout/batch"
 )
 
 func TestNew(t *testing.T) {
-	b := batch.New(64)
+	b := New(64)
 
 	assert.Equal(t, 0, b.Size())
 	assert.Equal(t, 64, b.Remaining())
+	assert.Equal(t, 0, b.Writes())
+	assert.Equal(t, time.Duration(0), b.Age())
 	assert.Equal(t, []byte{}, b.Bytes())
 }
 
 func TestAppend(t *testing.T) {
-	b := batch.New(10)
+	b := New(10)
 
 	b.Append([]byte("foo"))
 	assert.Equal(t, 3, b.Size())
 	assert.Equal(t, 7, b.Remaining())
+	assert.Equal(t, 1, b.Writes())
 	assert.Equal(t, []byte("foo"), b.Bytes())
 
 	b.Append([]byte("bar"))
 	assert.Equal(t, 6, b.Size())
 	assert.Equal(t, 4, b.Remaining())
+	assert.Equal(t, 2, b.Writes())
 	assert.Equal(t, []byte("foobar"), b.Bytes())
 }
 
 func TestAppendGrow(t *testing.T) {
-	b := batch.New(2) // only 2 bytes!
+	b := New(2) // only 2 bytes!
 
 	b.Append([]byte("foo")) // add 3 bytes of data to cause growth
 	assert.Equal(t, 3, b.Size())
 	assert.Equal(t, 1, b.Remaining())
+	assert.Equal(t, 1, b.Writes())
 	assert.Equal(t, []byte("foo"), b.Bytes())
 
 	b.Append([]byte("bar")) // add another 3 bytes of data to cause growth again
 	assert.Equal(t, 6, b.Size())
 	assert.Equal(t, 2, b.Remaining())
+	assert.Equal(t, 2, b.Writes())
 	assert.Equal(t, []byte("foobar"), b.Bytes())
 }
 
 func TestReadFrom(t *testing.T) {
-	b := batch.New(10)
+	b := New(10)
 	r := bytes.NewReader([]byte("foo"))
 	count, err := b.ReadFrom(r)
 	require.NoError(t, err)
@@ -71,11 +76,12 @@ func TestReadFrom(t *testing.T) {
 
 	assert.Equal(t, 3, b.Size())
 	assert.Equal(t, 37, b.Remaining())
+	assert.Equal(t, 1, b.Writes())
 	assert.Equal(t, []byte("foo"), b.Bytes())
 }
 
 func TestReadOnceFrom(t *testing.T) {
-	b := batch.New(10)
+	b := New(10)
 	r := bytes.NewReader([]byte("foo"))
 	count, err := b.ReadOnceFrom(r)
 	require.NoError(t, err)
@@ -83,16 +89,64 @@ func TestReadOnceFrom(t *testing.T) {
 
 	assert.Equal(t, 3, b.Size())
 	assert.Equal(t, 17, b.Remaining())
+	assert.Equal(t, 1, b.Writes())
 	assert.Equal(t, []byte("foo"), b.Bytes())
 }
 
 func TestReset(t *testing.T) {
-	b := batch.New(10)
+	b := New(10)
 	b.Append([]byte("foo"))
 	assert.Equal(t, []byte("foo"), b.Bytes())
 
 	b.Reset()
 	assert.Equal(t, 0, b.Size())
 	assert.Equal(t, 10, b.Remaining())
+	assert.Equal(t, 0, b.Writes())
+	assert.Equal(t, time.Duration(0), b.Age())
 	assert.Equal(t, []byte{}, b.Bytes())
+}
+
+func TestAge(t *testing.T) {
+	b := New(10)
+	assert.Equal(t, time.Duration(0), b.Age())
+
+	testClock.advance(time.Minute)
+	assert.Equal(t, time.Minute, b.Age())
+
+	testClock.advance(time.Minute)
+	assert.Equal(t, 2*time.Minute, b.Age())
+
+	// First write should reset the age.
+	b.Append([]byte("foo"))
+	assert.Equal(t, time.Duration(0), b.Age())
+
+	// But later writes shouldn't
+	testClock.advance(time.Minute)
+	b.Append([]byte("foo"))
+	assert.Equal(t, time.Minute, b.Age())
+
+	// Reset should reset the age again
+	testClock.advance(time.Minute)
+	b.Reset()
+	assert.Equal(t, time.Duration(0), b.Age())
+
+	testClock.advance(time.Minute)
+	assert.Equal(t, time.Minute, b.Age())
+}
+
+type fakeClock struct {
+	now time.Time
+}
+
+func (c *fakeClock) advance(d time.Duration)         { c.now = c.now.Add(d) }
+func (c *fakeClock) Now() time.Time                  { return c.now }
+func (c *fakeClock) Since(t time.Time) time.Duration { return c.now.Sub(t) }
+
+var testClock *fakeClock
+
+func init() {
+	testClock = &fakeClock{
+		now: time.Now(),
+	}
+	clock = testClock
 }
