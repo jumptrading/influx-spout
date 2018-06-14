@@ -28,6 +28,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jumptrading/influx-spout/batch"
 	"github.com/jumptrading/influx-spout/config"
 	"github.com/jumptrading/influx-spout/influx"
 	"github.com/jumptrading/influx-spout/probes"
@@ -51,8 +52,8 @@ var statsInterval = 3 * time.Second
 // StartListener initialises a listener, starts its statistician
 // goroutine and runs it's main loop. It never returns.
 //
-// The listener reads incoming UDP packets, batches them up and send
-// batches onwards to a NATS subject.
+// The listener reads incoming UDP packets, batches them up and sends
+// them onwards to a NATS subject.
 func StartListener(c *config.Config) (_ *Listener, err error) {
 	listener, err := newListener(c)
 	if err != nil {
@@ -106,7 +107,8 @@ type Listener struct {
 	stats  *stats.Stats
 	probes probes.Probes
 
-	batch *batch
+	batch       *batch.Batch
+	maxBatchAge time.Duration
 
 	wg   sync.WaitGroup
 	stop chan struct{}
@@ -135,8 +137,9 @@ func newListener(c *config.Config) (*Listener, error) {
 			statReadErrors,
 			statFailedNATSPublish,
 		),
-		probes: probes.Listen(c.ProbePort),
-		batch:  newBatch(c.ListenerBatchBytes),
+		probes:      probes.Listen(c.ProbePort),
+		batch:       batch.New(c.ListenerBatchBytes),
+		maxBatchAge: time.Duration(c.BatchMaxSecs) * time.Second,
 	}
 
 	nc, err := nats.Connect(l.c.NATSAddress, nats.MaxReconnects(-1))
@@ -186,8 +189,10 @@ func (l *Listener) listenUDP(sc *net.UDPConn) {
 
 	l.probes.SetReady(true)
 	for {
+		// Read deadline is used so that the stop channel can be
+		// periodically checked.
 		sc.SetReadDeadline(time.Now().Add(time.Second))
-		bytesRead, err := l.batch.readOnceFrom(sc)
+		bytesRead, err := l.batch.ReadOnceFrom(sc)
 		if err != nil && !isTimeout(err) {
 			l.stats.Inc(statReadErrors)
 		}
@@ -195,8 +200,10 @@ func (l *Listener) listenUDP(sc *net.UDPConn) {
 			if l.c.Debug {
 				log.Printf("listener read %d bytes", bytesRead)
 			}
-			l.processRead()
+			l.stats.Inc(statReceived)
 		}
+
+		l.maybeSendBatch()
 
 		select {
 		case <-l.stop:
@@ -207,11 +214,37 @@ func (l *Listener) listenUDP(sc *net.UDPConn) {
 }
 
 func (l *Listener) setupHTTP() *http.Server {
+	l.wg.Add(1)
+	go l.oldBatchSender()
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/write", l.handleHTTPWrite)
 	return &http.Server{
 		Addr:    fmt.Sprintf(":%d", l.c.Port),
 		Handler: mux,
+	}
+}
+
+// oldBatchSender is a goroutine which sends the batch when it reached
+// the configured maximum age. It is only used with the HTTP listener
+// because the UDP listener does batch age handling in-line.
+func (l *Listener) oldBatchSender() {
+	defer l.wg.Done()
+	for {
+		l.mu.Lock()
+		waitTime := l.maxBatchAge - l.batch.Age()
+		l.mu.Unlock()
+
+		select {
+		case <-time.After(waitTime):
+			l.mu.Lock()
+			if l.batch.Age() >= l.maxBatchAge {
+				l.sendBatch()
+			}
+			l.mu.Unlock()
+		case <-l.stop:
+			return
+		}
 	}
 }
 
@@ -221,8 +254,10 @@ func (l *Listener) handleHTTPWrite(w http.ResponseWriter, r *http.Request) {
 		if l.c.Debug {
 			log.Printf("HTTP listener read %d bytes", bytesRead)
 		}
+		l.stats.Inc(statReceived)
+
 		l.mu.Lock()
-		l.processRead()
+		l.maybeSendBatch()
 		l.mu.Unlock()
 	}
 	if err != nil {
@@ -231,7 +266,7 @@ func (l *Listener) handleHTTPWrite(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (l *Listener) readHTTPBody(r *http.Request) (int, error) {
+func (l *Listener) readHTTPBody(r *http.Request) (int64, error) {
 	precision := r.URL.Query().Get("precision")
 
 	if precision == "" || precision == "ns" {
@@ -242,13 +277,14 @@ func (l *Listener) readHTTPBody(r *http.Request) (int, error) {
 
 	// Non-nanosecond precison specified. Read lines individually and
 	// convert timestamps to nanoseconds.
-	return l.readHTTPBodyWithPrecision(r, precision)
+	count, err := l.readHTTPBodyWithPrecision(r, precision)
+	return int64(count), err
 }
 
-func (l *Listener) readHTTPBodyNanos(r *http.Request) (int, error) {
+func (l *Listener) readHTTPBodyNanos(r *http.Request) (int64, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return l.batch.readFrom(r.Body)
+	return l.batch.ReadFrom(r.Body)
 }
 
 func (l *Listener) readHTTPBodyWithPrecision(r *http.Request, precision string) (int, error) {
@@ -270,7 +306,7 @@ func (l *Listener) readHTTPBodyWithPrecision(r *http.Request, precision string) 
 
 		newLine := applyTimestampPrecision(line, precision)
 		l.mu.Lock()
-		l.batch.appendBytes(newLine)
+		l.batch.Append(newLine)
 		l.mu.Unlock()
 	}
 	return bytesRead, scanner.Err()
@@ -328,25 +364,49 @@ func (l *Listener) listenHTTP(server *http.Server) {
 	server.Close()
 }
 
-func (l *Listener) processRead() {
-	statReceived := l.stats.Inc(statReceived)
+func (l *Listener) maybeSendBatch() {
+	if !l.shouldSend() {
+		return
+	}
 
-	// Send when the configured number of reads have been batched or
-	// the batch buffer is almost full.
+	l.stats.Inc(statSent)
+	if err := l.nc.Publish(l.c.NATSSubject[0], l.batch.Bytes()); err != nil {
+		l.stats.Inc(statFailedNATSPublish)
+		l.handleNatsError(err)
+	}
+	l.batch.Reset()
+}
+
+func (l *Listener) shouldSend() bool {
+	if l.batch.Writes() >= l.c.BatchMessages {
+		return true
+	}
+
+	if l.batch.Age() >= l.maxBatchAge {
+		return true
+	}
 
 	// If the batch size is within a (maximum) UDP datagram of the
 	// configured target batch size, then force a send to avoid
 	// growing the batch unnecessarily (allocations hurt performance).
-	batchNearlyFull := l.c.ListenerBatchBytes-l.batch.size() <= maxUDPDatagramSize
-
-	if statReceived%uint64(l.c.BatchMessages) == 0 || batchNearlyFull {
-		l.stats.Inc(statSent)
-		if err := l.nc.Publish(l.c.NATSSubject[0], l.batch.bytes()); err != nil {
-			l.stats.Inc(statFailedNATSPublish)
-			l.handleNatsError(err)
-		}
-		l.batch.reset()
+	if l.c.ListenerBatchBytes-l.batch.Size() <= maxUDPDatagramSize {
+		return true
 	}
+
+	return false
+}
+
+func (l *Listener) sendBatch() {
+	if l.batch.Size() < 1 {
+		return // Nothing to do
+	}
+
+	l.stats.Inc(statSent)
+	if err := l.nc.Publish(l.c.NATSSubject[0], l.batch.Bytes()); err != nil {
+		l.stats.Inc(statFailedNATSPublish)
+		l.handleNatsError(err)
+	}
+	l.batch.Reset()
 }
 
 func (l *Listener) handleNatsError(err error) {

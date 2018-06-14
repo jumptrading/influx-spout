@@ -68,10 +68,12 @@ func testConfig() *config.Config {
 		NATSSubject:        []string{natsSubject},
 		NATSSubjectMonitor: natsMonitorSubject,
 		BatchMessages:      1,
+		BatchMaxSecs:       60,
 		ReadBufferBytes:    4 * 1024 * 1024,
 		ListenerBatchBytes: 1024 * 1024,
-		Port:               listenPort,
-		ProbePort:          probePort,
+
+		Port:      listenPort,
+		ProbePort: probePort,
 	}
 }
 
@@ -178,6 +180,34 @@ loop:
 	// reached, not the message count.
 	assert.True(t, writeCount < conf.BatchMessages,
 		fmt.Sprintf("writeCount = %d", writeCount))
+}
+
+func TestBatchAge(t *testing.T) {
+	s := spouttest.RunGnatsd(natsPort)
+	defer s.Shutdown()
+
+	// Set config so that a small write will only come through due to
+	// batch age expiry.
+	conf := testConfig()
+	conf.BatchMessages = 9999
+	conf.BatchMaxSecs = 1
+
+	listener := startListener(t, conf)
+	defer listener.Stop()
+
+	listenerCh, unsubListener := subListener(t)
+	defer unsubListener()
+
+	// Send a single line to the listener.
+	conn := dialListener(t)
+	defer conn.Close()
+	line := poetry[0]
+	_, err := conn.Write([]byte(line))
+	require.NoError(t, err)
+
+	// Line should be emitted after 1 sec.
+	assertBatch(t, listenerCh, line)
+	assertNoMore(t, listenerCh)
 }
 
 func TestHTTPListener(t *testing.T) {
@@ -339,6 +369,32 @@ func TestHTTPListenerWithPrecision(t *testing.T) {
 
 	// Check for the expected output.
 	assertBatch(t, listenerCh, out.String())
+	assertNoMore(t, listenerCh)
+}
+
+func TestBatchAgeHTTPListener(t *testing.T) {
+	s := spouttest.RunGnatsd(natsPort)
+	defer s.Shutdown()
+
+	// Set config so that a small write will only come through due to
+	// batch age expiry.
+	conf := testConfig()
+	conf.BatchMessages = 9999
+	conf.BatchMaxSecs = 1
+	listener := startHTTPListener(t, conf)
+	defer listener.Stop()
+
+	listenerCh, unsubListener := subListener(t)
+	defer unsubListener()
+
+	// Send a single line.
+	line := poetry[0]
+	url := fmt.Sprintf("http://localhost:%d/write", listenPort)
+	_, err := http.Post(url, "text/plain", bytes.NewReader([]byte(line)))
+	require.NoError(t, err)
+
+	// Line should be emitted after 1 sec.
+	assertBatch(t, listenerCh, line)
 	assertNoMore(t, listenerCh)
 }
 
