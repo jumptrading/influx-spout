@@ -20,7 +20,9 @@ import (
 	"errors"
 	"path/filepath"
 	"testing"
+	"time"
 
+	"github.com/c2h5oh/datasize"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,7 +36,7 @@ func TestCorrectConfigFile(t *testing.T) {
 	const validConfigSample = `
 name = "thor"
 
-mode = "listener"
+mode = "writer"
 port = 10001
 
 nats_address = "nats://localhost:4222"
@@ -45,16 +47,15 @@ influxdb_address = "localhost"
 influxdb_port = 8086
 influxdb_dbname = "junk_nats"
 
-batch = 10
-batch_max_mb = 5
-batch_max_secs = 60
+batch_max_count = 10
+batch_max_size = "5m"
+batch_max_age = "1m"
 workers = 96
 
-write_timeout_secs = 32
-read_buffer_bytes = 43210
-nats_pending_max_mb = 100
-listener_batch_bytes = 4096
-max_time_delta_secs = 789
+write_timeout = "32s"
+read_buffer_size = 43210
+nats_max_pending_size = "100MB"
+max_time_delta = "789s"
 
 probe_port = 6789
 pprof_port = 5432
@@ -63,17 +64,16 @@ pprof_port = 5432
 	require.NoError(t, err, "Couldn't parse a valid config: %v\n", err)
 
 	assert.Equal(t, "thor", conf.Name, "Name must match")
-	assert.Equal(t, "listener", conf.Mode, "Mode must match")
+	assert.Equal(t, "writer", conf.Mode, "Mode must match")
 	assert.Equal(t, 10001, conf.Port, "Port must match")
-	assert.Equal(t, 10, conf.BatchMessages, "Batching must match")
-	assert.Equal(t, 5, conf.BatchMaxMB)
-	assert.Equal(t, 60, conf.BatchMaxSecs)
+	assert.Equal(t, 10, conf.BatchMaxCount, "Batching must match")
+	assert.Equal(t, 5*datasize.MB, conf.BatchMaxSize)
+	assert.Equal(t, time.Minute, conf.BatchMaxAge.Duration)
 	assert.Equal(t, 96, conf.Workers)
-	assert.Equal(t, 32, conf.WriteTimeoutSecs, "WriteTimeoutSecs must match")
-	assert.Equal(t, 43210, conf.ReadBufferBytes)
-	assert.Equal(t, 100, conf.NATSPendingMaxMB)
-	assert.Equal(t, 4096, conf.ListenerBatchBytes)
-	assert.Equal(t, 789, conf.MaxTimeDeltaSecs)
+	assert.Equal(t, 32*time.Second, conf.WriteTimeout.Duration)
+	assert.Equal(t, 43210*datasize.B, conf.ReadBufferSize)
+	assert.Equal(t, 100*datasize.MB, conf.NATSMaxPendingSize)
+	assert.Equal(t, 789*time.Second, conf.MaxTimeDelta.Duration)
 
 	assert.Equal(t, 8086, conf.InfluxDBPort, "InfluxDB Port must match")
 	assert.Equal(t, "junk_nats", conf.DBName, "InfluxDB DBname must match")
@@ -99,17 +99,16 @@ func TestAllDefaults(t *testing.T) {
 	assert.Equal(t, "localhost", conf.InfluxDBAddress)
 	assert.Equal(t, 8086, conf.InfluxDBPort)
 	assert.Equal(t, "influx-spout-junk", conf.DBName)
-	assert.Equal(t, 10, conf.BatchMessages)
-	assert.Equal(t, 10, conf.BatchMaxMB)
-	assert.Equal(t, 300, conf.BatchMaxSecs)
+	assert.Equal(t, 10, conf.BatchMaxCount)
+	assert.Equal(t, 10*datasize.MB, conf.BatchMaxSize)
+	assert.Equal(t, 5*time.Minute, conf.BatchMaxAge.Duration)
 	assert.Equal(t, 0, conf.Port)
 	assert.Equal(t, "writer", conf.Mode)
 	assert.Equal(t, 8, conf.Workers)
-	assert.Equal(t, 30, conf.WriteTimeoutSecs)
-	assert.Equal(t, 4194304, conf.ReadBufferBytes)
-	assert.Equal(t, 200, conf.NATSPendingMaxMB)
-	assert.Equal(t, 1048576, conf.ListenerBatchBytes)
-	assert.Equal(t, 600, conf.MaxTimeDeltaSecs)
+	assert.Equal(t, 30*time.Second, conf.WriteTimeout.Duration)
+	assert.Equal(t, 4*datasize.MB, conf.ReadBufferSize)
+	assert.Equal(t, 200*datasize.MB, conf.NATSMaxPendingSize)
+	assert.Equal(t, 10*time.Minute, conf.MaxTimeDelta.Duration)
 	assert.Equal(t, 0, conf.ProbePort)
 	assert.Equal(t, 0, conf.PprofPort)
 	assert.Equal(t, false, conf.Debug)
@@ -132,6 +131,18 @@ func TestDefaultPortMonitor(t *testing.T) {
 	conf, err := parseConfig(`mode = "monitor"`)
 	require.NoError(t, err)
 	assert.Equal(t, 9331, conf.Port)
+}
+
+func TestDefaultListenerBatchSize(t *testing.T) {
+	conf, err := parseConfig(`mode = "listener"`)
+	require.NoError(t, err)
+	assert.Equal(t, 1*datasize.MB, conf.BatchMaxSize)
+}
+
+func TestDefaultHTTPListenerBatchSize(t *testing.T) {
+	conf, err := parseConfig(`mode = "listener_http"`)
+	require.NoError(t, err)
+	assert.Equal(t, 1*datasize.MB, conf.BatchMaxSize)
 }
 
 func TestNoMode(t *testing.T) {
@@ -189,12 +200,12 @@ subject = "world-subject"
 
 func TestCommonOverlay(t *testing.T) {
 	const commonConfig = `
-batch = 50
+batch_max_count = 50
 influxdb_dbname = "massive"
 `
 	const specificConfig = `
 mode = "listener"
-batch = 100
+batch_max_count = 100
 debug = true
 `
 	Fs = afero.NewMemMapFs()
@@ -205,7 +216,7 @@ debug = true
 	require.NoError(t, err)
 
 	assert.Equal(t, "listener", conf.Mode)   // only set in specific config
-	assert.Equal(t, 100, conf.BatchMessages) // overridden in specific config
+	assert.Equal(t, 100, conf.BatchMaxCount) // overridden in specific config
 	assert.Equal(t, "massive", conf.DBName)  // only set in common config
 }
 
@@ -215,7 +226,7 @@ wat
 `
 	const specificConfig = `
 mode = "listener"
-batch = 100
+batch_max_count = 100
 debug = true
 `
 

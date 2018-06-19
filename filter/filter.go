@@ -70,7 +70,7 @@ func StartFilter(conf *config.Config) (_ *Filter, err error) {
 	jobs := make(chan []byte, 1024)
 	for i := 0; i < f.c.Workers; i++ {
 		w, err := newWorker(
-			f.c.MaxTimeDeltaSecs,
+			f.c.MaxTimeDelta.Duration,
 			rules,
 			st,
 			ruleSt,
@@ -98,7 +98,7 @@ func StartFilter(conf *config.Config) (_ *Filter, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("NATS: failed to subscribe: %v", err)
 	}
-	if err := f.sub.SetPendingLimits(-1, conf.NATSPendingMaxMB*1024*1024); err != nil {
+	if err := f.sub.SetPendingLimits(-1, int(conf.NATSMaxPendingSize.Bytes())); err != nil {
 		return nil, fmt.Errorf("NATS: failed to set pending limits: %v", err)
 	}
 

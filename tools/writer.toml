@@ -9,9 +9,9 @@ influxdb_port = 8086
 influxdb_dbname = "spout"
 
 workers = 10
-batch = 10
-batch_max_mb = 100
-write_timeout_secs = 10
+batch_max_count = 10
+batch_max_size = "100MB"
+write_timeout = "10s"
 
 debug = true
 pprof_port = 4003

@@ -48,29 +48,25 @@ const (
 )
 
 type Writer struct {
-	c             *config.Config
-	url           string
-	batchMaxBytes int
-	batchMaxAge   time.Duration
-	nc            *nats.Conn
-	rules         *filter.RuleSet
-	stats         *stats.Stats
-	wg            sync.WaitGroup
-	probes        probes.Probes
-	stop          chan struct{}
+	c      *config.Config
+	url    string
+	nc     *nats.Conn
+	rules  *filter.RuleSet
+	stats  *stats.Stats
+	wg     sync.WaitGroup
+	probes probes.Probes
+	stop   chan struct{}
 }
 
 // StartWriter is the heavylifter, subscribes to the subject where
 // listeners publish the messages and writes it the InfluxDB endpoint.
 func StartWriter(c *config.Config) (_ *Writer, err error) {
 	w := &Writer{
-		c:             c,
-		url:           fmt.Sprintf("http://%s:%d/write?db=%s", c.InfluxDBAddress, c.InfluxDBPort, c.DBName),
-		batchMaxBytes: c.BatchMaxMB * 1024 * 1024,
-		batchMaxAge:   time.Duration(c.BatchMaxSecs) * time.Second,
-		stats:         stats.New(statReceived, statWriteRequests, statFailedWrites, statMaxPending),
-		probes:        probes.Listen(c.ProbePort),
-		stop:          make(chan struct{}),
+		c:      c,
+		url:    fmt.Sprintf("http://%s:%d/write?db=%s", c.InfluxDBAddress, c.InfluxDBPort, c.DBName),
+		stats:  stats.New(statReceived, statWriteRequests, statFailedWrites, statMaxPending),
+		probes: probes.Listen(c.ProbePort),
+		stop:   make(chan struct{}),
 	}
 	defer func() {
 		if err != nil {
@@ -98,7 +94,6 @@ func StartWriter(c *config.Config) (_ *Writer, err error) {
 
 	// Subscribe the writer to the configured NATS subjects.
 	subs := make([]*nats.Subscription, 0, len(c.NATSSubject))
-	maxPendingBytes := c.NATSPendingMaxMB * 1024 * 1024
 	for _, subject := range c.NATSSubject {
 		sub, err := w.nc.Subscribe(subject, func(msg *nats.Msg) {
 			jobs <- msg
@@ -106,7 +101,7 @@ func StartWriter(c *config.Config) (_ *Writer, err error) {
 		if err != nil {
 			return nil, fmt.Errorf("NATS: subscription for %q failed: %v", subject, err)
 		}
-		if err := sub.SetPendingLimits(-1, maxPendingBytes); err != nil {
+		if err := sub.SetPendingLimits(-1, int(c.NATSMaxPendingSize.Bytes())); err != nil {
 			return nil, fmt.Errorf("NATS: failed to set pending limits: %v", err)
 		}
 		subs = append(subs, sub)
@@ -123,8 +118,8 @@ func StartWriter(c *config.Config) (_ *Writer, err error) {
 
 	log.Printf("writer subscribed to [%v] at %s with %d workers",
 		c.NATSSubject, c.NATSAddress, c.Workers)
-	log.Printf("POST timeout: %ds", c.WriteTimeoutSecs)
-	log.Printf("maximum NATS subject size: %dMB", c.NATSPendingMaxMB)
+	log.Printf("POST timeout: %s", c.WriteTimeout)
+	log.Printf("maximum NATS subject size: %s", c.NATSMaxPendingSize)
 
 	w.probes.SetReady(true)
 
@@ -157,7 +152,7 @@ func (w *Writer) worker(jobs <-chan *nats.Msg) {
 	}
 	client := &http.Client{
 		Transport: tr,
-		Timeout:   time.Duration(w.c.WriteTimeoutSecs) * time.Second,
+		Timeout:   w.c.WriteTimeout.Duration,
 	}
 
 	batch := batch.New(32 * os.Getpagesize())
@@ -213,9 +208,9 @@ func (w *Writer) filterLine(line []byte) bool {
 }
 
 func (w *Writer) shouldSend(batch *batch.Batch) bool {
-	return batch.Writes() >= w.c.BatchMessages ||
-		batch.Size() >= w.batchMaxBytes ||
-		batch.Age() >= w.batchMaxAge
+	return batch.Writes() >= w.c.BatchMaxCount ||
+		uint64(batch.Size()) >= w.c.BatchMaxSize.Bytes() ||
+		batch.Age() >= w.c.BatchMaxAge.Duration
 }
 
 // sendBatch sends the accumulated batch via HTTP to InfluxDB.

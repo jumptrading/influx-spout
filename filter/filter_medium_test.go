@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/c2h5oh/datasize"
 	"github.com/nats-io/go-nats"
 	"github.com/stretchr/testify/require"
 
@@ -39,9 +40,9 @@ func testConfig() *config.Config {
 		NATSSubject:         []string{"filter-test"},
 		NATSSubjectMonitor:  "filter-test-monitor",
 		NATSSubjectJunkyard: "filter-junkyard",
-		NATSPendingMaxMB:    32,
+		NATSMaxPendingSize:  32 * datasize.MB,
 		Workers:             1,
-		MaxTimeDeltaSecs:    600,
+		MaxTimeDelta:        config.Duration{10 * time.Minute},
 		Rule: []config.Rule{{
 			Rtype:   "basic",
 			Match:   "hello",
@@ -122,7 +123,7 @@ func TestInvalidTimeStamps(t *testing.T) {
 	defer gnatsd.Shutdown()
 
 	conf := testConfig()
-	conf.MaxTimeDeltaSecs = 10
+	conf.MaxTimeDelta = config.Duration{10 * time.Second}
 
 	filter := startFilter(t, conf)
 	defer filter.Stop()

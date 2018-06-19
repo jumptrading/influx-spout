@@ -23,3 +23,7 @@
 [[constraint]]
   branch = "master"
   name = "golang.org/x/perf"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/c2h5oh/datasize"

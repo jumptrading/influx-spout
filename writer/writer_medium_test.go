@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/c2h5oh/datasize"
 	"github.com/nats-io/go-nats"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -49,12 +50,12 @@ func testConfig() *config.Config {
 		InfluxDBAddress:    "localhost",
 		InfluxDBPort:       influxPort,
 		DBName:             "metrics",
-		BatchMessages:      1,
-		BatchMaxMB:         10,
-		BatchMaxSecs:       300,
+		BatchMaxCount:      1,
+		BatchMaxSize:       10 * datasize.MB,
+		BatchMaxAge:        config.Duration{5 * time.Minute},
 		Port:               influxPort,
 		Workers:            96,
-		NATSPendingMaxMB:   32,
+		NATSMaxPendingSize: 32 * datasize.MB,
 		ProbePort:          probePort,
 	}
 }
@@ -121,8 +122,8 @@ func TestBatchMBLimit(t *testing.T) {
 	// No filter rules.
 	conf := testConfig()
 	conf.Workers = 1
-	conf.BatchMessages = 9999
-	conf.BatchMaxMB = 1
+	conf.BatchMaxCount = 9999
+	conf.BatchMaxSize = 1 * datasize.MB
 	w := startWriter(t, conf)
 	defer w.Stop()
 
@@ -158,13 +159,13 @@ func TestBatchTimeLimit(t *testing.T) {
 	// No filter rules.
 	conf := testConfig()
 	conf.Workers = 1
-	conf.BatchMessages = 9999
-	conf.BatchMaxSecs = 1
+	conf.BatchMaxCount = 9999
+	conf.BatchMaxAge = config.Duration{time.Second}
 	w := startWriter(t, conf)
 	defer w.Stop()
 
 	// Send one small message. It should still come through because of
-	// BatchMaxSecs.
+	// BatchMaxAge.
 	publish(t, nc, conf.NATSSubject[0], "foo")
 
 	influxd.AssertWrite(t, "foo")

@@ -40,7 +40,8 @@ UDP or HTTP.
 
 The `tools/watchmem` script can be used to monitor the memory usage of
 a program. This is useful for checking influx-spout for memory
-leaks. For example, to monitor the memory used by a influx-spout writer over time, run:
+leaks. For example, to monitor the memory used by a influx-spout
+writer over time, run:
 
 ```
 tools/watchmem writer-mem.dat influx-spout tools/writer.toml

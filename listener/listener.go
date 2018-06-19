@@ -65,7 +65,7 @@ func StartListener(c *config.Config) (_ *Listener, err error) {
 		}
 	}()
 
-	sc, err := listener.setupUDP(c.ReadBufferBytes)
+	sc, err := listener.setupUDP(int(c.ReadBufferSize.Bytes()))
 	if err != nil {
 		return nil, err
 	}
@@ -107,8 +107,7 @@ type Listener struct {
 	stats  *stats.Stats
 	probes probes.Probes
 
-	batch       *batch.Batch
-	maxBatchAge time.Duration
+	batch *batch.Batch
 
 	wg   sync.WaitGroup
 	stop chan struct{}
@@ -137,9 +136,8 @@ func newListener(c *config.Config) (*Listener, error) {
 			statReadErrors,
 			statFailedNATSPublish,
 		),
-		probes:      probes.Listen(c.ProbePort),
-		batch:       batch.New(c.ListenerBatchBytes),
-		maxBatchAge: time.Duration(c.BatchMaxSecs) * time.Second,
+		probes: probes.Listen(c.ProbePort),
+		batch:  batch.New(int(c.BatchMaxSize.Bytes())),
 	}
 
 	nc, err := nats.Connect(l.c.NATSAddress, nats.MaxReconnects(-1))
@@ -232,13 +230,13 @@ func (l *Listener) oldBatchSender() {
 	defer l.wg.Done()
 	for {
 		l.mu.Lock()
-		waitTime := l.maxBatchAge - l.batch.Age()
+		waitTime := l.c.BatchMaxAge.Duration - l.batch.Age()
 		l.mu.Unlock()
 
 		select {
 		case <-time.After(waitTime):
 			l.mu.Lock()
-			if l.batch.Age() >= l.maxBatchAge {
+			if l.batch.Age() >= l.c.BatchMaxAge.Duration {
 				l.sendBatch()
 			}
 			l.mu.Unlock()
@@ -378,18 +376,18 @@ func (l *Listener) maybeSendBatch() {
 }
 
 func (l *Listener) shouldSend() bool {
-	if l.batch.Writes() >= l.c.BatchMessages {
+	if l.batch.Writes() >= l.c.BatchMaxCount {
 		return true
 	}
 
-	if l.batch.Age() >= l.maxBatchAge {
+	if l.batch.Age() >= l.c.BatchMaxAge.Duration {
 		return true
 	}
 
 	// If the batch size is within a (maximum) UDP datagram of the
 	// configured target batch size, then force a send to avoid
 	// growing the batch unnecessarily (allocations hurt performance).
-	if l.c.ListenerBatchBytes-l.batch.Size() <= maxUDPDatagramSize {
+	if int(l.c.BatchMaxSize.Bytes())-l.batch.Size() <= maxUDPDatagramSize {
 		return true
 	}
 

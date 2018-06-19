@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/c2h5oh/datasize"
 	"github.com/nats-io/go-nats"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -67,10 +68,10 @@ func testConfig() *config.Config {
 		NATSAddress:        natsAddress,
 		NATSSubject:        []string{natsSubject},
 		NATSSubjectMonitor: natsMonitorSubject,
-		BatchMessages:      1,
-		BatchMaxSecs:       60,
-		ReadBufferBytes:    4 * 1024 * 1024,
-		ListenerBatchBytes: 1024 * 1024,
+		BatchMaxCount:      1,
+		BatchMaxSize:       1 * datasize.MB,
+		BatchMaxAge:        config.Duration{60 * time.Second},
+		ReadBufferSize:     4 * datasize.MB,
 
 		Port:      listenPort,
 		ProbePort: probePort,
@@ -82,7 +83,7 @@ func TestBatching(t *testing.T) {
 	defer s.Shutdown()
 
 	conf := testConfig()
-	conf.BatchMessages = numLines // batch messages into one packet
+	conf.BatchMaxCount = numLines // batch messages into one packet
 
 	listener := startListener(t, conf)
 	defer listener.Stop()
@@ -144,7 +145,7 @@ func TestBatchBufferFull(t *testing.T) {
 	conf := testConfig()
 	// Set batch size high so that the batch will only send due to the
 	// batch buffer filling up.
-	conf.BatchMessages = 99999
+	conf.BatchMaxCount = 99999
 
 	listener := startListener(t, conf)
 	defer listener.Stop()
@@ -178,7 +179,7 @@ loop:
 
 	// Ensure that batch was output because batch size limit was
 	// reached, not the message count.
-	assert.True(t, writeCount < conf.BatchMessages,
+	assert.True(t, writeCount < conf.BatchMaxCount,
 		fmt.Sprintf("writeCount = %d", writeCount))
 }
 
@@ -189,8 +190,8 @@ func TestBatchAge(t *testing.T) {
 	// Set config so that a small write will only come through due to
 	// batch age expiry.
 	conf := testConfig()
-	conf.BatchMessages = 9999
-	conf.BatchMaxSecs = 1
+	conf.BatchMaxCount = 9999
+	conf.BatchMaxAge = config.Duration{time.Second}
 
 	listener := startListener(t, conf)
 	defer listener.Stop()
@@ -244,11 +245,11 @@ func TestHTTPListenerBigPOST(t *testing.T) {
 	defer s.Shutdown()
 
 	conf := testConfig()
-	conf.ListenerBatchBytes = 1024
+	conf.BatchMaxSize = 1024 * datasize.B
 	// Use a batch size > 1. Even though a single write will be made,
 	// the batch should still get sent because the buffer size limit
 	// is exceeded.
-	conf.BatchMessages = 10
+	conf.BatchMaxCount = 10
 
 	listener, err := StartHTTPListener(conf)
 	require.NoError(t, err)
@@ -263,7 +264,7 @@ func TestHTTPListenerBigPOST(t *testing.T) {
 
 	// Send a post that's bigger than the configured batch size. This
 	// will force the batch buffer to grow.
-	buf := make([]byte, conf.ListenerBatchBytes+200)
+	buf := make([]byte, conf.BatchMaxSize.Bytes()+200)
 
 	url := fmt.Sprintf("http://localhost:%d/write", listenPort)
 	_, err = http.Post(url, "text/plain", bytes.NewBuffer(buf))
@@ -379,8 +380,8 @@ func TestBatchAgeHTTPListener(t *testing.T) {
 	// Set config so that a small write will only come through due to
 	// batch age expiry.
 	conf := testConfig()
-	conf.BatchMessages = 9999
-	conf.BatchMaxSecs = 1
+	conf.BatchMaxCount = 9999
+	conf.BatchMaxAge = config.Duration{time.Second}
 	listener := startHTTPListener(t, conf)
 	defer listener.Stop()
 
