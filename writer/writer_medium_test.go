@@ -52,7 +52,7 @@ func testConfig() *config.Config {
 		DBName:             "metrics",
 		BatchMessages:      1,
 		BatchMaxSize:       10 * datasize.MB,
-		BatchMaxSecs:       300,
+		BatchMaxAge:        config.Duration{5 * time.Minute},
 		Port:               influxPort,
 		Workers:            96,
 		NATSMaxPendingSize: 32 * datasize.MB,
@@ -160,12 +160,12 @@ func TestBatchTimeLimit(t *testing.T) {
 	conf := testConfig()
 	conf.Workers = 1
 	conf.BatchMessages = 9999
-	conf.BatchMaxSecs = 1
+	conf.BatchMaxAge = config.Duration{time.Second}
 	w := startWriter(t, conf)
 	defer w.Stop()
 
 	// Send one small message. It should still come through because of
-	// BatchMaxSecs.
+	// BatchMaxAge.
 	publish(t, nc, conf.NATSSubject[0], "foo")
 
 	influxd.AssertWrite(t, "foo")

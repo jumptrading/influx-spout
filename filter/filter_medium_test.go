@@ -42,7 +42,7 @@ func testConfig() *config.Config {
 		NATSSubjectJunkyard: "filter-junkyard",
 		NATSMaxPendingSize:  32 * datasize.MB,
 		Workers:             1,
-		MaxTimeDeltaSecs:    600,
+		MaxTimeDelta:        config.Duration{10 * time.Minute},
 		Rule: []config.Rule{{
 			Rtype:   "basic",
 			Match:   "hello",
@@ -123,7 +123,7 @@ func TestInvalidTimeStamps(t *testing.T) {
 	defer gnatsd.Shutdown()
 
 	conf := testConfig()
-	conf.MaxTimeDeltaSecs = 10
+	conf.MaxTimeDelta = config.Duration{10 * time.Second}
 
 	filter := startFilter(t, conf)
 	defer filter.Stop()

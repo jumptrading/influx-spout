@@ -70,7 +70,7 @@ func testConfig() *config.Config {
 		NATSSubjectMonitor: natsMonitorSubject,
 		BatchMessages:      1,
 		BatchMaxSize:       1 * datasize.MB,
-		BatchMaxSecs:       60,
+		BatchMaxAge:        config.Duration{60 * time.Second},
 		ReadBufferSize:     4 * datasize.MB,
 
 		Port:      listenPort,
@@ -191,7 +191,7 @@ func TestBatchAge(t *testing.T) {
 	// batch age expiry.
 	conf := testConfig()
 	conf.BatchMessages = 9999
-	conf.BatchMaxSecs = 1
+	conf.BatchMaxAge = config.Duration{time.Second}
 
 	listener := startListener(t, conf)
 	defer listener.Stop()
@@ -381,7 +381,7 @@ func TestBatchAgeHTTPListener(t *testing.T) {
 	// batch age expiry.
 	conf := testConfig()
 	conf.BatchMessages = 9999
-	conf.BatchMaxSecs = 1
+	conf.BatchMaxAge = config.Duration{time.Second}
 	listener := startHTTPListener(t, conf)
 	defer listener.Stop()
 

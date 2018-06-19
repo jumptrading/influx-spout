@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/BurntSushi/toml"
 	"github.com/c2h5oh/datasize"
@@ -43,14 +44,14 @@ type Config struct {
 	DBName              string            `toml:"influxdb_dbname"`
 	BatchMessages       int               `toml:"batch"`
 	BatchMaxSize        datasize.ByteSize `toml:"batch_max_size"`
-	BatchMaxSecs        int               `toml:"batch_max_secs"`
+	BatchMaxAge         Duration          `toml:"batch_max_age"`
 	Port                int               `toml:"port"`
 	Workers             int               `toml:"workers"`
-	WriteTimeoutSecs    int               `toml:"write_timeout_secs"`
+	WriteTimeout        Duration          `toml:"write_timeout"`
 	ReadBufferSize      datasize.ByteSize `toml:"read_buffer_size"`
 	NATSMaxPendingSize  datasize.ByteSize `toml:"nats_max_pending_size"`
 	Rule                []Rule            `toml:"rule"`
-	MaxTimeDeltaSecs    int               `toml:"max_time_delta_secs"`
+	MaxTimeDelta        Duration          `toml:"max_time_delta"`
 	ProbePort           int               `toml:"probe_port"`
 	PprofPort           int               `toml:"pprof_port"`
 	Debug               bool              `toml:"debug"`
@@ -73,12 +74,12 @@ func newDefaultConfig() *Config {
 		InfluxDBPort:        8086,
 		DBName:              "influx-spout-junk",
 		BatchMessages:       10,
-		BatchMaxSecs:        300,
+		BatchMaxAge:         Duration{5 * time.Minute},
 		Workers:             8,
-		WriteTimeoutSecs:    30,
+		WriteTimeout:        Duration{30 * time.Second},
 		ReadBufferSize:      4 * datasize.MB,
 		NATSMaxPendingSize:  200 * datasize.MB,
-		MaxTimeDeltaSecs:    600,
+		MaxTimeDelta:        Duration{10 * time.Minute},
 		ProbePort:           0,
 		PprofPort:           0,
 	}

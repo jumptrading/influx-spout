@@ -26,7 +26,7 @@ import (
 )
 
 type worker struct {
-	maxTsDeltaNs int64
+	maxTimeDelta time.Duration
 	rules        *RuleSet
 	st           *stats.Stats
 	ruleSt       *stats.AnonStats
@@ -38,7 +38,7 @@ type worker struct {
 }
 
 func newWorker(
-	maxTsDeltaSecs int,
+	maxTimeDelta time.Duration,
 	rules *RuleSet,
 	st *stats.Stats,
 	ruleSt *stats.AnonStats,
@@ -58,7 +58,7 @@ func newWorker(
 	}
 
 	return &worker{
-		maxTsDeltaNs: int64(maxTsDeltaSecs) * 1e9,
+		maxTimeDelta: maxTimeDelta,
 		rules:        rules,
 		st:           st,
 		ruleSt:       ruleSt,
@@ -87,8 +87,8 @@ func (w *worker) run(jobs <-chan []byte, stop <-chan struct{}, wg *sync.WaitGrou
 
 func (w *worker) processBatch(batch []byte) {
 	now := time.Now().UnixNano()
-	minTs := now - w.maxTsDeltaNs
-	maxTs := now + w.maxTsDeltaNs
+	minTs := now - int64(w.maxTimeDelta)
+	maxTs := now + int64(w.maxTimeDelta)
 
 	for _, line := range bytes.SplitAfter(batch, []byte("\n")) {
 		if len(line) == 0 {

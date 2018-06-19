@@ -107,8 +107,7 @@ type Listener struct {
 	stats  *stats.Stats
 	probes probes.Probes
 
-	batch       *batch.Batch
-	maxBatchAge time.Duration
+	batch *batch.Batch
 
 	wg   sync.WaitGroup
 	stop chan struct{}
@@ -137,9 +136,8 @@ func newListener(c *config.Config) (*Listener, error) {
 			statReadErrors,
 			statFailedNATSPublish,
 		),
-		probes:      probes.Listen(c.ProbePort),
-		batch:       batch.New(int(c.BatchMaxSize.Bytes())),
-		maxBatchAge: time.Duration(c.BatchMaxSecs) * time.Second,
+		probes: probes.Listen(c.ProbePort),
+		batch:  batch.New(int(c.BatchMaxSize.Bytes())),
 	}
 
 	nc, err := nats.Connect(l.c.NATSAddress, nats.MaxReconnects(-1))
@@ -232,13 +230,13 @@ func (l *Listener) oldBatchSender() {
 	defer l.wg.Done()
 	for {
 		l.mu.Lock()
-		waitTime := l.maxBatchAge - l.batch.Age()
+		waitTime := l.c.BatchMaxAge.Duration - l.batch.Age()
 		l.mu.Unlock()
 
 		select {
 		case <-time.After(waitTime):
 			l.mu.Lock()
-			if l.batch.Age() >= l.maxBatchAge {
+			if l.batch.Age() >= l.c.BatchMaxAge.Duration {
 				l.sendBatch()
 			}
 			l.mu.Unlock()
@@ -382,7 +380,7 @@ func (l *Listener) shouldSend() bool {
 		return true
 	}
 
-	if l.batch.Age() >= l.maxBatchAge {
+	if l.batch.Age() >= l.c.BatchMaxAge.Duration {
 		return true
 	}
 

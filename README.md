@@ -91,12 +91,19 @@ to different influx-spout components to be shared.
 
 [TOML]: https://github.com/toml-lang/toml
 
-### Data Units
+### Byte Sizes
 
-All configuration options that define a bytes size are specified as a
+All configuration options that define a bytes size are specified using a
 string and contain an optional unit suffix. These examples are all
 valid ways to express the same byte size: `"2097152"`, `"2048KB"`, `"2MB"`,
 `"2M"` (single char), `"2mb"` (lower case), `"2 MB"` (space before unit).
+
+### Time Durations
+
+All configuration options that define a time duration are specified
+using a string and should use a unit suffix. These examples are all
+valid ways to express the same duration: `"7200s"`, `"120m"`,
+`"2h"`. Valid suffixes are "ns", "us", "ms", "s", "m" and "h".
 
 ## Modes
 
@@ -133,7 +140,7 @@ batch = 10
 
 # The maximum amount of time the listener will hold on to batched
 # lines. If this age is reached, the batch is written to NATS.
-batch_max_secs = 300
+batch_max_age = "5m"
 
 # The maximum size that the listener should send at once to NATS.
 # This should be no bigger than the NATS server's max_payload setting (which
@@ -162,7 +169,7 @@ pprof_port = 0
 ```
 
 The listener will batch up messages until one of the limits defined by the
-`batch`, `batch_max_size` or `batch_max_secs` options is reached.
+`batch`, `batch_max_size` or `batch_max_age` options is reached.
 
 
 ### HTTP Listener
@@ -193,7 +200,7 @@ batch = 10
 
 # The maximum amount of time the listener will hold on to batched
 # lines. If this age is reached, the batch is written to NATS.
-batch_max_secs = 300
+batch_max_age = "5m"
 
 # The maximum size that the listener should send at once to NATS.
 # This should be no bigger than the NATS server's max_payload setting (which
@@ -258,7 +265,7 @@ pprof_port = 0
 # Incoming metrics with timestamps ± this value from the current time will be
 # rejected. Metrics with timestamps that are significantly different from previously
 # written timestamps negatively impact InfluxDB performance.
-max_time_delta_secs = 600
+max_time_delta = "10m"
 
 # At least one rule should be defined. Rules are defined using TOML's table
 # syntax. The following examples show each rule type.
@@ -346,14 +353,14 @@ batch_max_size = "10MB"
 
 # The maximum amount of time a writer worker is allowed to hold on to collected
 # data. If this limit is reached, a write to InfluxDB is performed.
-batch_max_secs = 300
+batch_max_age = "5m"
 
 # The number of writer workers to spawn.
 workers = 8
 
-# The maximum number of seconds a writer will wait for an InfluxDB write to
+# The maximum amount of time a writer will wait for an InfluxDB write to
 # complete. Writes which time out will be dropped.
-write_timeout_secs = 30
+write_timeout = "30s"
 
 # The maximum size that the pending buffer for the NATS subject that the filter
 # is reading from may become. Measurements will be dropped if this limit is reached.
@@ -373,7 +380,7 @@ pprof_port = 0
 ```
 
 A writer will batch up messages until one of the limits defined by the
-`batch`, `batch_max_size` or `batch_max_secs` options is reached.
+`batch`, `batch_max_size` or `batch_max_age` options is reached.
 
 Writers can optionally include filter rules. When filter rules are configured
 measurements which don't match a rule will be dropped by the writer instead of

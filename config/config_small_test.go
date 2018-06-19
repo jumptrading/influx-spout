@@ -20,6 +20,7 @@ import (
 	"errors"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/c2h5oh/datasize"
 	"github.com/spf13/afero"
@@ -48,13 +49,13 @@ influxdb_dbname = "junk_nats"
 
 batch = 10
 batch_max_size = "5m"
-batch_max_secs = 60
+batch_max_age = "1m"
 workers = 96
 
-write_timeout_secs = 32
+write_timeout = "32s"
 read_buffer_size = 43210
 nats_max_pending_size = "100MB"
-max_time_delta_secs = 789
+max_time_delta = "789s"
 
 probe_port = 6789
 pprof_port = 5432
@@ -67,12 +68,12 @@ pprof_port = 5432
 	assert.Equal(t, 10001, conf.Port, "Port must match")
 	assert.Equal(t, 10, conf.BatchMessages, "Batching must match")
 	assert.Equal(t, 5*datasize.MB, conf.BatchMaxSize)
-	assert.Equal(t, 60, conf.BatchMaxSecs)
+	assert.Equal(t, time.Minute, conf.BatchMaxAge.Duration)
 	assert.Equal(t, 96, conf.Workers)
-	assert.Equal(t, 32, conf.WriteTimeoutSecs, "WriteTimeoutSecs must match")
+	assert.Equal(t, 32*time.Second, conf.WriteTimeout.Duration)
 	assert.Equal(t, 43210*datasize.B, conf.ReadBufferSize)
 	assert.Equal(t, 100*datasize.MB, conf.NATSMaxPendingSize)
-	assert.Equal(t, 789, conf.MaxTimeDeltaSecs)
+	assert.Equal(t, 789*time.Second, conf.MaxTimeDelta.Duration)
 
 	assert.Equal(t, 8086, conf.InfluxDBPort, "InfluxDB Port must match")
 	assert.Equal(t, "junk_nats", conf.DBName, "InfluxDB DBname must match")
@@ -100,14 +101,14 @@ func TestAllDefaults(t *testing.T) {
 	assert.Equal(t, "influx-spout-junk", conf.DBName)
 	assert.Equal(t, 10, conf.BatchMessages)
 	assert.Equal(t, 10*datasize.MB, conf.BatchMaxSize)
-	assert.Equal(t, 300, conf.BatchMaxSecs)
+	assert.Equal(t, 5*time.Minute, conf.BatchMaxAge.Duration)
 	assert.Equal(t, 0, conf.Port)
 	assert.Equal(t, "writer", conf.Mode)
 	assert.Equal(t, 8, conf.Workers)
-	assert.Equal(t, 30, conf.WriteTimeoutSecs)
+	assert.Equal(t, 30*time.Second, conf.WriteTimeout.Duration)
 	assert.Equal(t, 4*datasize.MB, conf.ReadBufferSize)
 	assert.Equal(t, 200*datasize.MB, conf.NATSMaxPendingSize)
-	assert.Equal(t, 600, conf.MaxTimeDeltaSecs)
+	assert.Equal(t, 10*time.Minute, conf.MaxTimeDelta.Duration)
 	assert.Equal(t, 0, conf.ProbePort)
 	assert.Equal(t, 0, conf.PprofPort)
 	assert.Equal(t, false, conf.Debug)

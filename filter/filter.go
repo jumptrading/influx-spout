@@ -70,7 +70,7 @@ func StartFilter(conf *config.Config) (_ *Filter, err error) {
 	jobs := make(chan []byte, 1024)
 	for i := 0; i < f.c.Workers; i++ {
 		w, err := newWorker(
-			f.c.MaxTimeDeltaSecs,
+			f.c.MaxTimeDelta.Duration,
 			rules,
 			st,
 			ruleSt,
