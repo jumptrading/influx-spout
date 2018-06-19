@@ -68,8 +68,8 @@ func testConfig() *config.Config {
 		NATSAddress:        natsAddress,
 		NATSSubject:        []string{natsSubject},
 		NATSSubjectMonitor: natsMonitorSubject,
-		ListenerBatchSize:  1 * datasize.MB,
 		BatchMessages:      1,
+		BatchMaxSize:       1 * datasize.MB,
 		BatchMaxSecs:       60,
 		ReadBufferSize:     4 * datasize.MB,
 
@@ -245,7 +245,7 @@ func TestHTTPListenerBigPOST(t *testing.T) {
 	defer s.Shutdown()
 
 	conf := testConfig()
-	conf.ListenerBatchSize = 1024 * datasize.B
+	conf.BatchMaxSize = 1024 * datasize.B
 	// Use a batch size > 1. Even though a single write will be made,
 	// the batch should still get sent because the buffer size limit
 	// is exceeded.
@@ -264,7 +264,7 @@ func TestHTTPListenerBigPOST(t *testing.T) {
 
 	// Send a post that's bigger than the configured batch size. This
 	// will force the batch buffer to grow.
-	buf := make([]byte, conf.ListenerBatchSize.Bytes()+200)
+	buf := make([]byte, conf.BatchMaxSize.Bytes()+200)
 
 	url := fmt.Sprintf("http://localhost:%d/write", listenPort)
 	_, err = http.Post(url, "text/plain", bytes.NewBuffer(buf))

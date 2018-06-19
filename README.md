@@ -138,7 +138,7 @@ batch_max_secs = 300
 # The maximum size that the listener should send at once to NATS.
 # This should be no bigger than the NATS server's max_payload setting (which
 # defaults to 1 MB).
-listener_batch_size = "1MB"
+batch_max_size = "1MB"
 
 # Maximum UDP socket receive buffer size. A higher value this increases the
 # peak inbound traffic the listener can handle at the cost of higher memory
@@ -162,7 +162,7 @@ pprof_port = 0
 ```
 
 The listener will batch up messages until one of the limits defined by the
-`batch`, `listener_batch_size` or `batch_max_secs` options is reached.
+`batch`, `batch_max_size` or `batch_max_secs` options is reached.
 
 
 ### HTTP Listener
@@ -198,7 +198,7 @@ batch_max_secs = 300
 # The maximum size that the listener should send at once to NATS.
 # This should be no bigger than the NATS server's max_payload setting (which
 # defaults to 1 MB).
-listener_batch_size = "1MB"
+batch_max_size = "1MB"
 
 # The HTTP listener will publish its own metrics to this NATS subject (for
 # consumption by the monitor).

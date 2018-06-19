@@ -138,7 +138,7 @@ func newListener(c *config.Config) (*Listener, error) {
 			statFailedNATSPublish,
 		),
 		probes:      probes.Listen(c.ProbePort),
-		batch:       batch.New(int(c.ListenerBatchSize.Bytes())),
+		batch:       batch.New(int(c.BatchMaxSize.Bytes())),
 		maxBatchAge: time.Duration(c.BatchMaxSecs) * time.Second,
 	}
 
@@ -389,7 +389,7 @@ func (l *Listener) shouldSend() bool {
 	// If the batch size is within a (maximum) UDP datagram of the
 	// configured target batch size, then force a send to avoid
 	// growing the batch unnecessarily (allocations hurt performance).
-	if int(l.c.ListenerBatchSize.Bytes())-l.batch.Size() <= maxUDPDatagramSize {
+	if int(l.c.BatchMaxSize.Bytes())-l.batch.Size() <= maxUDPDatagramSize {
 		return true
 	}
 

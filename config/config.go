@@ -49,7 +49,6 @@ type Config struct {
 	WriteTimeoutSecs    int               `toml:"write_timeout_secs"`
 	ReadBufferSize      datasize.ByteSize `toml:"read_buffer_size"`
 	NATSMaxPendingSize  datasize.ByteSize `toml:"nats_max_pending_size"`
-	ListenerBatchSize   datasize.ByteSize `toml:"listener_batch_size"`
 	Rule                []Rule            `toml:"rule"`
 	MaxTimeDeltaSecs    int               `toml:"max_time_delta_secs"`
 	ProbePort           int               `toml:"probe_port"`
@@ -74,13 +73,11 @@ func newDefaultConfig() *Config {
 		InfluxDBPort:        8086,
 		DBName:              "influx-spout-junk",
 		BatchMessages:       10,
-		BatchMaxSize:        10 * datasize.MB,
 		BatchMaxSecs:        300,
 		Workers:             8,
 		WriteTimeoutSecs:    30,
 		ReadBufferSize:      4 * datasize.MB,
 		NATSMaxPendingSize:  200 * datasize.MB,
-		ListenerBatchSize:   1 * datasize.MB,
 		MaxTimeDeltaSecs:    600,
 		ProbePort:           0,
 		PprofPort:           0,
@@ -105,6 +102,15 @@ func NewConfigFromFile(fileName string) (*Config, error) {
 	// Set dynamic defaults.
 	if conf.Name == "" {
 		conf.Name = pathToConfigName(fileName)
+	}
+
+	if conf.BatchMaxSize == 0 {
+		switch conf.Mode {
+		case "listener", "listener_http":
+			conf.BatchMaxSize = datasize.MB
+		default:
+			conf.BatchMaxSize = 10 * datasize.MB
+		}
 	}
 
 	if conf.Port == 0 {
