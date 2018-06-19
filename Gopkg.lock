@@ -8,6 +8,12 @@
   version = "v0.3.0"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/c2h5oh/datasize"
+  packages = ["."]
+  revision = "4eba002a5eaea69cf8d235a388fc6b65ae68d2dd"
+
+[[projects]]
   name = "github.com/davecgh/go-spew"
   packages = ["spew"]
   revision = "346938d642f2ec3594ed81d874461961cd0faa76"
@@ -116,6 +122,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "5d288d5d53cc70ca9f71ad0ffb1d09469862598882396f9cb697a92280b69def"
+  inputs-digest = "114fc9361dd5ed4f25efccba557d67d98a7af1524f8b049cadb07bacd5e6d078"
   solver-name = "gps-cdcl"
   solver-version = 1

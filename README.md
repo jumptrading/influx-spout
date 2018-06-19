@@ -91,6 +91,13 @@ to different influx-spout components to be shared.
 
 [TOML]: https://github.com/toml-lang/toml
 
+### Data Units
+
+All configuration options that define a bytes size are specified as a
+string and contain an optional unit suffix. These examples are all
+valid ways to express the same byte size: `"2097152"`, `"2048KB"`, `"2MB"`,
+`"2M"` (single char), `"2mb"` (lower case), `"2 MB"` (space before unit).
+
 ## Modes
 
 This section documents the various influx-spout component modes and
@@ -128,18 +135,18 @@ batch = 10
 # lines. If this age is reached, the batch is written to NATS.
 batch_max_secs = 300
 
-# The maximum number of bytes that the listener should send at once to NATS.
+# The maximum size that the listener should send at once to NATS.
 # This should be no bigger than the NATS server's max_payload setting (which
 # defaults to 1 MB).
-listener_batch_bytes = 1048576
+listener_batch_size = "1MB"
 
-# Maximum UDP socket receive buffer size in bytes. A higher value this increases
-# the peak inbound traffic the listener can handle at the cost of higher memory
+# Maximum UDP socket receive buffer size. A higher value this increases the
+# peak inbound traffic the listener can handle at the cost of higher memory
 # consumption.
 #
 # The default value is good for low to medium loads but should be increased to
 # support higher receive rates.
-read_buffer_bytes = 4194304
+read_buffer_size = "4MB"
 
 # The listener will publish its own metrics to this NATS subject (for consumption
 # by the monitor).
@@ -150,9 +157,13 @@ nats_subject_monitor = "influx-spout-monitor"
 probe_port = 0
 
 # The listener will serve Go pprof requests at this port. Set to 0 (the
-default) to disable pprof support.
+# default) to disable pprof support.
 pprof_port = 0
 ```
+
+The listener will batch up messages until one of the limits defined by the
+`batch`, `listener_batch_size` or `batch_max_secs` options is reached.
+
 
 ### HTTP Listener
 
@@ -184,10 +195,10 @@ batch = 10
 # lines. If this age is reached, the batch is written to NATS.
 batch_max_secs = 300
 
-# The maximum number of bytes that the listener should send at once to NATS.
+# The maximum size that the listener should send at once to NATS.
 # This should be no bigger than the NATS server's max_payload setting (which
 # defaults to 1 MB).
-listener_batch_bytes = 1048576
+listener_batch_size = "1MB"
 
 # The HTTP listener will publish its own metrics to this NATS subject (for
 # consumption by the monitor).
@@ -230,9 +241,8 @@ nats_subject_junkyard = "influx-spout-junk"
 nats_subject_monitor = "influx-spout-monitor"
 
 # The maximum size that the pending buffer for the NATS subject that the filter
-# is reading from may become (in megabytes). Measurements will be dropped if
-# this limit is reached.
-nats_pending_max_mb = 200
+# is reading from may become. Measurements will be dropped if this limit is reached.
+nats_max_pending_size = "200MB"
 
 # The number of filter workers to spawn.
 workers = 8
@@ -330,9 +340,9 @@ influxdb_dbname = "influx-spout-junk"
 # latency.
 batch = 10
 
-# The maximum amount of message data a writer worker is allowed to collect. If
+# The maximum amount of message data a writer worker may collect. If
 # this limit is reached, a write to InfluxDB is performed.
-batch_max_mb = 10
+batch_max_size = "10MB"
 
 # The maximum amount of time a writer worker is allowed to hold on to collected
 # data. If this limit is reached, a write to InfluxDB is performed.
@@ -345,10 +355,9 @@ workers = 8
 # complete. Writes which time out will be dropped.
 write_timeout_secs = 30
 
-# The maximum size that the pending buffer for a NATS subject that the writer
-# is reading from may become (in megabytes). Measurements will be dropped if
-# this limit is reached. This helps to deal with slow InfluxDB instances.
-nats_pending_max_mb = 200
+# The maximum size that the pending buffer for the NATS subject that the filter
+# is reading from may become. Measurements will be dropped if this limit is reached.
+nats_max_pending_size = "200MB"
 
 # The writer will publish its own metrics to this NATS subject (for consumption
 # by the monitor).
@@ -364,7 +373,7 @@ pprof_port = 0
 ```
 
 A writer will batch up messages until one of the limits defined by the
-`batch`, `batch_max_mb` or `batch_max_secs` options is reached.
+`batch`, `batch_max_size` or `batch_max_secs` options is reached.
 
 Writers can optionally include filter rules. When filter rules are configured
 measurements which don't match a rule will be dropped by the writer instead of

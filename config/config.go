@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 
 	"github.com/BurntSushi/toml"
+	"github.com/c2h5oh/datasize"
 	"github.com/spf13/afero"
 )
 
@@ -31,29 +32,29 @@ const commonFileName = "/etc/influx-spout.toml"
 // Config represents the configuration for a single influx-spout
 // component.
 type Config struct {
-	Name                string   `toml:"name"`
-	Mode                string   `toml:"mode"`
-	NATSAddress         string   `toml:"nats_address"`
-	NATSSubject         []string `toml:"nats_subject"`
-	NATSSubjectMonitor  string   `toml:"nats_subject_monitor"`
-	NATSSubjectJunkyard string   `toml:"nats_subject_junkyard"`
-	InfluxDBAddress     string   `toml:"influxdb_address"`
-	InfluxDBPort        int      `toml:"influxdb_port"`
-	DBName              string   `toml:"influxdb_dbname"`
-	BatchMessages       int      `toml:"batch"`
-	BatchMaxMB          int      `toml:"batch_max_mb"`
-	BatchMaxSecs        int      `toml:"batch_max_secs"`
-	Port                int      `toml:"port"`
-	Workers             int      `toml:"workers"`
-	WriteTimeoutSecs    int      `toml:"write_timeout_secs"`
-	ReadBufferBytes     int      `toml:"read_buffer_bytes"`
-	NATSPendingMaxMB    int      `toml:"nats_pending_max_mb"`
-	ListenerBatchBytes  int      `toml:"listener_batch_bytes"`
-	Rule                []Rule   `toml:"rule"`
-	MaxTimeDeltaSecs    int      `toml:"max_time_delta_secs"`
-	ProbePort           int      `toml:"probe_port"`
-	PprofPort           int      `toml:"pprof_port"`
-	Debug               bool     `toml:"debug"`
+	Name                string            `toml:"name"`
+	Mode                string            `toml:"mode"`
+	NATSAddress         string            `toml:"nats_address"`
+	NATSSubject         []string          `toml:"nats_subject"`
+	NATSSubjectMonitor  string            `toml:"nats_subject_monitor"`
+	NATSSubjectJunkyard string            `toml:"nats_subject_junkyard"`
+	InfluxDBAddress     string            `toml:"influxdb_address"`
+	InfluxDBPort        int               `toml:"influxdb_port"`
+	DBName              string            `toml:"influxdb_dbname"`
+	BatchMessages       int               `toml:"batch"`
+	BatchMaxSize        datasize.ByteSize `toml:"batch_max_size"`
+	BatchMaxSecs        int               `toml:"batch_max_secs"`
+	Port                int               `toml:"port"`
+	Workers             int               `toml:"workers"`
+	WriteTimeoutSecs    int               `toml:"write_timeout_secs"`
+	ReadBufferSize      datasize.ByteSize `toml:"read_buffer_size"`
+	NATSMaxPendingSize  datasize.ByteSize `toml:"nats_max_pending_size"`
+	ListenerBatchSize   datasize.ByteSize `toml:"listener_batch_size"`
+	Rule                []Rule            `toml:"rule"`
+	MaxTimeDeltaSecs    int               `toml:"max_time_delta_secs"`
+	ProbePort           int               `toml:"probe_port"`
+	PprofPort           int               `toml:"pprof_port"`
+	Debug               bool              `toml:"debug"`
 }
 
 // Rule contains the configuration for a single filter rule.
@@ -73,13 +74,13 @@ func newDefaultConfig() *Config {
 		InfluxDBPort:        8086,
 		DBName:              "influx-spout-junk",
 		BatchMessages:       10,
-		BatchMaxMB:          10,
+		BatchMaxSize:        10 * datasize.MB,
 		BatchMaxSecs:        300,
 		Workers:             8,
 		WriteTimeoutSecs:    30,
-		ReadBufferBytes:     4 * 1024 * 1024,
-		NATSPendingMaxMB:    200,
-		ListenerBatchBytes:  1024 * 1024,
+		ReadBufferSize:      4 * datasize.MB,
+		NATSMaxPendingSize:  200 * datasize.MB,
+		ListenerBatchSize:   1 * datasize.MB,
 		MaxTimeDeltaSecs:    600,
 		ProbePort:           0,
 		PprofPort:           0,

@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/c2h5oh/datasize"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -46,14 +47,14 @@ influxdb_port = 8086
 influxdb_dbname = "junk_nats"
 
 batch = 10
-batch_max_mb = 5
+batch_max_size = "5m"
 batch_max_secs = 60
 workers = 96
 
 write_timeout_secs = 32
-read_buffer_bytes = 43210
-nats_pending_max_mb = 100
-listener_batch_bytes = 4096
+read_buffer_size = 43210
+nats_max_pending_size = "100MB"
+listener_batch_size = "4KB"
 max_time_delta_secs = 789
 
 probe_port = 6789
@@ -66,13 +67,13 @@ pprof_port = 5432
 	assert.Equal(t, "listener", conf.Mode, "Mode must match")
 	assert.Equal(t, 10001, conf.Port, "Port must match")
 	assert.Equal(t, 10, conf.BatchMessages, "Batching must match")
-	assert.Equal(t, 5, conf.BatchMaxMB)
+	assert.Equal(t, 5*datasize.MB, conf.BatchMaxSize)
 	assert.Equal(t, 60, conf.BatchMaxSecs)
 	assert.Equal(t, 96, conf.Workers)
 	assert.Equal(t, 32, conf.WriteTimeoutSecs, "WriteTimeoutSecs must match")
-	assert.Equal(t, 43210, conf.ReadBufferBytes)
-	assert.Equal(t, 100, conf.NATSPendingMaxMB)
-	assert.Equal(t, 4096, conf.ListenerBatchBytes)
+	assert.Equal(t, 43210*datasize.B, conf.ReadBufferSize)
+	assert.Equal(t, 100*datasize.MB, conf.NATSMaxPendingSize)
+	assert.Equal(t, 4*datasize.KB, conf.ListenerBatchSize)
 	assert.Equal(t, 789, conf.MaxTimeDeltaSecs)
 
 	assert.Equal(t, 8086, conf.InfluxDBPort, "InfluxDB Port must match")
@@ -100,15 +101,15 @@ func TestAllDefaults(t *testing.T) {
 	assert.Equal(t, 8086, conf.InfluxDBPort)
 	assert.Equal(t, "influx-spout-junk", conf.DBName)
 	assert.Equal(t, 10, conf.BatchMessages)
-	assert.Equal(t, 10, conf.BatchMaxMB)
+	assert.Equal(t, 10*datasize.MB, conf.BatchMaxSize)
 	assert.Equal(t, 300, conf.BatchMaxSecs)
 	assert.Equal(t, 0, conf.Port)
 	assert.Equal(t, "writer", conf.Mode)
 	assert.Equal(t, 8, conf.Workers)
 	assert.Equal(t, 30, conf.WriteTimeoutSecs)
-	assert.Equal(t, 4194304, conf.ReadBufferBytes)
-	assert.Equal(t, 200, conf.NATSPendingMaxMB)
-	assert.Equal(t, 1048576, conf.ListenerBatchBytes)
+	assert.Equal(t, 4*datasize.MB, conf.ReadBufferSize)
+	assert.Equal(t, 200*datasize.MB, conf.NATSMaxPendingSize)
+	assert.Equal(t, 1*datasize.MB, conf.ListenerBatchSize)
 	assert.Equal(t, 600, conf.MaxTimeDeltaSecs)
 	assert.Equal(t, 0, conf.ProbePort)
 	assert.Equal(t, 0, conf.PprofPort)

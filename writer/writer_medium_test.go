@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/c2h5oh/datasize"
 	"github.com/nats-io/go-nats"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -50,11 +51,11 @@ func testConfig() *config.Config {
 		InfluxDBPort:       influxPort,
 		DBName:             "metrics",
 		BatchMessages:      1,
-		BatchMaxMB:         10,
+		BatchMaxSize:       10 * datasize.MB,
 		BatchMaxSecs:       300,
 		Port:               influxPort,
 		Workers:            96,
-		NATSPendingMaxMB:   32,
+		NATSMaxPendingSize: 32 * datasize.MB,
 		ProbePort:          probePort,
 	}
 }
@@ -122,7 +123,7 @@ func TestBatchMBLimit(t *testing.T) {
 	conf := testConfig()
 	conf.Workers = 1
 	conf.BatchMessages = 9999
-	conf.BatchMaxMB = 1
+	conf.BatchMaxSize = 1 * datasize.MB
 	w := startWriter(t, conf)
 	defer w.Stop()
 
