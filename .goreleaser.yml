@@ -1,0 +1,24 @@
+project_name: influx-spout
+
+release:
+  github:
+    owner: jumptrading
+    name: influx-spout
+  name_template: '{{.Tag}}'
+
+builds:
+  - binary: influx-spout
+    main: ./cmd/influx-spout/
+    goos:
+      - linux
+    goarch:
+      - amd64
+    ldflags: -s -w -X main.version={{.Version}} -X main.builtOn={{.Date}}
+
+archive:
+  format: tar.gz
+  wrap_in_directory: true
+  name_template: '{{ .Binary }}_{{ .Version }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
+  files:
+    - LICENSE
+    - README.md

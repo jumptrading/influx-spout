@@ -77,3 +77,18 @@ into the listener, memory usage for all the influx-spout components
 should increase to some threshold and then plateau. If memory
 consumption increases without bound, there could be a configuration
 problem or a bug in influx-spout.
+
+## Releases
+
+Public releases of influx-spout are managed using
+[GoReleaser](https://goreleaser.com/). It must be installed on any
+host that is going to create and publish a release.
+
+To publish a new release:
+
+* Create an annotated tag for the release. For example: `git tag v3.2.1 -m "3.2.1 release"`
+* Push the tag to Github. For example: `git push origin 3.2.1`
+* Run GoReleaser: `goreleaser --rm-dist`
+
+This will build the release artifacts, generate a changelog and
+publish these to [Github](https://github.com/jumptrading/influx-spout/releases).
