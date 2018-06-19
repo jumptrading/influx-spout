@@ -208,7 +208,7 @@ func (w *Writer) filterLine(line []byte) bool {
 }
 
 func (w *Writer) shouldSend(batch *batch.Batch) bool {
-	return batch.Writes() >= w.c.BatchMessages ||
+	return batch.Writes() >= w.c.BatchMaxCount ||
 		uint64(batch.Size()) >= w.c.BatchMaxSize.Bytes() ||
 		batch.Age() >= w.c.BatchMaxAge.Duration
 }

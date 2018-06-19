@@ -195,7 +195,7 @@ func startListener(t *testing.T, fs afero.Fs) stoppable {
 mode = "listener"
 port = %d
 nats_address = "nats://localhost:%d"
-batch = 5
+batch_max_count = 5
 debug = true
 nats_subject_monitor = "monitor"
 probe_port = %d
@@ -207,7 +207,7 @@ func startHTTPListener(t *testing.T, fs afero.Fs) stoppable {
 mode = "listener_http"
 port = %d
 nats_address = "nats://localhost:%d"
-batch = 5
+batch_max_count = 5
 debug = true
 nats_subject_monitor = "monitor"
 probe_port = %d
@@ -236,7 +236,7 @@ nats_address = "nats://localhost:%d"
 nats_subject = ["system"]
 influxdb_port = %d
 influxdb_dbname = "%s"
-batch = 1
+batch_max_count = 1
 workers = 4
 debug = true
 nats_subject_monitor = "monitor"

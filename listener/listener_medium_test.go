@@ -68,7 +68,7 @@ func testConfig() *config.Config {
 		NATSAddress:        natsAddress,
 		NATSSubject:        []string{natsSubject},
 		NATSSubjectMonitor: natsMonitorSubject,
-		BatchMessages:      1,
+		BatchMaxCount:      1,
 		BatchMaxSize:       1 * datasize.MB,
 		BatchMaxAge:        config.Duration{60 * time.Second},
 		ReadBufferSize:     4 * datasize.MB,
@@ -83,7 +83,7 @@ func TestBatching(t *testing.T) {
 	defer s.Shutdown()
 
 	conf := testConfig()
-	conf.BatchMessages = numLines // batch messages into one packet
+	conf.BatchMaxCount = numLines // batch messages into one packet
 
 	listener := startListener(t, conf)
 	defer listener.Stop()
@@ -145,7 +145,7 @@ func TestBatchBufferFull(t *testing.T) {
 	conf := testConfig()
 	// Set batch size high so that the batch will only send due to the
 	// batch buffer filling up.
-	conf.BatchMessages = 99999
+	conf.BatchMaxCount = 99999
 
 	listener := startListener(t, conf)
 	defer listener.Stop()
@@ -179,7 +179,7 @@ loop:
 
 	// Ensure that batch was output because batch size limit was
 	// reached, not the message count.
-	assert.True(t, writeCount < conf.BatchMessages,
+	assert.True(t, writeCount < conf.BatchMaxCount,
 		fmt.Sprintf("writeCount = %d", writeCount))
 }
 
@@ -190,7 +190,7 @@ func TestBatchAge(t *testing.T) {
 	// Set config so that a small write will only come through due to
 	// batch age expiry.
 	conf := testConfig()
-	conf.BatchMessages = 9999
+	conf.BatchMaxCount = 9999
 	conf.BatchMaxAge = config.Duration{time.Second}
 
 	listener := startListener(t, conf)
@@ -249,7 +249,7 @@ func TestHTTPListenerBigPOST(t *testing.T) {
 	// Use a batch size > 1. Even though a single write will be made,
 	// the batch should still get sent because the buffer size limit
 	// is exceeded.
-	conf.BatchMessages = 10
+	conf.BatchMaxCount = 10
 
 	listener, err := StartHTTPListener(conf)
 	require.NoError(t, err)
@@ -380,7 +380,7 @@ func TestBatchAgeHTTPListener(t *testing.T) {
 	// Set config so that a small write will only come through due to
 	// batch age expiry.
 	conf := testConfig()
-	conf.BatchMessages = 9999
+	conf.BatchMaxCount = 9999
 	conf.BatchMaxAge = config.Duration{time.Second}
 	listener := startHTTPListener(t, conf)
 	defer listener.Stop()

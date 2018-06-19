@@ -4,7 +4,7 @@ nats_subject = ["spout"]
 nats_subject_monitor = "monitor"
 port = 9999
 
-batch = 100
+batch_max_count = 100
 
 debug = true
 pprof_port = 4000

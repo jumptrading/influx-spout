@@ -376,7 +376,7 @@ func (l *Listener) maybeSendBatch() {
 }
 
 func (l *Listener) shouldSend() bool {
-	if l.batch.Writes() >= l.c.BatchMessages {
+	if l.batch.Writes() >= l.c.BatchMaxCount {
 		return true
 	}
 

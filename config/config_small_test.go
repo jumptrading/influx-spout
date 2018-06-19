@@ -47,7 +47,7 @@ influxdb_address = "localhost"
 influxdb_port = 8086
 influxdb_dbname = "junk_nats"
 
-batch = 10
+batch_max_count = 10
 batch_max_size = "5m"
 batch_max_age = "1m"
 workers = 96
@@ -66,7 +66,7 @@ pprof_port = 5432
 	assert.Equal(t, "thor", conf.Name, "Name must match")
 	assert.Equal(t, "writer", conf.Mode, "Mode must match")
 	assert.Equal(t, 10001, conf.Port, "Port must match")
-	assert.Equal(t, 10, conf.BatchMessages, "Batching must match")
+	assert.Equal(t, 10, conf.BatchMaxCount, "Batching must match")
 	assert.Equal(t, 5*datasize.MB, conf.BatchMaxSize)
 	assert.Equal(t, time.Minute, conf.BatchMaxAge.Duration)
 	assert.Equal(t, 96, conf.Workers)
@@ -99,7 +99,7 @@ func TestAllDefaults(t *testing.T) {
 	assert.Equal(t, "localhost", conf.InfluxDBAddress)
 	assert.Equal(t, 8086, conf.InfluxDBPort)
 	assert.Equal(t, "influx-spout-junk", conf.DBName)
-	assert.Equal(t, 10, conf.BatchMessages)
+	assert.Equal(t, 10, conf.BatchMaxCount)
 	assert.Equal(t, 10*datasize.MB, conf.BatchMaxSize)
 	assert.Equal(t, 5*time.Minute, conf.BatchMaxAge.Duration)
 	assert.Equal(t, 0, conf.Port)
@@ -200,12 +200,12 @@ subject = "world-subject"
 
 func TestCommonOverlay(t *testing.T) {
 	const commonConfig = `
-batch = 50
+batch_max_count = 50
 influxdb_dbname = "massive"
 `
 	const specificConfig = `
 mode = "listener"
-batch = 100
+batch_max_count = 100
 debug = true
 `
 	Fs = afero.NewMemMapFs()
@@ -216,7 +216,7 @@ debug = true
 	require.NoError(t, err)
 
 	assert.Equal(t, "listener", conf.Mode)   // only set in specific config
-	assert.Equal(t, 100, conf.BatchMessages) // overridden in specific config
+	assert.Equal(t, 100, conf.BatchMaxCount) // overridden in specific config
 	assert.Equal(t, "massive", conf.DBName)  // only set in common config
 }
 
@@ -226,7 +226,7 @@ wat
 `
 	const specificConfig = `
 mode = "listener"
-batch = 100
+batch_max_count = 100
 debug = true
 `
 

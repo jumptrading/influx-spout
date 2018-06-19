@@ -133,10 +133,10 @@ nats_address = "nats://localhost:4222"
 # Subject to publish received measurements on. This must be a list with one item.
 nats_subject = ["influx-spout"]
 
-# How many messages to collect before forwarding to the NATS server.
-# Increasing this number reduces NATS communication overhead but increases
-# latency.
-batch = 10
+# The maximum number of packets to receive before forwarding batched messages
+# to the NATS server. Increasing this number reduces NATS communication overhead
+# but increases latency.
+batch_max_count = 10
 
 # The maximum amount of time the listener will hold on to batched
 # lines. If this age is reached, the batch is written to NATS.
@@ -169,7 +169,7 @@ pprof_port = 0
 ```
 
 The listener will batch up messages until one of the limits defined by the
-`batch`, `batch_max_size` or `batch_max_age` options is reached.
+`batch_max_count`, `batch_max_size` or `batch_max_age` options is reached.
 
 
 ### HTTP Listener
@@ -193,10 +193,10 @@ nats_address = "nats://localhost:4222"
 # Subject to publish received measurements on. This must be a list with one item.
 nats_subject = ["influx-spout"]
 
-# How many messages to collect before forwarding to the NATS server.
-# Increasing this number reduces NATS communication overhead but increases
-# latency.
-batch = 10
+# The maximum number of inbound HTTP writes to batch before forwarding to the
+# NATS server. Increasing this number reduces NATS communication overhead but
+# increases latency.
+batch_max_count = 10
 
 # The maximum amount of time the listener will hold on to batched
 # lines. If this age is reached, the batch is written to NATS.
@@ -219,6 +219,10 @@ probe_port = 0
 default) to disable pprof support.
 pprof_port = 0
 ```
+
+
+The HTTP listener will batch up messages until one of the limits defined by the
+`batch_max_count`, `batch_max_size` or `batch_max_age` options is reached.
 
 ### Filter
 
@@ -342,10 +346,10 @@ influxdb_port = 8086
 # useful. Please set to an appropriate value.
 influxdb_dbname = "influx-spout-junk"
 
-# How many messages to collect before writing to InfluxDB.
-# Increasing this number reduces InfluxDB communication overhead but increases
-# latency.
-batch = 10
+# The maximum number of message chunks to collect before a write to InfluxDB
+# will be triggered. Increasing this number reduces communication overhead
+# with InfluxDB but increases latency.
+batch_max_count = 10
 
 # The maximum amount of message data a writer worker may collect. If
 # this limit is reached, a write to InfluxDB is performed.
@@ -380,7 +384,8 @@ pprof_port = 0
 ```
 
 A writer will batch up messages until one of the limits defined by the
-`batch`, `batch_max_size` or `batch_max_age` options is reached.
+`batch_max_count`, `batch_max_size` or `batch_max_age` options is
+reached.
 
 Writers can optionally include filter rules. When filter rules are configured
 measurements which don't match a rule will be dropped by the writer instead of

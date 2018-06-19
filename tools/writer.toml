@@ -9,7 +9,7 @@ influxdb_port = 8086
 influxdb_dbname = "spout"
 
 workers = 10
-batch = 10
+batch_max_count = 10
 batch_max_size = "100MB"
 write_timeout = "10s"
 

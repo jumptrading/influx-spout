@@ -50,7 +50,7 @@ func testConfig() *config.Config {
 		InfluxDBAddress:    "localhost",
 		InfluxDBPort:       influxPort,
 		DBName:             "metrics",
-		BatchMessages:      1,
+		BatchMaxCount:      1,
 		BatchMaxSize:       10 * datasize.MB,
 		BatchMaxAge:        config.Duration{5 * time.Minute},
 		Port:               influxPort,
@@ -122,7 +122,7 @@ func TestBatchMBLimit(t *testing.T) {
 	// No filter rules.
 	conf := testConfig()
 	conf.Workers = 1
-	conf.BatchMessages = 9999
+	conf.BatchMaxCount = 9999
 	conf.BatchMaxSize = 1 * datasize.MB
 	w := startWriter(t, conf)
 	defer w.Stop()
@@ -159,7 +159,7 @@ func TestBatchTimeLimit(t *testing.T) {
 	// No filter rules.
 	conf := testConfig()
 	conf.Workers = 1
-	conf.BatchMessages = 9999
+	conf.BatchMaxCount = 9999
 	conf.BatchMaxAge = config.Duration{time.Second}
 	w := startWriter(t, conf)
 	defer w.Stop()

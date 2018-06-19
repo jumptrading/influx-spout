@@ -42,7 +42,7 @@ type Config struct {
 	InfluxDBAddress     string            `toml:"influxdb_address"`
 	InfluxDBPort        int               `toml:"influxdb_port"`
 	DBName              string            `toml:"influxdb_dbname"`
-	BatchMessages       int               `toml:"batch"`
+	BatchMaxCount       int               `toml:"batch_max_count"`
 	BatchMaxSize        datasize.ByteSize `toml:"batch_max_size"`
 	BatchMaxAge         Duration          `toml:"batch_max_age"`
 	Port                int               `toml:"port"`
@@ -73,7 +73,7 @@ func newDefaultConfig() *Config {
 		InfluxDBAddress:     "localhost",
 		InfluxDBPort:        8086,
 		DBName:              "influx-spout-junk",
-		BatchMessages:       10,
+		BatchMaxCount:       10,
 		BatchMaxAge:         Duration{5 * time.Minute},
 		Workers:             8,
 		WriteTimeout:        Duration{30 * time.Second},
