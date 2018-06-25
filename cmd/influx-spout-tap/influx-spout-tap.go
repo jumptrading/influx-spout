@@ -41,13 +41,14 @@ func main() {
 		r = regexp.MustCompile(*regexpString)
 	}
 	natsConnection.Subscribe(*subject, func(msg *nats.Msg) {
-		process_data(msg, r)
+		process(msg, r)
 	})
 
 	// Keep the connection alive
 	runtime.Goexit()
 }
-func process_data(msg *nats.Msg, r *regexp.Regexp) {
+
+func process(msg *nats.Msg, r *regexp.Regexp) {
 	for _, line := range bytes.SplitAfter(msg.Data, []byte("\n")) {
 		if r != nil {
 			if r.Match(line) {

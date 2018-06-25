@@ -22,7 +22,8 @@ import (
 	"github.com/jumptrading/influx-spout/convert"
 )
 
-// ParseMetrics parses multiple Promethesus metric lines, returning a MetricSet.
+// ParseMetrics parses multiple Prometheus metric lines, returning a
+// MetricSet.
 func ParseMetrics(s []byte) (*MetricSet, error) {
 	set := NewMetricSet()
 	for i, line := range bytes.Split(s, []byte("\n")) {
@@ -38,7 +39,7 @@ func ParseMetrics(s []byte) (*MetricSet, error) {
 	return set, nil
 }
 
-// ParseMetric parses a single Promethesus metric line.
+// ParseMetric parses a single Prometheus metric line.
 //
 // Note: The implementation currently only supports integer values and
 // also doesn't handle escaped characters nor multiple sequential

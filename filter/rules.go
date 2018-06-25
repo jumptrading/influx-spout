@@ -113,7 +113,7 @@ func CreateNegativeRegexRule(regexString, subject string) Rule {
 	}
 }
 
-// RureSetFromConfig creates a new RuleSet instance using the rules
+// RuleSetFromConfig creates a new RuleSet instance using the rules
 // from Config provided.
 func RuleSetFromConfig(conf *config.Config) (*RuleSet, error) {
 	rs := new(RuleSet)
