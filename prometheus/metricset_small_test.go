@@ -67,7 +67,7 @@ func TestUpdateWithLabels(t *testing.T) {
 
 	m0 := &prometheus.Metric{
 		Name: []byte("temp"),
-		Labels: prometheus.LabelPairs{
+		Labels: prometheus.Labels{
 			{Name: []byte("host"), Value: []byte("nyc02")},
 			{Name: []byte("core"), Value: []byte("0")},
 		},
@@ -78,7 +78,7 @@ func TestUpdateWithLabels(t *testing.T) {
 
 	m1 := &prometheus.Metric{
 		Name: []byte("temp"),
-		Labels: prometheus.LabelPairs{
+		Labels: prometheus.Labels{
 			{Name: []byte("host"), Value: []byte("nyc02")},
 			{Name: []byte("core"), Value: []byte("1")},
 		},
@@ -89,7 +89,7 @@ func TestUpdateWithLabels(t *testing.T) {
 
 	m2 := &prometheus.Metric{
 		Name: []byte("temp"),
-		Labels: prometheus.LabelPairs{
+		Labels: prometheus.Labels{
 			{Name: []byte("host"), Value: []byte("auk01")},
 			{Name: []byte("core"), Value: []byte("0")},
 		},
@@ -100,7 +100,7 @@ func TestUpdateWithLabels(t *testing.T) {
 
 	m3 := &prometheus.Metric{
 		Name: []byte("temp"),
-		Labels: prometheus.LabelPairs{
+		Labels: prometheus.Labels{
 			{Name: []byte("host"), Value: []byte("auk02")},
 			{Name: []byte("core"), Value: []byte("0")},
 		},
@@ -130,7 +130,7 @@ func TestUpdateLabelOrdering(t *testing.T) {
 
 	m0 := &prometheus.Metric{
 		Name: []byte("temp"),
-		Labels: prometheus.LabelPairs{
+		Labels: prometheus.Labels{
 			{Name: []byte("host"), Value: []byte("nyc02")},
 			{Name: []byte("core"), Value: []byte("0")},
 		},
@@ -143,7 +143,7 @@ func TestUpdateLabelOrdering(t *testing.T) {
 	// switched.
 	m1 := &prometheus.Metric{
 		Name: []byte("temp"),
-		Labels: prometheus.LabelPairs{
+		Labels: prometheus.Labels{
 			{Name: []byte("core"), Value: []byte("0")},
 			{Name: []byte("host"), Value: []byte("nyc02")},
 		},
@@ -160,7 +160,7 @@ func TestUpdateFromSet(t *testing.T) {
 	set0 := prometheus.NewMetricSet()
 	m0 := &prometheus.Metric{
 		Name: []byte("uptime"),
-		Labels: prometheus.LabelPairs{
+		Labels: prometheus.Labels{
 			{Name: []byte("host"), Value: []byte("nyc01")},
 		},
 		Value:        222,
@@ -169,7 +169,7 @@ func TestUpdateFromSet(t *testing.T) {
 	set0.Update(m0)
 	set0.Update(&prometheus.Metric{
 		Name: []byte("temp"),
-		Labels: prometheus.LabelPairs{
+		Labels: prometheus.Labels{
 			{Name: []byte("host"), Value: []byte("nyc02")},
 			{Name: []byte("core"), Value: []byte("0")},
 		},
@@ -181,7 +181,7 @@ func TestUpdateFromSet(t *testing.T) {
 	set1 := prometheus.NewMetricSet()
 	m1 := &prometheus.Metric{
 		Name: []byte("temp"),
-		Labels: prometheus.LabelPairs{
+		Labels: prometheus.Labels{
 			{Name: []byte("host"), Value: []byte("nyc02")},
 			{Name: []byte("core"), Value: []byte("0")},
 		},
@@ -191,7 +191,7 @@ func TestUpdateFromSet(t *testing.T) {
 	set1.Update(m1)
 	m2 := &prometheus.Metric{
 		Name: []byte("uptime"),
-		Labels: prometheus.LabelPairs{
+		Labels: prometheus.Labels{
 			{Name: []byte("host"), Value: []byte("nyc02")},
 		},
 		Value:        1234,
@@ -209,7 +209,7 @@ func TestToBytes(t *testing.T) {
 
 	set.Update(&prometheus.Metric{
 		Name: []byte("uptime"),
-		Labels: prometheus.LabelPairs{
+		Labels: prometheus.Labels{
 			{Name: []byte("host"), Value: []byte("nyc01")},
 		},
 		Value:        1234,
@@ -217,7 +217,7 @@ func TestToBytes(t *testing.T) {
 	})
 	set.Update(&prometheus.Metric{
 		Name: []byte("temp"),
-		Labels: prometheus.LabelPairs{
+		Labels: prometheus.Labels{
 			{Name: []byte("host"), Value: []byte("nyc02")},
 			{Name: []byte("core"), Value: []byte("0")},
 		},
@@ -226,7 +226,7 @@ func TestToBytes(t *testing.T) {
 	})
 	set.Update(&prometheus.Metric{
 		Name: []byte("temp"),
-		Labels: prometheus.LabelPairs{
+		Labels: prometheus.Labels{
 			{Name: []byte("host"), Value: []byte("nyc02")},
 			{Name: []byte("core"), Value: []byte("1")},
 		},
@@ -235,7 +235,7 @@ func TestToBytes(t *testing.T) {
 	})
 	set.Update(&prometheus.Metric{
 		Name: []byte("uptime"),
-		Labels: prometheus.LabelPairs{
+		Labels: prometheus.Labels{
 			{Name: []byte("host"), Value: []byte("nyc02")},
 		},
 		Value:        4444,

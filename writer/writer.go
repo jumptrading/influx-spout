@@ -241,14 +241,12 @@ func (w *Writer) sendBatch(batch *batch.Batch, client *http.Client) error {
 func (w *Writer) startStatistician(subs []*nats.Subscription) {
 	defer w.wg.Done()
 
+	labels := stats.NewLabels("writer", w.c.Name).
+		With("influxdb_address", w.c.InfluxDBAddress).
+		With("influxdb_port", strconv.Itoa(w.c.InfluxDBPort)).
+		With("influxdb_dbname", w.c.DBName)
+
 	for {
-		labels := map[string]string{
-			"component":        "writer",
-			"name":             w.c.Name,
-			"influxdb_address": w.c.InfluxDBAddress,
-			"influxdb_port":    strconv.Itoa(w.c.InfluxDBPort),
-			"influxdb_dbname":  w.c.DBName,
-		}
 		now := time.Now()
 
 		// Publish general stats.
@@ -262,8 +260,11 @@ func (w *Writer) startStatistician(subs []*nats.Subscription) {
 				log.Printf("NATS: failed to get dropped count: %v", err)
 				continue
 			}
-			labels["subject"] = sub.Subject
-			line := stats.CounterToPrometheus(statNATSDropped, dropped, now, labels)
+			line := stats.CounterToPrometheus(
+				statNATSDropped,
+				dropped,
+				now,
+				labels.With("subject", sub.Subject))
 			w.nc.Publish(w.c.NATSSubjectMonitor, line)
 		}
 

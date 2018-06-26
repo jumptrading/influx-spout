@@ -90,15 +90,15 @@ func ParseMetric(s []byte) (*Metric, error) {
 	return out, nil
 }
 
-func parseLabels(s []byte) (LabelPairs, int, error) {
+func parseLabels(s []byte) (Labels, int, error) {
 	if s[0] == '}' {
 		return nil, 1, nil
 	}
 
 	i := 0
-	out := make(LabelPairs, 0, 1)
+	out := make(Labels, 0, 1)
 	for {
-		var label LabelPair
+		var label Label
 
 		j := bytes.Index(s[i:], []byte(`="`))
 		if j == -1 {

@@ -32,6 +32,7 @@ import (
 
 	"github.com/jumptrading/influx-spout/config"
 	"github.com/jumptrading/influx-spout/spouttest"
+	"github.com/jumptrading/influx-spout/stats"
 )
 
 const natsPort = 44200
@@ -61,6 +62,8 @@ func testConfig() *config.Config {
 }
 
 func TestBasicWriter(t *testing.T) {
+	stats.SetHostname("h")
+
 	nc, closeNATS := runGnatsd(t)
 	defer closeNATS()
 
@@ -100,6 +103,7 @@ func TestBasicWriter(t *testing.T) {
 	// Check the monitor output.
 	labels := "{" + strings.Join([]string{
 		`component="writer"`,
+		`host="h"`,
 		`influxdb_address="localhost"`,
 		`influxdb_dbname="metrics"`,
 		fmt.Sprintf(`influxdb_port="%d"`, influxPort),

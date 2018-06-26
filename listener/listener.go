@@ -413,11 +413,7 @@ func (l *Listener) handleNatsError(err error) {
 
 func (l *Listener) startStatistician() {
 	defer l.wg.Done()
-
-	labels := map[string]string{
-		"component": "listener",
-		"name":      l.c.Name,
-	}
+	labels := stats.NewLabels("listener", l.c.Name)
 	for {
 		lines := stats.SnapshotToPrometheus(l.stats.Snapshot(), time.Now(), labels)
 		l.nc.Publish(l.c.NATSSubjectMonitor, lines)

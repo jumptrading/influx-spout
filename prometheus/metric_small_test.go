@@ -44,7 +44,7 @@ func TestToBytesTimestamp(t *testing.T) {
 func TestToBytesLabels(t *testing.T) {
 	m := &prometheus.Metric{
 		Name: []byte("foo"),
-		Labels: prometheus.LabelPairs{
+		Labels: prometheus.Labels{
 			{
 				Name:  []byte("host"),
 				Value: []byte("nyc01"),
