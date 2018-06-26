@@ -87,6 +87,81 @@ func newDefaultConfig() *Config {
 	}
 }
 
+// Validate returns an error if a problem is detected with the
+// configuration. It checks a variety of possible configuration errors
+// but these aren't exhaustive.
+func (c *Config) Validate() error {
+	if c.ProbePort < 0 || c.ProbePort > 65535 {
+		return errors.New("probe_port out of range")
+	}
+	if c.PprofPort < 0 || c.PprofPort > 65535 {
+		return errors.New("pprof_port out of range")
+	}
+
+	switch c.Mode {
+	case "listener", "listener_http":
+		return c.validateListener()
+	case "filter":
+		return c.validateFilter()
+	case "writer":
+		return c.validateWriter()
+	case "monitor":
+	default:
+		return fmt.Errorf("invalid mode: %s", c.Mode)
+	}
+	return nil
+}
+
+func (c *Config) validateListener() error {
+	if c.Port < 1 || c.Port > 65535 {
+		return errors.New("listener port out of range")
+	}
+	if len(c.NATSSubject) != 1 {
+		return errors.New("listener should only use one NATS subject")
+	}
+	return nil
+}
+
+func (c *Config) validateFilter() error {
+	if len(c.NATSSubject) != 1 {
+		return errors.New("filter should only use one NATS subject")
+	}
+	for _, rule := range c.Rule {
+		if rule.Rtype == "" {
+			return errors.New(`rule missing "type"`)
+		}
+		if rule.Match == "" {
+			return errors.New(`rule missing "match"`)
+		}
+		if rule.Subject == "" {
+			return errors.New(`rule missing "subject"`)
+		}
+	}
+	return nil
+}
+
+func (c *Config) validateWriter() error {
+	if len(c.NATSSubject) < 1 {
+		return errors.New("writer needs at least one NATS subject")
+	}
+	if c.InfluxDBPort < 1 || c.InfluxDBPort > 65535 {
+		return errors.New("influxdb_port out of range")
+	}
+
+	for _, rule := range c.Rule {
+		if rule.Rtype == "" {
+			return errors.New(`rule missing "type"`)
+		}
+		if rule.Match == "" {
+			return errors.New(`rule missing "match"`)
+		}
+		if rule.Subject != "" {
+			return fmt.Errorf("writer rules shouldn't have subject (%q)", rule.Subject)
+		}
+	}
+	return nil
+}
+
 // NewConfigFromFile parses the specified configuration file and
 // returns a Config.
 func NewConfigFromFile(fileName string) (*Config, error) {
@@ -125,6 +200,10 @@ func NewConfigFromFile(fileName string) (*Config, error) {
 		case "monitor":
 			conf.Port = 9331
 		}
+	}
+
+	if err := conf.Validate(); err != nil {
+		return nil, err
 	}
 
 	return conf, nil
