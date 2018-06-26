@@ -187,7 +187,7 @@ func (f *Filter) startStatistician(st *stats.Stats, ruleSt *stats.AnonStats, rul
 		}
 
 		select {
-		case <-time.After(3 * time.Second):
+		case <-time.After(f.c.StatsInterval.Duration):
 		case <-f.stop:
 			return
 		}

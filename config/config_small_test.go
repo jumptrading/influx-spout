@@ -57,6 +57,8 @@ read_buffer_size = 43210
 nats_max_pending_size = "100MB"
 max_time_delta = "789s"
 
+stats_interval = "5s"
+
 probe_port = 6789
 pprof_port = 5432
 `
@@ -83,6 +85,7 @@ pprof_port = 5432
 	assert.Equal(t, "spout-monitor", conf.NATSSubjectMonitor, "Monitor subject must match")
 	assert.Equal(t, "nats://localhost:4222", conf.NATSAddress, "Address must match")
 
+	assert.Equal(t, 5*time.Second, conf.StatsInterval.Duration)
 	assert.Equal(t, 6789, conf.ProbePort)
 	assert.Equal(t, 5432, conf.PprofPort)
 }
@@ -109,6 +112,7 @@ func TestAllDefaults(t *testing.T) {
 	assert.Equal(t, 4*datasize.MB, conf.ReadBufferSize)
 	assert.Equal(t, 200*datasize.MB, conf.NATSMaxPendingSize)
 	assert.Equal(t, 10*time.Minute, conf.MaxTimeDelta.Duration)
+	assert.Equal(t, 3*time.Second, conf.StatsInterval.Duration)
 	assert.Equal(t, 0, conf.ProbePort)
 	assert.Equal(t, 0, conf.PprofPort)
 	assert.Equal(t, false, conf.Debug)

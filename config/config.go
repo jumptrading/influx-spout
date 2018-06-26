@@ -52,6 +52,7 @@ type Config struct {
 	NATSMaxPendingSize  datasize.ByteSize `toml:"nats_max_pending_size"`
 	Rule                []Rule            `toml:"rule"`
 	MaxTimeDelta        Duration          `toml:"max_time_delta"`
+	StatsInterval       Duration          `toml:"stats_interval"`
 	ProbePort           int               `toml:"probe_port"`
 	PprofPort           int               `toml:"pprof_port"`
 	Debug               bool              `toml:"debug"`
@@ -80,6 +81,7 @@ func newDefaultConfig() *Config {
 		ReadBufferSize:      4 * datasize.MB,
 		NATSMaxPendingSize:  200 * datasize.MB,
 		MaxTimeDelta:        Duration{10 * time.Minute},
+		StatsInterval:       Duration{3 * time.Second},
 		ProbePort:           0,
 		PprofPort:           0,
 	}

@@ -47,8 +47,6 @@ const (
 	maxUDPDatagramSize = 65536
 )
 
-var statsInterval = 3 * time.Second
-
 // StartListener initialises a listener, starts its statistician
 // goroutine and runs it's main loop. It never returns.
 //
@@ -418,7 +416,7 @@ func (l *Listener) startStatistician() {
 		lines := stats.SnapshotToPrometheus(l.stats.Snapshot(), time.Now(), labels)
 		l.nc.Publish(l.c.NATSSubjectMonitor, lines)
 		select {
-		case <-time.After(statsInterval):
+		case <-time.After(l.c.StatsInterval.Duration):
 		case <-l.stop:
 			return
 		}
