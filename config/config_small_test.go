@@ -266,3 +266,169 @@ func parseConfig(content string) (*Config, error) {
 
 	return NewConfigFromFile(testConfigFileName)
 }
+
+func TestValidateDefaults(t *testing.T) {
+	conf := newDefaultConfig()
+	conf.Mode = "writer"
+	assert.NoError(t, conf.Validate())
+}
+
+func TestValidateProblems(t *testing.T) {
+	Fs = afero.NewMemMapFs()
+
+	tests := []struct {
+		config string
+		err    string
+	}{{
+		`
+mode = "frog"
+`,
+		"invalid mode: frog",
+	}, {
+		`
+mode = "listener"
+port = -1
+`,
+		"listener port out of range",
+	}, {
+		`
+mode = "listener"
+port = 65536
+`,
+		"listener port out of range",
+	}, {
+		`
+mode = "listener_http"
+port = -1
+`,
+		"listener port out of range",
+	}, {
+		`
+mode = "listener_http"
+port = 65536
+`,
+		"listener port out of range",
+	}, {
+		`
+mode = "filter"
+probe_port = 65536
+`,
+		"probe_port out of range",
+	}, {
+		`
+mode = "writer"
+probe_port = -1
+`,
+		"probe_port out of range",
+	}, {
+		`
+mode = "filter"
+pprof_port = 65536
+`,
+		"pprof_port out of range",
+	}, {
+		`
+mode = "writer"
+pprof_port = -1
+`,
+		"pprof_port out of range",
+	}, {
+		`
+mode = "listener"
+nats_subject = ["one", "two"]
+`,
+		"listener should only use one NATS subject",
+	}, {
+		`
+mode = "listener_http"
+nats_subject = ["one", "two"]
+`,
+		"listener should only use one NATS subject",
+	}, {
+		`
+mode = "filter"
+nats_subject = ["one", "two"]
+`,
+		"filter should only use one NATS subject",
+	}, {
+		`
+mode = "filter"
+
+[[rule]]
+match = "needle"
+subject = "foo"
+`,
+		`rule missing "type"`,
+	}, {
+		`
+mode = "filter"
+
+[[rule]]
+type = "basic"
+subject = "foo"
+`,
+		`rule missing "match"`,
+	}, {
+		`
+mode = "filter"
+
+[[rule]]
+type = "basic"
+match = "needle"
+`,
+		`rule missing "subject"`,
+	}, {
+		`
+mode = "writer"
+nats_subject = []
+`,
+		"writer needs at least one NATS subject",
+	}, {
+		`
+mode = "writer"
+influxdb_port = 65536
+`,
+		"influxdb_port out of range",
+	}, {
+		`
+mode = "writer"
+influxdb_port = 0
+`,
+		"influxdb_port out of range",
+	}, {
+		`
+mode = "writer"
+
+[[rule]]
+match = "needle"
+`,
+		`rule missing "type"`,
+	}, {
+		`
+mode = "writer"
+
+[[rule]]
+type = "basic"
+`,
+		`rule missing "match"`,
+	}, {
+		`
+mode = "writer"
+
+[[rule]]
+type = "basic"
+match = "needle"
+subject = "matches"
+`,
+		`writer rules shouldn't have subject ("matches")`,
+	},
+	}
+
+	for i, test := range tests {
+		t.Logf("Validate test %d (%s)", i, test.err)
+		afero.WriteFile(Fs, testConfigFileName, []byte(test.config), 0600)
+		conf, err := NewConfigFromFile(testConfigFileName)
+		assert.Nil(t, conf)
+		assert.EqualError(t, err, test.err)
+	}
+}
