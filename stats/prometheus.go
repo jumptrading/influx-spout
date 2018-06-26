@@ -20,29 +20,25 @@ import (
 	"github.com/jumptrading/influx-spout/prometheus"
 )
 
+// NewLabels creates a new prometheus.Labels with the component and
+// name set as given.
+func NewLabels(component, name string) prometheus.Labels {
+	return prometheus.Labels{
+		{Name: []byte("component"), Value: []byte(component)},
+		{Name: []byte("name"), Value: []byte(name)},
+	}
+}
+
 // SnapshotToPrometheus takes Snapshot produced by a Stats instance
 // and formats it into Prometheus metrics lines using the timestamp
 // and labels provided.
-func SnapshotToPrometheus(
-	snap Snapshot,
-	now time.Time,
-	labels map[string]string,
-) []byte {
+func SnapshotToPrometheus(snap Snapshot, now time.Time, labels prometheus.Labels) []byte {
 	millis := timeToMillis(now)
-
-	labelPairs := make(prometheus.Labels, 0, len(labels))
-	for name, value := range labels {
-		labelPairs = append(labelPairs, prometheus.Label{
-			Name:  []byte(name),
-			Value: []byte(value),
-		})
-	}
-
 	set := prometheus.NewMetricSet()
 	for _, counter := range snap {
 		set.Update(&prometheus.Metric{
 			Name:         []byte(counter.Name),
-			Labels:       labelPairs,
+			Labels:       labels,
 			Value:        int64(counter.Value),
 			Milliseconds: millis,
 		})
@@ -51,10 +47,10 @@ func SnapshotToPrometheus(
 }
 
 // CounterToPrometheus generates a single Prometheus line for a counter.
-func CounterToPrometheus(name string, value int, now time.Time, labels map[string]string) []byte {
+func CounterToPrometheus(name string, value int, now time.Time, labels prometheus.Labels) []byte {
 	metric := &prometheus.Metric{
 		Name:         []byte(name),
-		Labels:       toLabels(labels),
+		Labels:       labels,
 		Value:        int64(value),
 		Milliseconds: timeToMillis(now),
 	}
@@ -63,15 +59,4 @@ func CounterToPrometheus(name string, value int, now time.Time, labels map[strin
 
 func timeToMillis(t time.Time) int64 {
 	return t.UnixNano() / int64(time.Millisecond)
-}
-
-func toLabels(labels map[string]string) prometheus.Labels {
-	labelPairs := make(prometheus.Labels, 0, len(labels))
-	for name, value := range labels {
-		labelPairs = append(labelPairs, prometheus.Label{
-			Name:  []byte(name),
-			Value: []byte(value),
-		})
-	}
-	return labelPairs
 }

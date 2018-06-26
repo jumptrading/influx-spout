@@ -164,11 +164,7 @@ func (f *Filter) Stop() {
 func (f *Filter) startStatistician(st *stats.Stats, ruleSt *stats.AnonStats, rules *RuleSet) {
 	defer f.wg.Done()
 
-	generalLabels := map[string]string{
-		"component": "filter",
-		"name":      f.c.Name,
-	}
-
+	labels := stats.NewLabels("filter", f.c.Name)
 	for {
 		f.updateNATSDropped(st)
 
@@ -177,7 +173,7 @@ func (f *Filter) startStatistician(st *stats.Stats, ruleSt *stats.AnonStats, rul
 		ruleCounts := ruleSt.Snapshot()
 
 		// publish the general stats
-		lines := stats.SnapshotToPrometheus(snap, now, generalLabels)
+		lines := stats.SnapshotToPrometheus(snap, now, labels)
 		f.nc.Publish(f.c.NATSSubjectMonitor, lines)
 
 		// publish the per rule stats
@@ -186,11 +182,7 @@ func (f *Filter) startStatistician(st *stats.Stats, ruleSt *stats.AnonStats, rul
 				"triggered",
 				int(ruleCounts[i]),
 				now,
-				map[string]string{
-					"component": "filter",
-					"name":      f.c.Name,
-					"rule":      subject,
-				},
+				labels.With("rule", subject),
 			))
 		}
 
