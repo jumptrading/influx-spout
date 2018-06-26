@@ -159,6 +159,10 @@ read_buffer_size = "4MB"
 # by the monitor).
 nats_subject_monitor = "influx-spout-monitor"
 
+# The listener will publish its internal metrics to the monitor component at
+this interval.
+stats_interval = "3s"
+
 # The listener will serve Kubernetes liveness and readiness probes on this port
 # at /healthz and /readyz. Set to 0 (the default) to disable probes support.
 probe_port = 0
@@ -211,6 +215,10 @@ batch_max_size = "1MB"
 # consumption by the monitor).
 nats_subject_monitor = "influx-spout-monitor"
 
+# The HTTP listener will publish its internal metrics to the monitor component
+# at this interval.
+stats_interval = "3s"
+
 # The HTTP listener will serve Kubernetes liveness and readiness probes on this
 # port at /healthz and /readyz. Set to 0 (the default) to disable probes support.
 probe_port = 0
@@ -257,6 +265,10 @@ nats_max_pending_size = "200MB"
 
 # The number of filter workers to spawn.
 workers = 8
+
+# The filter will publish its internal metrics to the monitor component at this
+# interval.
+stats_interval = "3s"
 
 # The filter will serve Kubernetes liveness and readiness probes on this port at
 # /healthz and /readyz. Set to 0 (the default) to disable probes support.
@@ -373,6 +385,10 @@ nats_max_pending_size = "200MB"
 # The writer will publish its own metrics to this NATS subject (for consumption
 # by the monitor).
 nats_subject_monitor = "influx-spout-monitor"
+
+# The writer will publish its internal metrics to the monitor component at this
+# interval.
+stats_interval = "3s"
 
 # The writer will serve Kubernetes liveness and readiness probes on this port at
 # /healthz and /readyz. Set to 0 (the default) to disable probes support.

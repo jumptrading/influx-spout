@@ -273,7 +273,7 @@ func (w *Writer) startStatistician(subs []*nats.Subscription) {
 		w.nc.Flush()
 
 		select {
-		case <-time.After(3 * time.Second):
+		case <-time.After(w.c.StatsInterval.Duration):
 		case <-w.stop:
 			return
 		}

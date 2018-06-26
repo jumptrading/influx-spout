@@ -56,12 +56,6 @@ var (
 	numLines = len(poetry)
 )
 
-func init() {
-	// Make the statistician report more often during tests (default
-	// is 3s). This makes the tests run faster.
-	statsInterval = 500 * time.Millisecond
-}
-
 func testConfig() *config.Config {
 	return &config.Config{
 		Mode:               "listener",
@@ -76,6 +70,10 @@ func testConfig() *config.Config {
 
 		Port:      listenPort,
 		ProbePort: probePort,
+
+		// Make the statistician report more often during tests. This
+		// makes the tests run faster.
+		StatsInterval: config.Duration{250 * time.Millisecond},
 	}
 }
 
