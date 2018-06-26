@@ -69,7 +69,7 @@ func TestParseLabel(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, &prometheus.Metric{
 		Name: []byte("foo"),
-		Labels: prometheus.LabelPairs{{
+		Labels: prometheus.Labels{{
 			Name:  []byte("method"),
 			Value: []byte("post"),
 		}},
@@ -91,7 +91,7 @@ func TestParseMultipleLabels(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, &prometheus.Metric{
 		Name: []byte("foo"),
-		Labels: prometheus.LabelPairs{
+		Labels: prometheus.Labels{
 			{
 				Name:  []byte("method"),
 				Value: []byte("post"),
@@ -162,7 +162,7 @@ func TestParseLabelsAndTimestamp(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, &prometheus.Metric{
 		Name: []byte("foo"),
-		Labels: prometheus.LabelPairs{
+		Labels: prometheus.Labels{
 			{
 				Name:  []byte("host"),
 				Value: []byte("nyc01"),
@@ -190,7 +190,7 @@ bar 1234`[1:])
 	expected := prometheus.NewMetricSet()
 	expected.Update(&prometheus.Metric{
 		Name: []byte("foo"),
-		Labels: prometheus.LabelPairs{
+		Labels: prometheus.Labels{
 			{
 				Name:  []byte("host"),
 				Value: []byte("nyc01"),
@@ -209,7 +209,7 @@ bar 1234`[1:])
 	})
 	expected.Update(&prometheus.Metric{
 		Name: []byte("foo"),
-		Labels: prometheus.LabelPairs{
+		Labels: prometheus.Labels{
 			{
 				Name:  []byte("host"),
 				Value: []byte("nyc02"),

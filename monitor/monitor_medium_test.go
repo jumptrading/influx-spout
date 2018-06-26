@@ -70,7 +70,7 @@ func TestMonitor(t *testing.T) {
 	// monitor's metric endpoint.
 	m0 := &prometheus.Metric{
 		Name: []byte("foo"),
-		Labels: prometheus.LabelPairs{
+		Labels: prometheus.Labels{
 			{
 				Name:  []byte("host"),
 				Value: []byte("nyc01"),
@@ -93,7 +93,7 @@ func TestMonitor(t *testing.T) {
 	nextUpdate := prometheus.NewMetricSet()
 	nextUpdate.Update(&prometheus.Metric{
 		Name: []byte("foo"),
-		Labels: prometheus.LabelPairs{
+		Labels: prometheus.Labels{
 			{
 				Name:  []byte("host"),
 				Value: []byte("nyc01"),
@@ -108,7 +108,7 @@ func TestMonitor(t *testing.T) {
 	})
 	nextUpdate.Update(&prometheus.Metric{
 		Name: []byte("bar"),
-		Labels: prometheus.LabelPairs{
+		Labels: prometheus.Labels{
 			{
 				Name:  []byte("host"),
 				Value: []byte("nyc02"),
