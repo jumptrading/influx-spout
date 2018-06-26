@@ -15,6 +15,7 @@
 package stats
 
 import (
+	"os"
 	"time"
 
 	"github.com/jumptrading/influx-spout/prometheus"
@@ -26,6 +27,7 @@ func NewLabels(component, name string) prometheus.Labels {
 	return prometheus.Labels{
 		{Name: []byte("component"), Value: []byte(component)},
 		{Name: []byte("name"), Value: []byte(name)},
+		{Name: []byte("host"), Value: []byte(hostname)},
 	}
 }
 
@@ -59,4 +61,20 @@ func CounterToPrometheus(name string, value int, now time.Time, labels prometheu
 
 func timeToMillis(t time.Time) int64 {
 	return t.UnixNano() / int64(time.Millisecond)
+}
+
+var hostname string
+
+// SetHostname allows the hostname reported for metrics to be
+// overridden. This is mainly intended for tests.
+func SetHostname(h string) {
+	hostname = h
+}
+
+func init() {
+	h, err := os.Hostname()
+	if err != nil {
+		panic(err)
+	}
+	SetHostname(h)
 }

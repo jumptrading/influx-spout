@@ -32,6 +32,7 @@ import (
 
 	"github.com/jumptrading/influx-spout/config"
 	"github.com/jumptrading/influx-spout/spouttest"
+	"github.com/jumptrading/influx-spout/stats"
 )
 
 const (
@@ -79,6 +80,8 @@ func testConfig() *config.Config {
 }
 
 func TestBatching(t *testing.T) {
+	stats.SetHostname("h")
+
 	s := spouttest.RunGnatsd(natsPort)
 	defer s.Shutdown()
 
@@ -110,6 +113,8 @@ func TestBatching(t *testing.T) {
 }
 
 func TestWhatComesAroundGoesAround(t *testing.T) {
+	stats.SetHostname("h")
+
 	s := spouttest.RunGnatsd(natsPort)
 	defer s.Shutdown()
 
@@ -212,6 +217,8 @@ func TestBatchAge(t *testing.T) {
 }
 
 func TestHTTPListener(t *testing.T) {
+	stats.SetHostname("h")
+
 	s := spouttest.RunGnatsd(natsPort)
 	defer s.Shutdown()
 
@@ -241,6 +248,8 @@ func TestHTTPListener(t *testing.T) {
 }
 
 func TestHTTPListenerBigPOST(t *testing.T) {
+	stats.SetHostname("h")
+
 	s := spouttest.RunGnatsd(natsPort)
 	defer s.Shutdown()
 
@@ -552,10 +561,10 @@ func assertNoMore(t *testing.T, ch chan string) {
 
 func assertMonitor(t *testing.T, monitorCh chan string, received, sent int) {
 	expected := []string{
-		fmt.Sprintf(`received{component="listener",name="testlistener"} %d`, received),
-		fmt.Sprintf(`sent{component="listener",name="testlistener"} %d`, sent),
-		`read_errors{component="listener",name="testlistener"} 0`,
-		`failed_nats_publish{component="listener",name="testlistener"} 0`,
+		fmt.Sprintf(`received{component="listener",host="h",name="testlistener"} %d`, received),
+		fmt.Sprintf(`sent{component="listener",host="h",name="testlistener"} %d`, sent),
+		`read_errors{component="listener",host="h",name="testlistener"} 0`,
+		`failed_nats_publish{component="listener",host="h",name="testlistener"} 0`,
 	}
 	spouttest.AssertMonitor(t, monitorCh, expected)
 }
