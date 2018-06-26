@@ -34,6 +34,7 @@ import (
 
 	"github.com/jumptrading/influx-spout/config"
 	"github.com/jumptrading/influx-spout/spouttest"
+	"github.com/jumptrading/influx-spout/stats"
 )
 
 const (
@@ -58,6 +59,8 @@ const (
 )
 
 func TestEndToEnd(t *testing.T) {
+	stats.SetHostname("h")
+
 	// Start gnatsd.
 	gnatsd := spouttest.RunGnatsd(natsPort)
 	defer gnatsd.Shutdown()
@@ -140,22 +143,22 @@ func TestEndToEnd(t *testing.T) {
 
 	// Check metrics published by monitor component.
 	expectedMetrics := regexp.MustCompile(`
-failed_nats_publish{component="filter",name="filter"} 0
-failed_nats_publish{component="listener",name="listener"} 0
-failed_writes{component="writer",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44601",name="writer"} 0
-invalid_time{component="filter",name="filter"} 0
-max_pending{component="writer",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44601",name="writer"} \d+
-nats_dropped{component="filter",name="filter"} 0
-nats_dropped{component="writer",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44601",name="writer",subject="system"} 0
-passed{component="filter",name="filter"} 10
-processed{component="filter",name="filter"} 20
-read_errors{component="listener",name="listener"} 0
-received{component="listener",name="listener"} 5
-received{component="writer",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44601",name="writer"} 2
-rejected{component="filter",name="filter"} 10
-sent{component="listener",name="listener"} 1
-triggered{component="filter",name="filter",rule="system"} 10
-write_requests{component="writer",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44601",name="writer"} 2
+failed_nats_publish{component="filter",host="h",name="filter"} 0
+failed_nats_publish{component="listener",host="h",name="listener"} 0
+failed_writes{component="writer",host="h",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44601",name="writer"} 0
+invalid_time{component="filter",host="h",name="filter"} 0
+max_pending{component="writer",host="h",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44601",name="writer"} \d+
+nats_dropped{component="filter",host="h",name="filter"} 0
+nats_dropped{component="writer",host="h",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44601",name="writer",subject="system"} 0
+passed{component="filter",host="h",name="filter"} 10
+processed{component="filter",host="h",name="filter"} 20
+read_errors{component="listener",host="h",name="listener"} 0
+received{component="listener",host="h",name="listener"} 5
+received{component="writer",host="h",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44601",name="writer"} 2
+rejected{component="filter",host="h",name="filter"} 10
+sent{component="listener",host="h",name="listener"} 1
+triggered{component="filter",host="h",name="filter",rule="system"} 10
+write_requests{component="writer",host="h",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44601",name="writer"} 2
 $`[1:])
 	var lines string
 	for try := 0; try < 20; try++ {

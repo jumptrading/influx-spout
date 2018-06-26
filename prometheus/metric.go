@@ -17,14 +17,13 @@ package prometheus
 import (
 	"bytes"
 	"fmt"
-	"sort"
 )
 
 // Metric represents a single Prometheus metric line, including its
 // labels and timestamp.
 type Metric struct {
 	Name         []byte
-	Labels       LabelPairs
+	Labels       Labels
 	Value        int64
 	Milliseconds int64
 }
@@ -44,35 +43,4 @@ func (m *Metric) ToBytes() []byte {
 		fmt.Fprintf(out, " %d", m.Milliseconds)
 	}
 	return out.Bytes()
-}
-
-// LabelPairs contains the set of labels for a metric.
-type LabelPairs []LabelPair
-
-// ToBytes renders the label name and value to wire format.
-func (p LabelPairs) ToBytes() []byte {
-	p.sort() // ensure consistent output order
-
-	out := new(bytes.Buffer)
-	out.WriteByte('{')
-	for i, label := range p {
-		fmt.Fprintf(out, `%s="%s"`, label.Name, label.Value)
-		if i < len(p)-1 {
-			out.WriteByte(',')
-		}
-	}
-	out.WriteByte('}')
-	return out.Bytes()
-}
-
-func (p LabelPairs) sort() {
-	sort.Slice(p, func(i, j int) bool {
-		return bytes.Compare(p[i].Name, p[j].Name) < 0
-	})
-}
-
-// LabelPair contains a label name and value.
-type LabelPair struct {
-	Name  []byte
-	Value []byte
 }

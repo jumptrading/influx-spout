@@ -28,6 +28,7 @@ import (
 
 	"github.com/jumptrading/influx-spout/config"
 	"github.com/jumptrading/influx-spout/spouttest"
+	"github.com/jumptrading/influx-spout/stats"
 )
 
 const natsPort = 44100
@@ -53,6 +54,8 @@ func testConfig() *config.Config {
 }
 
 func TestFilterWorker(t *testing.T) {
+	stats.SetHostname("h")
+
 	gnatsd := spouttest.RunGnatsd(natsPort)
 	defer gnatsd.Shutdown()
 
@@ -108,17 +111,19 @@ goodbye,host=gopher01
 
 	// Receive monitor metrics
 	spouttest.AssertMonitor(t, monitorCh, []string{
-		`passed{component="filter",name="particle"} 2`,
-		`processed{component="filter",name="particle"} 3`,
-		`rejected{component="filter",name="particle"} 1`,
-		`invalid_time{component="filter",name="particle"} 0`,
-		`failed_nats_publish{component="filter",name="particle"} 0`,
-		`nats_dropped{component="filter",name="particle"} 0`,
-		`triggered{component="filter",name="particle",rule="hello-subject"} 2`,
+		`passed{component="filter",host="h",name="particle"} 2`,
+		`processed{component="filter",host="h",name="particle"} 3`,
+		`rejected{component="filter",host="h",name="particle"} 1`,
+		`invalid_time{component="filter",host="h",name="particle"} 0`,
+		`failed_nats_publish{component="filter",host="h",name="particle"} 0`,
+		`nats_dropped{component="filter",host="h",name="particle"} 0`,
+		`triggered{component="filter",host="h",name="particle",rule="hello-subject"} 2`,
 	})
 }
 
 func TestInvalidTimeStamps(t *testing.T) {
+	stats.SetHostname("h")
+
 	gnatsd := spouttest.RunGnatsd(natsPort)
 	defer gnatsd.Shutdown()
 
@@ -166,13 +171,13 @@ func TestInvalidTimeStamps(t *testing.T) {
 
 	// Receive monitor metrics.
 	spouttest.AssertMonitor(t, monitorCh, []string{
-		`passed{component="filter",name="particle"} 2`,
-		`processed{component="filter",name="particle"} 4`,
-		`rejected{component="filter",name="particle"} 0`,
-		`invalid_time{component="filter",name="particle"} 2`,
-		`failed_nats_publish{component="filter",name="particle"} 0`,
-		`nats_dropped{component="filter",name="particle"} 0`,
-		`triggered{component="filter",name="particle",rule="hello-subject"} 2`,
+		`passed{component="filter",host="h",name="particle"} 2`,
+		`processed{component="filter",host="h",name="particle"} 4`,
+		`rejected{component="filter",host="h",name="particle"} 0`,
+		`invalid_time{component="filter",host="h",name="particle"} 2`,
+		`failed_nats_publish{component="filter",host="h",name="particle"} 0`,
+		`nats_dropped{component="filter",host="h",name="particle"} 0`,
+		`triggered{component="filter",host="h",name="particle",rule="hello-subject"} 2`,
 	})
 }
 

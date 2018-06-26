@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jumptrading/influx-spout/prometheus"
 	"github.com/jumptrading/influx-spout/stats"
 	"github.com/stretchr/testify/assert"
 )
@@ -43,16 +44,12 @@ qaz 0 1234567890000
 
 func TestToPrometheusWithLabels(t *testing.T) {
 	snap := stats.Snapshot{
-		{"foo", 42},
-		{"bar", 99},
-		{"qaz", 0},
+		{Name: "foo", Value: 42},
+		{Name: "bar", Value: 99},
+		{Name: "qaz", Value: 0},
 	}
 	ts := time.Date(2009, 2, 13, 23, 31, 30, 0, time.UTC)
-	labels := map[string]string{
-		"host":  "nyc01",
-		"level": "high",
-	}
-
+	labels := prometheus.Labels{}.With("host", "nyc01").With("level", "high")
 	actual := stats.SnapshotToPrometheus(snap, ts, labels)
 	expected := []byte(`
 bar{host="nyc01",level="high"} 99 1234567890000
@@ -64,7 +61,7 @@ qaz{host="nyc01",level="high"} 0 1234567890000
 
 func TestCounterToPrometheus(t *testing.T) {
 	ts := time.Date(2009, 2, 13, 23, 31, 30, 0, time.UTC)
-	labels := map[string]string{"host": "nyc01"}
+	labels := prometheus.Labels{}.With("host", "nyc01")
 
 	actual := stats.CounterToPrometheus("foo", 99, ts, labels)
 	expected := []byte(`foo{host="nyc01"} 99 1234567890000`)
