@@ -47,6 +47,9 @@ const (
 	statNATSDropped   = "nats_dropped"
 )
 
+// Writer consumes lines from one or more NATS subjects, optionally
+// applies filtering, batches them up and then writes them to a
+// InfluxDB endpoint.
 type Writer struct {
 	c      *config.Config
 	url    string
@@ -58,8 +61,7 @@ type Writer struct {
 	stop   chan struct{}
 }
 
-// StartWriter is the heavylifter, subscribes to the subject where
-// listeners publish the messages and writes it the InfluxDB endpoint.
+// StartWriter creates and configures a Writer.
 func StartWriter(c *config.Config) (_ *Writer, err error) {
 	w := &Writer{
 		c:      c,

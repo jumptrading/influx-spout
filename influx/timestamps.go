@@ -26,7 +26,7 @@ import (
 )
 
 const (
-	// minNanoTime is the minumum time that can be represented.
+	// minNanoTime is the minimum time that can be represented.
 	//
 	// 1677-09-21 00:12:43.145224194 +0000 UTC
 	//
