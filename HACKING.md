@@ -86,9 +86,15 @@ host that is going to create and publish a release.
 
 To publish a new release:
 
+* Add notes for the release at the top of
+  `release-notes.md`. **Important**: Ensure the notes start with a
+  level 1 header for the release (e.g. `# v3.2.1`). The
+  `git log --reverse <previous-tag>..HEAD` command is useful for
+  browsing the commits in the release.
+* Commit and merge the updates to `release-notes.md`.
 * Create an annotated tag for the release. For example: `git tag v3.2.1 -m "3.2.1 release"`
 * Push the tag to Github. For example: `git push origin 3.2.1`
-* Run GoReleaser: `goreleaser --rm-dist`
+* Publish the release using the Make target: `make goreleaser`
 
 This will build the release artifacts, generate a changelog and
 publish these to [Github](https://github.com/jumptrading/influx-spout/releases).

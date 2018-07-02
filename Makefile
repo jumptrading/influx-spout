@@ -71,3 +71,7 @@ coverage:
 .PHONY: benchmark
 benchmark:
 	./runtests -b -r small medium large
+
+.PHONY: goreleaser
+goreleaser:
+	bash -c "goreleaser --rm-dist --release-notes=<(awk '/^# .+/{p++} p==2{print; exit} p>=1' release-notes.md | grep -Ev '^# .+')"
