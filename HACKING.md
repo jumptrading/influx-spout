@@ -93,7 +93,7 @@ To publish a new release:
   browsing the commits in the release.
 * Commit and merge the updates to `release-notes.md`.
 * Create an annotated tag for the release. For example: `git tag v3.2.1 -m "3.2.1 release"`
-* Push the tag to Github. For example: `git push origin 3.2.1`
+* Push the tag to Github. For example: `git push origin v3.2.1`
 * Publish the release using the Make target: `make goreleaser`
 
 This will build the release artifacts, generate a changelog and
