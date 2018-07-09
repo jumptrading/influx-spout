@@ -160,7 +160,7 @@ read_buffer_size = "4MB"
 nats_subject_monitor = "influx-spout-monitor"
 
 # The listener will publish its internal metrics to the monitor component at
-this interval.
+# this interval.
 stats_interval = "3s"
 
 # The listener will serve Kubernetes liveness and readiness probes on this port
@@ -224,7 +224,7 @@ stats_interval = "3s"
 probe_port = 0
 
 # The HTTP listener will serve Go pprof requests at this port. Set to 0 (the
-default) to disable pprof support.
+# default) to disable pprof support.
 pprof_port = 0
 ```
 
