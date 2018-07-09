@@ -60,9 +60,10 @@ type Config struct {
 
 // Rule contains the configuration for a single filter rule.
 type Rule struct {
-	Rtype   string `toml:"type"`
-	Match   string `toml:"match"`
-	Subject string `toml:"subject"`
+	Rtype   string     `toml:"type"`
+	Match   string     `toml:"match"`
+	Tags    [][]string `toml:"tags"`
+	Subject string     `toml:"subject"`
 }
 
 func newDefaultConfig() *Config {
@@ -130,11 +131,27 @@ func (c *Config) validateFilter() error {
 		if rule.Rtype == "" {
 			return errors.New(`rule missing "type"`)
 		}
-		if rule.Match == "" {
-			return errors.New(`rule missing "match"`)
-		}
 		if rule.Subject == "" {
 			return errors.New(`rule missing "subject"`)
+		}
+		if rule.Rtype != "tags" && rule.Match == "" {
+			return errors.New(`rule missing "match"`)
+		}
+		if rule.Rtype != "tags" && len(rule.Tags) > 0 {
+			return fmt.Errorf(`%s rule cannot use "tags"`, rule.Rtype)
+		}
+		if rule.Rtype == "tags" {
+			if rule.Match != "" {
+				return errors.New(`tags rule cannot use "match"`)
+			}
+			if len(rule.Tags) == 0 {
+				return errors.New(`tags rule missing "tags"`)
+			}
+			for _, tag := range rule.Tags {
+				if len(tag) != 2 {
+					return errors.New("each tags item must contain 2 values")
+				}
+			}
 		}
 	}
 	return nil

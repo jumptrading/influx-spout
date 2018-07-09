@@ -296,10 +296,24 @@ match = "cgroup"
 # Measurements matching the rule are forwarded to this subject.
 subject = "measurement.cgroup"
 
+[[rule]]
+# "tags" rules match measurement tags exactly.
+type = "tags"
+
+# Each item in "tags" specifies a tag key and value pair. All tags specified
+# must be present for the line to match the rule.
+tags = [
+  ["key1", "value1"],
+  ["key2", "value2"],
+]
+
+# As above.
+subject = "somewhere"
 
 [[rule]]
 # "regex" rules apply a regular expression to full measurement lines.
-# Note: regex rules are significantly slower than basic rules. Use with care.
+# Note: regex rules are significantly slower than basic and tags rules. Use
+# with care.
 type = "regex"
 
 # For regex rules, "match" specifies regular expression pattern to apply.
@@ -397,16 +411,19 @@ probe_port = 0
 # The writer will serve Go pprof requests at this port. Set to 0 (the default)
 # to disable pprof support.
 pprof_port = 0
+
+# Writers can optionally include filter rules. When filter rules are configured,
+# measurements which don't match a rule will be dropped by the writer instead
+# of being written to InfluxDB. Rule configuration is the same as for the
+# filter component, but the rule subject should be omitted.
+[[rule]]
+type = "basic"
+match = "cgroup"
 ```
 
 A writer will batch up messages until one of the limits defined by the
 `batch_max_count`, `batch_max_size` or `batch_max_age` options is
 reached.
-
-Writers can optionally include filter rules. When filter rules are configured
-measurements which don't match a rule will be dropped by the writer instead of
-being written to InfluxDB. Rule configuration is the same as for the filter
-component, but the rule subject should be omitted.
 
 ### Monitor
 

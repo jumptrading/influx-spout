@@ -182,23 +182,39 @@ match = "hello"
 subject = "hello-subject"
 
 [[rule]]
-type = "basic"
+type = "regex"
 match = "world"
 subject = "world-subject"
+
+[[rule]]
+type = "tags"
+tags = [
+   ["foo", "bar"],
+   ["aaa", "zzz"],
+]
+subject = "foo-subject"
 `
 	conf, err := parseConfig(rulesConfig)
 	require.NoError(t, err, "config should be parsed")
 
-	assert.Len(t, conf.Rule, 2)
+	assert.Len(t, conf.Rule, 3)
 	assert.Equal(t, conf.Rule[0], Rule{
 		Rtype:   "basic",
 		Match:   "hello",
 		Subject: "hello-subject",
 	})
 	assert.Equal(t, conf.Rule[1], Rule{
-		Rtype:   "basic",
+		Rtype:   "regex",
 		Match:   "world",
 		Subject: "world-subject",
+	})
+	assert.Equal(t, conf.Rule[2], Rule{
+		Rtype: "tags",
+		Tags: [][]string{
+			{"foo", "bar"},
+			{"aaa", "zzz"},
+		},
+		Subject: "foo-subject",
 	})
 }
 
@@ -381,6 +397,46 @@ type = "basic"
 match = "needle"
 `,
 		`rule missing "subject"`,
+	}, {
+		`
+mode = "filter"
+
+[[rule]]
+type = "basic"
+match = "something"
+subject = "out"
+tags = [["abc", "def"]]
+`,
+		`basic rule cannot use "tags"`,
+	}, {
+		`
+mode = "filter"
+
+[[rule]]
+type = "tags"
+subject = "out"
+match = "something"
+`,
+		`tags rule cannot use "match"`,
+	}, {
+		`
+mode = "filter"
+
+[[rule]]
+type = "tags"
+subject = "out"
+`,
+		`tags rule missing "tags"`,
+	}, {
+		`
+mode = "filter"
+
+[[rule]]
+type = "tags"
+tags = [["abc", "def", "zzz"]]
+subject = "out"
+`,
+		`each tags item must contain 2 values`,
 	}, {
 		`
 mode = "writer"
