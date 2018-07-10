@@ -15,6 +15,7 @@
 package filter
 
 import (
+	"bytes"
 	"fmt"
 	"hash/fnv"
 	"regexp"
@@ -44,10 +45,7 @@ func CreateBasicRule(measurement string, subject string) Rule {
 
 	return Rule{
 		match: func(line []byte) bool {
-			name, escaped := measurementName(line)
-			if escaped {
-				name = influxUnescape(name)
-			}
+			name, _ := parseNext(line, []byte(", "))
 			return hh == hashMeasurement(name)
 		},
 		subject: subject,
@@ -58,40 +56,6 @@ func hashMeasurement(measurement []byte) uint32 {
 	hh := fnv.New32()
 	hh.Write(measurement)
 	return hh.Sum32()
-}
-
-// measurementName takes an *escaped* line protocol line and returns
-// the *escaped* measurement from it. It also returns whether
-// unescaping of the returned value is required.
-func measurementName(s []byte) ([]byte, bool) {
-	// Handle the unlikely case of a single character line.
-	if len(s) == 1 {
-		switch s[0] {
-		case ' ', ',':
-			return s[:0], false
-		default:
-			return s, false
-		}
-	}
-
-	escaped := false
-	i := 0
-	for {
-		i++
-		if i >= len(s) {
-			return s, escaped
-		}
-
-		if s[i-1] == '\\' {
-			// Skip character (it's escaped).
-			escaped = true
-			continue
-		}
-
-		if s[i] == ',' || s[i] == ' ' {
-			return s[:i], escaped
-		}
-	}
 }
 
 // CreateRegexRule creates a rule that publishes measurements which
@@ -120,6 +84,31 @@ func CreateNegativeRegexRule(regexString, subject string) Rule {
 	}
 }
 
+// NewTag creates a new Tag instance from key & value strings.
+func NewTag(key, value string) Tag {
+	return Tag{
+		Key:   []byte(key),
+		Value: []byte(value),
+	}
+}
+
+// Tag represents a key/value pair (both bytes).
+type Tag struct {
+	Key   []byte
+	Value []byte
+}
+
+// CreateTagRule creates a rule that efficiently matches one or more
+// measurement tags.
+func CreateTagRule(tags []Tag, subject string) Rule {
+	return Rule{
+		match: func(line []byte) bool {
+			return hasAllTags(line, tags)
+		},
+		subject: subject,
+	}
+}
+
 // RuleSetFromConfig creates a new RuleSet instance using the rules
 // from Config provided.
 func RuleSetFromConfig(conf *config.Config) (*RuleSet, error) {
@@ -128,6 +117,14 @@ func RuleSetFromConfig(conf *config.Config) (*RuleSet, error) {
 		switch r.Rtype {
 		case "basic":
 			rs.Append(CreateBasicRule(r.Match, r.Subject))
+		case "tags":
+			// Convert tags as [][]string from config into []Tag.
+			tags := make([]Tag, 0, len(r.Tags))
+			for _, raw := range r.Tags {
+				// This is safe because Config is validated.
+				tags = append(tags, NewTag(raw[0], raw[1]))
+			}
+			rs.Append(CreateTagRule(tags, r.Subject))
 		case "regex":
 			rs.Append(CreateRegexRule(r.Match, r.Subject))
 		case "negregex":
@@ -183,4 +180,83 @@ func (rs *RuleSet) Lookup(escaped []byte) int {
 		}
 	}
 	return -1
+}
+
+func hasAllTags(line []byte, tags []Tag) bool {
+	_, line = parseNext(line, []byte(", "))
+	if len(line) == 0 {
+		return false
+	}
+
+	numTags := len(tags)
+	found := make([]bool, numTags)
+	foundCount := 0
+	var key, value []byte
+	for {
+		if len(line) == 0 || line[0] == ' ' {
+			return false
+		}
+
+		key, line = parseNext(line[1:], []byte("="))
+		if len(line) == 0 {
+			return false
+		}
+
+		value, line = parseNext(line[1:], []byte(", "))
+		if len(line) == 0 {
+			return false
+		}
+
+		for t := 0; t < numTags; t++ {
+			if !found[t] && bytes.Equal(key, tags[t].Key) && bytes.Equal(value, tags[t].Value) {
+				found[t] = true
+				foundCount++
+				if foundCount == numTags {
+					return true
+				}
+			}
+		}
+	}
+}
+
+// parseNext takes an escaped line protocol line and returns the
+// unescaped characters leading up to until. It also returns the
+// escaped remainder of line.
+func parseNext(s []byte, until []byte) ([]byte, []byte) {
+	if len(s) == 1 {
+		for _, c := range until {
+			if s[0] == c {
+				return nil, s
+			}
+		}
+		return s, nil
+	}
+
+	escaped := false
+	i := 0
+	for {
+		i++
+		if i >= len(s) {
+			if escaped {
+				s = influxUnescape(s)
+			}
+			return s, nil
+		}
+
+		if s[i-1] == '\\' {
+			// Skip character (it's escaped).
+			escaped = true
+			continue
+		}
+
+		for _, c := range until {
+			if s[i] == c {
+				out := s[:i]
+				if escaped {
+					out = influxUnescape(out)
+				}
+				return out, s[i:]
+			}
+		}
+	}
 }

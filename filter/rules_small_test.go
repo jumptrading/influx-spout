@@ -22,10 +22,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jumptrading/influx-spout/spouttest"
-	"github.com/jumptrading/influx-spout/stats"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jumptrading/influx-spout/config"
+	"github.com/jumptrading/influx-spout/spouttest"
+	"github.com/jumptrading/influx-spout/stats"
 )
 
 func TestBasicRuleCreation(t *testing.T) {
@@ -105,52 +107,115 @@ func TestNegativeRegexRuleUnescapes(t *testing.T) {
 	assert.Equal(t, 0, rs.Lookup([]byte("bye,host=gopher01 x=hello")))
 }
 
-func TestMultipleRules(t *testing.T) {
+func TestTagRuleSingle(t *testing.T) {
 	rs := new(RuleSet)
-	rs.Append(CreateBasicRule("hello", "a"))
-	rs.Append(CreateRegexRule(".+ing", "b"))
-	rs.Append(CreateNegativeRegexRule("foo", "c"))
+	tags := []Tag{NewTag("key", "value")}
+	rs.Append(CreateTagRule(tags, ""))
 
-	assert.Equal(t, 3, rs.Count())
-	assert.Equal(t, []string{"a", "b", "c"}, rs.Subjects())
+	assert.Equal(t, 0, rs.Lookup([]byte(`foo,key=value x=22`)))
+	assert.Equal(t, 0, rs.Lookup([]byte(`foo,key=value,host=gopher01 x=22`)))
+	assert.Equal(t, 0, rs.Lookup([]byte(`foo,host=gopher01,key=value x=22`)))
+	assert.Equal(t, 0, rs.Lookup([]byte(`foo,host=gopher01,key=value,dc=ac x=22`)))
 
-	assert.Equal(t, 0, rs.Lookup([]byte("hello,host=gopher01")))
-	assert.Equal(t, 1, rs.Lookup([]byte("singing,host=gopher01")))
-	assert.Equal(t, 2, rs.Lookup([]byte("bar,host=gopher01")))
-	assert.Equal(t, -1, rs.Lookup([]byte("foo,host=gopher01")))
+	assert.Equal(t, -1, rs.Lookup([]byte("foo")))
+	assert.Equal(t, -1, rs.Lookup([]byte("foo x=22")))
+	assert.Equal(t, -1, rs.Lookup([]byte("foo,key=other x=22")))
+	assert.Equal(t, -1, rs.Lookup([]byte("foo,host=gopher01 x=22")))
 }
 
-func TestMeasurementName(t *testing.T) {
-	check := func(input, expected string, expectedEscaped bool) {
-		actual, actualEscaped := measurementName([]byte(input))
-		assert.Equal(t, expected, string(actual), "measurementName(%q)", input)
-		assert.Equal(t, expectedEscaped, actualEscaped, "measurementName(%q) (escaped)", input)
+func TestTagRuleMulti(t *testing.T) {
+	rs := new(RuleSet)
+	tags := []Tag{
+		NewTag("host", "db01"),
+		NewTag("dc", "nyc"),
+	}
+	rs.Append(CreateTagRule(tags, ""))
+
+	assert.Equal(t, 0, rs.Lookup([]byte(`foo,dc=nyc,host=db01 x=22`)))
+	assert.Equal(t, 0, rs.Lookup([]byte(`foo,alt=2000,dc=nyc,host=db01,lift=123 x=22`)))
+
+	// degenerate case (repeated keys) - but should still match
+	assert.Equal(t, 0, rs.Lookup([]byte(`foo,dc=sfo,dc=nyc,host=db01,host=xxx x=22`)))
+
+	// Each tag separately shouldn't match
+	assert.Equal(t, -1, rs.Lookup([]byte(`foo,host=db01 x=22`)))
+	assert.Equal(t, -1, rs.Lookup([]byte(`foo,dc=nyc x=22`)))
+}
+
+func TestTagRuleEscaping(t *testing.T) {
+	rs := new(RuleSet)
+	rs.Append(CreateTagRule([]Tag{NewTag("ke y", "val,ue")}, ""))
+	rs.Append(CreateTagRule([]Tag{NewTag("k=k", "v=v")}, ""))
+
+	assert.Equal(t, 0, rs.Lookup([]byte(`foo,ke\ y=val\,ue x=22`)))
+	assert.Equal(t, 0, rs.Lookup([]byte(`foo,ke\ y=val\,ue,host=gopher01 x=22`)))
+	assert.Equal(t, 0, rs.Lookup([]byte(`foo,host=gopher01,ke\ y=val\,ue x=22`)))
+	assert.Equal(t, 0, rs.Lookup([]byte(`foo,host=gopher01,ke\ y=val\,ue,dc=ac x=22`)))
+	assert.Equal(t, 1, rs.Lookup([]byte(`foo,k\=k=v\=v x=22`)))
+
+	assert.Equal(t, -1, rs.Lookup([]byte("foo,ke y=val,ue x=22")))
+	assert.Equal(t, -1, rs.Lookup([]byte("foo,f=f=v=v x=22")))
+}
+
+func TestRuleSet(t *testing.T) {
+	conf := &config.Config{
+		Rule: []config.Rule{
+			{
+				Rtype:   "basic",
+				Match:   "basic-match",
+				Subject: "basic-sub",
+			}, {
+				Rtype:   "tags",
+				Tags:    [][]string{{"foo", "bar"}},
+				Subject: "tags-sub",
+			}, {
+				Rtype:   "regex",
+				Match:   "regex-match",
+				Subject: "regex-sub",
+			}, {
+				Rtype:   "negregex",
+				Match:   "negreg-match",
+				Subject: "negregex-sub",
+			},
+		},
+	}
+	rs, err := RuleSetFromConfig(conf)
+	require.NoError(t, err)
+
+	assert.Equal(t, 4, rs.Count())
+	assert.Equal(t, []string{"basic-sub", "tags-sub", "regex-sub", "negregex-sub"}, rs.Subjects())
+
+	assert.Equal(t, 0, rs.Lookup([]byte("basic-match x=22")))
+	assert.Equal(t, 1, rs.Lookup([]byte("blah,foo=bar x=22")))
+	assert.Equal(t, 2, rs.Lookup([]byte("blah,foo=regex-match x=22")))
+	assert.Equal(t, -1, rs.Lookup([]byte("blah,foo=negreg-match")))
+}
+
+func TestParseNext(t *testing.T) {
+	check := func(input, until, exp, expRemainder string) {
+		actual, actualRemainder := parseNext([]byte(input), []byte(until))
+		assert.Equal(t, exp, string(actual), "parseNext(%q, %q)", input, until)
+		assert.Equal(t, expRemainder, string(actualRemainder), "parseNext(%q, %q) (remainder)", input, until)
 	}
 
-	check(``, ``, false)
-	check(`h`, `h`, false)
-	check("日", "日", false)
-	check(`hello`, `hello`, false)
-	check("日本語", "日本語", false)
-	check(` `, ``, false)
-	check(`,`, ``, false)
-	check(`h world`, `h`, false)
-	check(`h,world`, `h`, false)
-	check(`hello world`, `hello`, false)
-	check(`hello,world`, `hello`, false)
-	check(`hello\ world`, `hello\ world`, true)
-	check(`hello\,world`, `hello\,world`, true)
-	check(`hello\ world more`, `hello\ world`, true)
-	check(`hello\,world,more`, `hello\,world`, true)
-	check(`hello\ 日本語 more`, `hello\ 日本語`, true)
-	check(`hello\,日本語 more`, `hello\,日本語`, true)
-	check(`日本語\ hello more`, `日本語\ hello`, true)
-	check(`日本語\,hello more`, `日本語\,hello`, true)
-	check(`\ `, `\ `, true)
-	check(`\,`, `\,`, true)
-	check(`\`, `\`, false)
-	check(`h\`, `h\`, false)
-	check(`hello\`, `hello\`, false)
+	check("", " ", "", "")
+	check(`a`, " ", `a`, "")
+	check("日", " ", "日", "")
+	check(`hello`, " ", `hello`, "")
+	check("日本語", " ", "日本語", "")
+	check(" ", ", ", "", " ")
+	check(",", ", ", "", ",")
+	check(`h world`, ", ", `h`, " world")
+	check(`h,world`, ", ", `h`, ",world")
+	check(`hello world`, ", ", `hello`, ` world`)
+	check(`hello,world`, ", ", `hello`, `,world`)
+	check(`hello\ world more`, ", ", `hello world`, ` more`)
+	check(`hello\,world,more`, ", ", `hello,world`, `,more`)
+	check(`hello\ 日本語 more`, ", ", `hello 日本語`, ` more`)
+	check(`hello\,日本語,more`, ", ", `hello,日本語`, `,more`)
+	check(`\ `, " ", " ", "")
+	check(`\`, " ", `\`, "")
+	check(`hello\`, " ", `hello\`, "")
 }
 
 var result int
@@ -190,6 +255,37 @@ func BenchmarkLineLookupNegativeRegex(b *testing.B) {
 	rs := new(RuleSet)
 	rs.Append(CreateNegativeRegexRule("hello|abcde", ""))
 	line := []byte("hello world=42")
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		result = rs.Lookup(line)
+	}
+}
+
+func BenchmarkLineLookupTag(b *testing.B) {
+	spouttest.SuppressLogs()
+	defer spouttest.RestoreLogs()
+
+	rs := new(RuleSet)
+	rs.Append(CreateTagRule([]Tag{NewTag("foo", "bar")}, ""))
+	line := []byte("hello,aaa=bbb,foo=bar,cheese=stilton world=42")
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		result = rs.Lookup(line)
+	}
+}
+
+func BenchmarkLineLookupTagMulti(b *testing.B) {
+	spouttest.SuppressLogs()
+	defer spouttest.RestoreLogs()
+
+	rs := new(RuleSet)
+	rs.Append(CreateTagRule([]Tag{
+		NewTag("foo", "bar"),
+		NewTag("cheese", "stilton"),
+	}, ""))
+	line := []byte("hello,aaa=bbb,foo=bar,cheese=stilton world=42")
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
