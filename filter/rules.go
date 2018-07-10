@@ -44,7 +44,10 @@ func CreateBasicRule(measurement string, subject string) Rule {
 
 	return Rule{
 		match: func(line []byte) bool {
-			name := influxUnescape(measurementName(line))
+			name, escaped := measurementName(line)
+			if escaped {
+				name = influxUnescape(name)
+			}
 			return hh == hashMeasurement(name)
 		},
 		subject: subject,
@@ -58,32 +61,35 @@ func hashMeasurement(measurement []byte) uint32 {
 }
 
 // measurementName takes an *escaped* line protocol line and returns
-// the *escaped* measurement from it.
-func measurementName(s []byte) []byte {
+// the *escaped* measurement from it. It also returns whether
+// unescaping of the returned value is required.
+func measurementName(s []byte) ([]byte, bool) {
 	// Handle the unlikely case of a single character line.
 	if len(s) == 1 {
 		switch s[0] {
 		case ' ', ',':
-			return s[:0]
+			return s[:0], false
 		default:
-			return s
+			return s, false
 		}
 	}
 
+	escaped := false
 	i := 0
 	for {
 		i++
 		if i >= len(s) {
-			return s
+			return s, escaped
 		}
 
 		if s[i-1] == '\\' {
 			// Skip character (it's escaped).
+			escaped = true
 			continue
 		}
 
 		if s[i] == ',' || s[i] == ' ' {
-			return s[:i]
+			return s[:i], escaped
 		}
 	}
 }
