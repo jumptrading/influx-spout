@@ -121,35 +121,36 @@ func TestMultipleRules(t *testing.T) {
 }
 
 func TestMeasurementName(t *testing.T) {
-	check := func(input, expected string) {
-		assert.Equal(t, expected, string(measurementName([]byte(input))),
-			"measurementName(%q)", input)
+	check := func(input, expected string, expectedEscaped bool) {
+		actual, actualEscaped := measurementName([]byte(input))
+		assert.Equal(t, expected, string(actual), "measurementName(%q)", input)
+		assert.Equal(t, expectedEscaped, actualEscaped, "measurementName(%q) (escaped)", input)
 	}
 
-	check(``, ``)
-	check(`h`, `h`)
-	check("日", "日")
-	check(`hello`, `hello`)
-	check("日本語", "日本語")
-	check(` `, ``)
-	check(`,`, ``)
-	check(`h world`, `h`)
-	check(`h,world`, `h`)
-	check(`hello world`, `hello`)
-	check(`hello,world`, `hello`)
-	check(`hello\ world`, `hello\ world`)
-	check(`hello\,world`, `hello\,world`)
-	check(`hello\ world more`, `hello\ world`)
-	check(`hello\,world,more`, `hello\,world`)
-	check(`hello\ 日本語 more`, `hello\ 日本語`)
-	check(`hello\,日本語 more`, `hello\,日本語`)
-	check(`日本語\ hello more`, `日本語\ hello`)
-	check(`日本語\,hello more`, `日本語\,hello`)
-	check(`\ `, `\ `)
-	check(`\,`, `\,`)
-	check(`\`, `\`)
-	check(`h\`, `h\`)
-	check(`hello\`, `hello\`)
+	check(``, ``, false)
+	check(`h`, `h`, false)
+	check("日", "日", false)
+	check(`hello`, `hello`, false)
+	check("日本語", "日本語", false)
+	check(` `, ``, false)
+	check(`,`, ``, false)
+	check(`h world`, `h`, false)
+	check(`h,world`, `h`, false)
+	check(`hello world`, `hello`, false)
+	check(`hello,world`, `hello`, false)
+	check(`hello\ world`, `hello\ world`, true)
+	check(`hello\,world`, `hello\,world`, true)
+	check(`hello\ world more`, `hello\ world`, true)
+	check(`hello\,world,more`, `hello\,world`, true)
+	check(`hello\ 日本語 more`, `hello\ 日本語`, true)
+	check(`hello\,日本語 more`, `hello\,日本語`, true)
+	check(`日本語\ hello more`, `日本語\ hello`, true)
+	check(`日本語\,hello more`, `日本語\,hello`, true)
+	check(`\ `, `\ `, true)
+	check(`\,`, `\,`, true)
+	check(`\`, `\`, false)
+	check(`h\`, `h\`, false)
+	check(`hello\`, `hello\`, false)
 }
 
 var result int
