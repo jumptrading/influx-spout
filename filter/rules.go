@@ -28,10 +28,10 @@ type Rule struct {
 	// Function used to check if the rule matches
 	match func([]byte) bool
 
-	// escaped is true if the match function needs the original,
-	// escaped version of the line. The unescaped version of the line
-	// is passed otherwise.
-	escaped bool
+	// needsUnescaped is true if the match function needs the
+	// unescaped version of the line. The raw version of the line is
+	// passed otherwise.
+	needsUnescaped bool
 
 	// if the rule matches, the measurement is sent to this NATS subject
 	subject string
@@ -47,7 +47,6 @@ func CreateBasicRule(measurement string, subject string) Rule {
 			name := influxUnescape(measurementName(line))
 			return hh == hashMeasurement(name)
 		},
-		escaped: true,
 		subject: subject,
 	}
 }
@@ -97,7 +96,8 @@ func CreateRegexRule(regexString, subject string) Rule {
 		match: func(line []byte) bool {
 			return reg.Match(line)
 		},
-		subject: subject,
+		needsUnescaped: true,
+		subject:        subject,
 	}
 }
 
@@ -109,7 +109,8 @@ func CreateNegativeRegexRule(regexString, subject string) Rule {
 		match: func(line []byte) bool {
 			return !reg.Match(line)
 		},
-		subject: subject,
+		needsUnescaped: true,
+		subject:        subject,
 	}
 }
 
@@ -159,14 +160,19 @@ func (rs *RuleSet) Subjects() []string {
 
 // Lookup takes a raw line and returns the index of the rule in the
 // RuleSet that matches it. Returns -1 if there was no match.
-func (rs *RuleSet) Lookup(escapedLine []byte) int {
-	line := influxUnescape(escapedLine)
+func (rs *RuleSet) Lookup(escaped []byte) int {
+	var unescaped []byte
+	var line []byte
 	for i, rule := range rs.rules {
-		matchLine := line
-		if rule.escaped {
-			matchLine = escapedLine
+		if rule.needsUnescaped {
+			if unescaped == nil {
+				unescaped = influxUnescape(escaped)
+			}
+			line = unescaped
+		} else {
+			line = escaped
 		}
-		if rule.match(matchLine) {
+		if rule.match(line) {
 			return i
 		}
 	}
