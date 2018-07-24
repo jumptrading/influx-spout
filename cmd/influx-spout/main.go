@@ -25,6 +25,7 @@ import (
 	_ "net/http/pprof"
 
 	"github.com/jumptrading/influx-spout/config"
+	"github.com/jumptrading/influx-spout/downsampler"
 	"github.com/jumptrading/influx-spout/filter"
 	"github.com/jumptrading/influx-spout/listener"
 	"github.com/jumptrading/influx-spout/monitor"
@@ -101,6 +102,8 @@ func runComponent(configFile string) (out stoppable, err error) {
 		out, err = listener.StartHTTPListener(c)
 	case "filter":
 		out, err = filter.StartFilter(c)
+	case "downsampler":
+		out, err = downsampler.StartDownsampler(c)
 	case "writer":
 		if c.Workers == 0 {
 			// this seems to be an okay default from our testing experience:
