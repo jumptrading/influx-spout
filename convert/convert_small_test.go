@@ -17,10 +17,10 @@
 package convert_test
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/jumptrading/influx-spout/convert"
 )
@@ -28,24 +28,32 @@ import (
 func TestToInt(t *testing.T) {
 	check := func(input string, expected int64) {
 		actual, err := convert.ToInt([]byte(input))
-		require.NoError(t, err)
+		assert.NoError(t, err, "ToInt(%q) returned error", input)
 		assert.Equal(t, expected, actual, "ToInt(%q)", input)
 	}
 
 	shouldFail := func(input string) {
 		_, err := convert.ToInt([]byte(input))
-		assert.Error(t, err)
+		assert.Error(t, err, "ToInt(%q)", input)
 	}
 
 	check("0", 0)
+	check("-0", 0)
 	check("1", 1)
+	check("-1", -1)
 	check("9", 9)
 	check("10", 10)
 	check("99", 99)
+	check("-99", -99)
 	check("101", 101)
-	check("9223372036854775807", (1<<63)-1) // max int64 value
+	check("-101", -101)
+	check("9223372036854775807", math.MaxInt64)
+	check("-9223372036854775808", math.MinInt64)
 
-	shouldFail("9223372036854775808") // max int64 value + 1
-	shouldFail("-1")                  // negatives not supported
+	shouldFail("")
 	shouldFail("x")
+	shouldFail("-")
+	shouldFail("+2")
+	shouldFail("9223372036854775808")  // max int64 value + 1
+	shouldFail("-9223372036854775809") // min int64 - 1
 }
