@@ -52,13 +52,13 @@ func TestExtractTimestamp(t *testing.T) {
 	check("weather,city=paris temp=60 "+tsStr, ts, 27)
 	check("weather,city=paris temp=60,humidity=100 "+tsStr, ts, 40)
 	check("weather,city=paris temp=60,humidity=100 "+tsStr+"\n", ts, 40)
+	check("weather temp=99 -"+tsStr, -ts, 16)
 
 	// Various invalid timestamps
 	noTimestamp("weather temp=99 " + tsStr + " ")       // trailing whitespace
 	noTimestamp("weather temp=99 xxxxx")                // not digits
 	noTimestamp("weather temp=99 15x07")                // embedded non-digit
 	noTimestamp("weather temp=99 00000000000000000001") // too long
-	noTimestamp("weather temp=99 -" + tsStr)            // negative
 	noTimestamp(tsStr)                                  // timestamp only
 }
 
@@ -88,13 +88,13 @@ func TestExtractNanos(t *testing.T) {
 	check("weather,city=paris temp=60 "+tsStr, ts, 27)
 	check("weather,city=paris temp=60,humidity=100 "+tsStr, ts, 40)
 	check("weather,city=paris temp=60,humidity=100 "+tsStr+"\n", ts, 40)
+	check("weather temp=99 -"+tsStr, -ts, 16)
 
 	// Various invalid timestamps
 	noTimestamp("weather temp=99 " + tsStr + " ")       // trailing whitespace
 	noTimestamp("weather temp=99 xxxxxxxxxxxxxxxxxxx")  // not digits
 	noTimestamp("weather temp=99 152076148x803180202")  // embedded non-digit
 	noTimestamp("weather temp=99 11520761485803180202") // too long
-	noTimestamp("weather temp=99 -" + tsStr)            // negative
 	noTimestamp(tsStr)                                  // timestamp only
 }
 

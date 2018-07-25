@@ -14,19 +14,28 @@
 
 package convert
 
-import "errors"
-
-const int64Max = (1 << 63) - 1
+import (
+	"errors"
+	"math"
+)
 
 // ToInt is a simpler, faster version of strconv.ParseInt().
 // Differences to ParseInt:
 // - input is []byte instead of a string (no type conversion required
 //   by caller)
 // - only supports base 10 input
-// - only handles positive values
 func ToInt(s []byte) (int64, error) {
-	if len(s) == 0 {
+	if len(s) < 1 {
 		return 0, errors.New("empty")
+	}
+
+	negative := false
+	if s[0] == '-' {
+		negative = true
+		s = s[1:]
+		if len(s) < 1 {
+			return 0, errors.New("too short")
+		}
 	}
 
 	var n uint64
@@ -39,7 +48,13 @@ func ToInt(s []byte) (int64, error) {
 		n = n*10 + uint64(c)
 	}
 
-	if n > int64Max {
+	if negative {
+		if n > -math.MinInt64 {
+			return 0, errors.New("overflow")
+		}
+		return -int64(n), nil
+	}
+	if n > math.MaxInt64 {
 		return 0, errors.New("overflow")
 	}
 	return int64(n), nil
