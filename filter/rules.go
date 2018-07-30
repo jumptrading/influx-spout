@@ -21,6 +21,7 @@ import (
 	"regexp"
 
 	"github.com/jumptrading/influx-spout/config"
+	"github.com/jumptrading/influx-spout/influx"
 )
 
 // Rule encapsulates a matching function and the NATS topic to
@@ -169,7 +170,7 @@ func (rs *RuleSet) Lookup(escaped []byte) int {
 	for i, rule := range rs.rules {
 		if rule.needsUnescaped {
 			if unescaped == nil {
-				unescaped = influxUnescape(escaped)
+				unescaped = influx.Unescape(escaped)
 			}
 			line = unescaped
 		} else {
@@ -238,7 +239,7 @@ func parseNext(s []byte, until []byte) ([]byte, []byte) {
 		i++
 		if i >= len(s) {
 			if escaped {
-				s = influxUnescape(s)
+				s = influx.Unescape(s)
 			}
 			return s, nil
 		}
@@ -253,7 +254,7 @@ func parseNext(s []byte, until []byte) ([]byte, []byte) {
 			if s[i] == c {
 				out := s[:i]
 				if escaped {
-					out = influxUnescape(out)
+					out = influx.Unescape(out)
 				}
 				return out, s[i:]
 			}
