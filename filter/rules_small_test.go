@@ -191,33 +191,6 @@ func TestRuleSet(t *testing.T) {
 	assert.Equal(t, -1, rs.Lookup([]byte("blah,foo=negreg-match")))
 }
 
-func TestParseNext(t *testing.T) {
-	check := func(input, until, exp, expRemainder string) {
-		actual, actualRemainder := parseNext([]byte(input), []byte(until))
-		assert.Equal(t, exp, string(actual), "parseNext(%q, %q)", input, until)
-		assert.Equal(t, expRemainder, string(actualRemainder), "parseNext(%q, %q) (remainder)", input, until)
-	}
-
-	check("", " ", "", "")
-	check(`a`, " ", `a`, "")
-	check("日", " ", "日", "")
-	check(`hello`, " ", `hello`, "")
-	check("日本語", " ", "日本語", "")
-	check(" ", ", ", "", " ")
-	check(",", ", ", "", ",")
-	check(`h world`, ", ", `h`, " world")
-	check(`h,world`, ", ", `h`, ",world")
-	check(`hello world`, ", ", `hello`, ` world`)
-	check(`hello,world`, ", ", `hello`, `,world`)
-	check(`hello\ world more`, ", ", `hello world`, ` more`)
-	check(`hello\,world,more`, ", ", `hello,world`, `,more`)
-	check(`hello\ 日本語 more`, ", ", `hello 日本語`, ` more`)
-	check(`hello\,日本語,more`, ", ", `hello,日本語`, `,more`)
-	check(`\ `, " ", " ", "")
-	check(`\`, " ", `\`, "")
-	check(`hello\`, " ", `hello\`, "")
-}
-
 var result int
 
 func BenchmarkLineLookup(b *testing.B) {

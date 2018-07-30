@@ -46,7 +46,7 @@ func CreateBasicRule(measurement string, subject string) Rule {
 
 	return Rule{
 		match: func(line []byte) bool {
-			name, _ := parseNext(line, []byte(", "))
+			name, _ := influx.Token(line, []byte(", "))
 			return hh == hashMeasurement(name)
 		},
 		subject: subject,
@@ -184,7 +184,7 @@ func (rs *RuleSet) Lookup(escaped []byte) int {
 }
 
 func hasAllTags(line []byte, tags []Tag) bool {
-	_, line = parseNext(line, []byte(", "))
+	_, line = influx.Token(line, []byte(", "))
 	if len(line) == 0 {
 		return false
 	}
@@ -198,12 +198,12 @@ func hasAllTags(line []byte, tags []Tag) bool {
 			return false
 		}
 
-		key, line = parseNext(line[1:], []byte("="))
+		key, line = influx.Token(line[1:], []byte("="))
 		if len(line) == 0 {
 			return false
 		}
 
-		value, line = parseNext(line[1:], []byte(", "))
+		value, line = influx.Token(line[1:], []byte(", "))
 		if len(line) == 0 {
 			return false
 		}
@@ -215,48 +215,6 @@ func hasAllTags(line []byte, tags []Tag) bool {
 				if foundCount == numTags {
 					return true
 				}
-			}
-		}
-	}
-}
-
-// parseNext takes an escaped line protocol line and returns the
-// unescaped characters leading up to until. It also returns the
-// escaped remainder of line.
-func parseNext(s []byte, until []byte) ([]byte, []byte) {
-	if len(s) == 1 {
-		for _, c := range until {
-			if s[0] == c {
-				return nil, s
-			}
-		}
-		return s, nil
-	}
-
-	escaped := false
-	i := 0
-	for {
-		i++
-		if i >= len(s) {
-			if escaped {
-				s = influx.Unescape(s)
-			}
-			return s, nil
-		}
-
-		if s[i-1] == '\\' {
-			// Skip character (it's escaped).
-			escaped = true
-			continue
-		}
-
-		for _, c := range until {
-			if s[i] == c {
-				out := s[:i]
-				if escaped {
-					out = influx.Unescape(out)
-				}
-				return out, s[i:]
 			}
 		}
 	}
