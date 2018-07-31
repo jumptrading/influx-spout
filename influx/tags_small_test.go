@@ -148,3 +148,36 @@ func TestSubsetOf(t *testing.T) {
 	// Empty source is always a subset of anything else.
 	assert.True(t, TagSet{}.SubsetOf(TagSet{NewTag("foo", "bar")}))
 }
+
+func TestBytes(t *testing.T) {
+	check := func(input TagSet, expected string) {
+		actual := input.Bytes()
+		assert.Equal(t, expected, string(actual), "input: %v", input)
+	}
+
+	// One tag.
+	check(TagSet{NewTag("foo", "bar")}, "foo=bar")
+
+	// Multiple tags.
+	check(
+		TagSet{
+			NewTag("foo", "0"),
+			NewTag("bar", "1"),
+			NewTag("sne", "2"),
+		},
+		"foo=0,bar=1,sne=2",
+	)
+
+	// Escaping.
+	check(
+		TagSet{
+			NewTag("foo=bar", "0"),
+			NewTag("ba,r", "1"),
+			NewTag("host", "a server"),
+		},
+		`foo\=bar=0,ba\,r=1,host=a\ server`,
+	)
+
+	// Empty.
+	check(TagSet{}, "")
+}

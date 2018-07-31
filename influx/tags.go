@@ -63,6 +63,34 @@ func (t TagSet) SubsetOf(other TagSet) bool {
 	return false
 }
 
+// Bytes returns the TagSet in line protocol format. Tag keys and
+// values are escaped if necessary.
+func (t TagSet) Bytes() []byte {
+	numTags := len(t)
+	if numTags == 0 {
+		return nil
+	}
+
+	// Estimate the output buffer size
+	outSize := 0
+	for _, tag := range t {
+		outSize += len(tag.Key) + len(tag.Value) + 2 // count equals sign & comma
+	}
+	outSize = outSize * 110 / 100 // assume no more than 10% of characters will need escaping.
+
+	out := make([]byte, 0, outSize)
+	lastIdx := numTags - 1
+	for idx, tag := range t {
+		out = append(out, EscapeTagPart(tag.Key)...)
+		out = append(out, '=')
+		out = append(out, EscapeTagPart(tag.Value)...)
+		if idx != lastIdx {
+			out = append(out, ',')
+		}
+	}
+	return out
+}
+
 // ParseTags extracts the measurement name and tagset out of a
 // line. The measurement name, tag key and tag values are
 // unescaped. The remainder of the line (i.e. fields and timestamp) is
