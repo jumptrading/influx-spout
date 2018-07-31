@@ -107,3 +107,44 @@ func TestTagSetSorting(t *testing.T) {
 	}
 	assert.Equal(t, expected, tags)
 }
+
+func TestSubsetOf(t *testing.T) {
+	tags := TagSet{
+		NewTag("foo", "0"),
+		NewTag("bar", "1"),
+		NewTag("sne", "2"),
+	}
+
+	// Equal sets.
+	assert.True(t, tags.SubsetOf(TagSet{
+		NewTag("sne", "2"),
+		NewTag("bar", "1"),
+		NewTag("foo", "0"),
+	}))
+
+	// Subset with extras.
+	assert.True(t, tags.SubsetOf(TagSet{
+		NewTag("sne", "2"),
+		NewTag("a", "3"),
+		NewTag("bar", "1"),
+		NewTag("foo", "0"),
+		NewTag("zzzzz", "4"),
+	}))
+
+	// Partial match (not sufficient).
+	assert.False(t, tags.SubsetOf(TagSet{
+		NewTag("sne", "2"),
+		NewTag("foo", "0"),
+	}))
+
+	// No overlap.
+	assert.False(t, tags.SubsetOf(TagSet{
+		NewTag("q", "0"),
+	}))
+
+	// Empty.
+	assert.False(t, tags.SubsetOf(nil))
+
+	// Empty source is always a subset of anything else.
+	assert.True(t, TagSet{}.SubsetOf(TagSet{NewTag("foo", "bar")}))
+}

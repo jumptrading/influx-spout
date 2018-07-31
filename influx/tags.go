@@ -40,6 +40,29 @@ func (t TagSet) Len() int           { return len(t) }
 func (t TagSet) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
 func (t TagSet) Less(i, j int) bool { return bytes.Compare(t[i].Key, t[j].Key) < 0 }
 
+// SubsetOf returns true if T is a subset of OTHER.
+func (t TagSet) SubsetOf(other TagSet) bool {
+	if len(t) == 0 {
+		return true
+	}
+
+	numTags := len(t)
+	found := make([]bool, numTags)
+	foundCount := 0
+	for _, otherTag := range other {
+		for i, tag := range t {
+			if !found[i] && bytes.Equal(tag.Key, otherTag.Key) && bytes.Equal(tag.Value, otherTag.Value) {
+				found[i] = true
+				foundCount++
+				if foundCount == numTags {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 // ParseTags extracts the measurement name and tagset out of a
 // line. The measurement name, tag key and tag values are
 // unescaped. The remainder of the line (i.e. fields and timestamp) is
