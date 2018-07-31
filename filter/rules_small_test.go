@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jumptrading/influx-spout/config"
+	"github.com/jumptrading/influx-spout/influx"
 	"github.com/jumptrading/influx-spout/spouttest"
 	"github.com/jumptrading/influx-spout/stats"
 )
@@ -109,7 +110,7 @@ func TestNegativeRegexRuleUnescapes(t *testing.T) {
 
 func TestTagRuleSingle(t *testing.T) {
 	rs := new(RuleSet)
-	tags := []Tag{NewTag("key", "value")}
+	tags := influx.TagSet{influx.NewTag("key", "value")}
 	rs.Append(CreateTagRule(tags, ""))
 
 	assert.Equal(t, 0, rs.Lookup([]byte(`foo,key=value x=22`)))
@@ -125,9 +126,9 @@ func TestTagRuleSingle(t *testing.T) {
 
 func TestTagRuleMulti(t *testing.T) {
 	rs := new(RuleSet)
-	tags := []Tag{
-		NewTag("host", "db01"),
-		NewTag("dc", "nyc"),
+	tags := influx.TagSet{
+		influx.NewTag("host", "db01"),
+		influx.NewTag("dc", "nyc"),
 	}
 	rs.Append(CreateTagRule(tags, ""))
 
@@ -144,8 +145,8 @@ func TestTagRuleMulti(t *testing.T) {
 
 func TestTagRuleEscaping(t *testing.T) {
 	rs := new(RuleSet)
-	rs.Append(CreateTagRule([]Tag{NewTag("ke y", "val,ue")}, ""))
-	rs.Append(CreateTagRule([]Tag{NewTag("k=k", "v=v")}, ""))
+	rs.Append(CreateTagRule(influx.TagSet{influx.NewTag("ke y", "val,ue")}, ""))
+	rs.Append(CreateTagRule(influx.TagSet{influx.NewTag("k=k", "v=v")}, ""))
 
 	assert.Equal(t, 0, rs.Lookup([]byte(`foo,ke\ y=val\,ue x=22`)))
 	assert.Equal(t, 0, rs.Lookup([]byte(`foo,ke\ y=val\,ue,host=gopher01 x=22`)))
@@ -240,7 +241,7 @@ func BenchmarkLineLookupTag(b *testing.B) {
 	defer spouttest.RestoreLogs()
 
 	rs := new(RuleSet)
-	rs.Append(CreateTagRule([]Tag{NewTag("foo", "bar")}, ""))
+	rs.Append(CreateTagRule(influx.TagSet{influx.NewTag("foo", "bar")}, ""))
 	line := []byte("hello,aaa=bbb,foo=bar,cheese=stilton world=42")
 
 	b.ResetTimer()
@@ -254,9 +255,9 @@ func BenchmarkLineLookupTagMulti(b *testing.B) {
 	defer spouttest.RestoreLogs()
 
 	rs := new(RuleSet)
-	rs.Append(CreateTagRule([]Tag{
-		NewTag("foo", "bar"),
-		NewTag("cheese", "stilton"),
+	rs.Append(CreateTagRule(influx.TagSet{
+		influx.NewTag("foo", "bar"),
+		influx.NewTag("cheese", "stilton"),
 	}, ""))
 	line := []byte("hello,aaa=bbb,foo=bar,cheese=stilton world=42")
 
