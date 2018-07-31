@@ -181,6 +181,61 @@ func TestInvalidTimeStamps(t *testing.T) {
 	})
 }
 
+func TestTagSorting(t *testing.T) {
+	stats.SetHostname("h")
+
+	gnatsd := spouttest.RunGnatsd(natsPort)
+	defer gnatsd.Shutdown()
+
+	conf := testConfig()
+
+	filter := startFilter(t, conf)
+	defer filter.Stop()
+
+	nc, err := nats.Connect(conf.NATSAddress)
+	require.NoError(t, err)
+	defer nc.Close()
+
+	// Subscribe to filter output
+	helloCh := make(chan string, 1)
+	_, err = nc.Subscribe(conf.Rule[0].Subject, func(msg *nats.Msg) {
+		helloCh <- string(msg.Data)
+	})
+	require.NoError(t, err)
+
+	// Subscribe to junkyard output
+	junkCh := make(chan string, 1)
+	_, err = nc.Subscribe(conf.NATSSubjectJunkyard, func(msg *nats.Msg) {
+		junkCh <- string(msg.Data)
+	})
+	require.NoError(t, err)
+
+	// Publish some lines.
+	lines := `
+hello,host=gopher01,abc=xyz x=22
+goodbye,dc=nyc,host=gopher01 x=22
+hello,abc=xyz,host=gopher01 x=22
+goodbye,host=gopher01,dc=nyc,foo=bar x=22
+hello,mega=y,abc=xyz,host=gopher01 x=22
+`[1:]
+	err = nc.Publish(conf.NATSSubject[0], []byte(lines))
+	require.NoError(t, err)
+
+	// Receive filter output. Tags should be sorted.
+	spouttest.AssertRecv(t, helloCh, "data", `
+hello,abc=xyz,host=gopher01 x=22
+hello,abc=xyz,host=gopher01 x=22
+hello,abc=xyz,host=gopher01,mega=y x=22
+`)
+
+	// Receive junkyard output. Tags should be sorted here too.
+	spouttest.AssertRecv(t, junkCh, "junkyard data", `
+goodbye,dc=nyc,host=gopher01 x=22
+goodbye,dc=nyc,foo=bar,host=gopher01 x=22
+`)
+
+}
+
 func startFilter(t *testing.T, conf *config.Config) *Filter {
 	filter, err := StartFilter(conf)
 	require.NoError(t, err)

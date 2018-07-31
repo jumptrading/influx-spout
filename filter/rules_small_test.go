@@ -192,6 +192,45 @@ func TestRuleSet(t *testing.T) {
 	assert.Equal(t, -1, rs.Lookup([]byte("blah,foo=negreg-match")))
 }
 
+func TestLineTagSorting(t *testing.T) {
+	check := func(label, input, expected string) {
+		line, err := newParsedLine([]byte(input))
+		assert.NoError(t, err)
+		line.SortTags()
+		assert.Equal(t, expected, string(line.Escaped), "%s: %q", label, input)
+	}
+
+	check(
+		"Simple no reordering",
+		"foo,dc=chc,host=abc01,mega=y something=123",
+		"foo,dc=chc,host=abc01,mega=y something=123",
+	)
+
+	check(
+		"Simple, with reordering",
+		"foo,host=abc01,dc=chc,mega=y something=123",
+		"foo,dc=chc,host=abc01,mega=y something=123",
+	)
+
+	check(
+		"With escapes, no reordering",
+		`foo,dc=chc,dir=\=\=>,the\ host=abc01 something=123`,
+		`foo,dc=chc,dir=\=\=>,the\ host=abc01 something=123`,
+	)
+
+	check(
+		"With escapes, with reordering",
+		`foo,dir=\=\=>,dc=chc,the\ host=abc01 something=123`,
+		`foo,dc=chc,dir=\=\=>,the\ host=abc01 something=123`,
+	)
+
+	check(
+		"Without fields or timestamp, with reordering",
+		"foo,host=abc01,dc=chc,mega=y",
+		"foo,dc=chc,host=abc01,mega=y",
+	)
+}
+
 var result int
 
 func BenchmarkLineLookup(b *testing.B) {

@@ -111,17 +111,24 @@ func (w *worker) processBatch(batch []byte) {
 	w.sendOff()
 }
 
-func (w *worker) processLine(line []byte) {
-	idx := w.rules.Lookup(line)
+func (w *worker) processLine(rawLine []byte) {
+	line, err := newParsedLine(rawLine)
+	if err != nil {
+		return
+	}
+
+	line.SortTags()
+
+	idx := w.rules.LookupParsed(line)
 	if idx == -1 {
 		// no rule for this => junkyard
 		w.st.Inc(statRejected)
-		w.junkBatch.Write(line)
+		w.junkBatch.Write(line.Escaped)
 		return
 	}
 
 	// write to the corresponding batch buffer
-	w.batches[idx].Write(line)
+	w.batches[idx].Write(line.Escaped)
 
 	w.st.Inc(statPassed)
 	w.ruleSt.Inc(idx)
