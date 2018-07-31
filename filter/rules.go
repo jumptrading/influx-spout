@@ -40,8 +40,7 @@ func CreateBasicRule(measurement string, subject string) Rule {
 
 	return Rule{
 		match: func(line *parsedLine) bool {
-			// TODO: cached hashed measurement
-			return hh == hashMeasurement(line.Measurement)
+			return hh == line.HashedMeasurement()
 		},
 		subject: subject,
 	}
@@ -170,11 +169,14 @@ func newParsedLine(escaped []byte) (*parsedLine, error) {
 }
 
 type parsedLine struct {
-	Original    []byte
-	unescaped   []byte
-	Measurement []byte
-	Tags        influx.TagSet
-	Remainder   []byte
+	Original  []byte
+	unescaped []byte
+
+	Measurement       []byte
+	hashedMeasurement *uint32
+
+	Tags      influx.TagSet
+	Remainder []byte
 }
 
 func (pl *parsedLine) Unescaped() []byte {
@@ -183,4 +185,12 @@ func (pl *parsedLine) Unescaped() []byte {
 		pl.unescaped = influx.Unescape(pl.Original)
 	}
 	return pl.unescaped
+}
+
+func (pl *parsedLine) HashedMeasurement() uint32 {
+	if pl.hashedMeasurement == nil {
+		h := hashMeasurement(pl.Measurement)
+		pl.hashedMeasurement = &h
+	}
+	return *pl.hashedMeasurement
 }
