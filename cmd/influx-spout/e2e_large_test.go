@@ -178,7 +178,7 @@ $`[1:])
 	t.Fatalf("Failed to see expected metrics. Last saw:\n%s", lines)
 }
 
-const cpuLine = "cpu,env=prod,cls=server user=13.33,usage_system=0.16,usage_idle=86.53"
+const cpuLine = "cpu,cls=server,env=prod user=13.33,usage_system=0.16,usage_idle=86.53"
 
 func makeTestLines() *bytes.Buffer {
 	now := time.Now().UnixNano()
