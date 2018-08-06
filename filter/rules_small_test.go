@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jumptrading/influx-spout/config"
+	"github.com/jumptrading/influx-spout/influx"
 	"github.com/jumptrading/influx-spout/spouttest"
 	"github.com/jumptrading/influx-spout/stats"
 )
@@ -109,7 +110,7 @@ func TestNegativeRegexRuleUnescapes(t *testing.T) {
 
 func TestTagRuleSingle(t *testing.T) {
 	rs := new(RuleSet)
-	tags := []Tag{NewTag("key", "value")}
+	tags := influx.TagSet{influx.NewTag("key", "value")}
 	rs.Append(CreateTagRule(tags, ""))
 
 	assert.Equal(t, 0, rs.Lookup([]byte(`foo,key=value x=22`)))
@@ -125,9 +126,9 @@ func TestTagRuleSingle(t *testing.T) {
 
 func TestTagRuleMulti(t *testing.T) {
 	rs := new(RuleSet)
-	tags := []Tag{
-		NewTag("host", "db01"),
-		NewTag("dc", "nyc"),
+	tags := influx.TagSet{
+		influx.NewTag("host", "db01"),
+		influx.NewTag("dc", "nyc"),
 	}
 	rs.Append(CreateTagRule(tags, ""))
 
@@ -144,8 +145,8 @@ func TestTagRuleMulti(t *testing.T) {
 
 func TestTagRuleEscaping(t *testing.T) {
 	rs := new(RuleSet)
-	rs.Append(CreateTagRule([]Tag{NewTag("ke y", "val,ue")}, ""))
-	rs.Append(CreateTagRule([]Tag{NewTag("k=k", "v=v")}, ""))
+	rs.Append(CreateTagRule(influx.TagSet{influx.NewTag("ke y", "val,ue")}, ""))
+	rs.Append(CreateTagRule(influx.TagSet{influx.NewTag("k=k", "v=v")}, ""))
 
 	assert.Equal(t, 0, rs.Lookup([]byte(`foo,ke\ y=val\,ue x=22`)))
 	assert.Equal(t, 0, rs.Lookup([]byte(`foo,ke\ y=val\,ue,host=gopher01 x=22`)))
@@ -191,31 +192,43 @@ func TestRuleSet(t *testing.T) {
 	assert.Equal(t, -1, rs.Lookup([]byte("blah,foo=negreg-match")))
 }
 
-func TestParseNext(t *testing.T) {
-	check := func(input, until, exp, expRemainder string) {
-		actual, actualRemainder := parseNext([]byte(input), []byte(until))
-		assert.Equal(t, exp, string(actual), "parseNext(%q, %q)", input, until)
-		assert.Equal(t, expRemainder, string(actualRemainder), "parseNext(%q, %q) (remainder)", input, until)
+func TestLineTagSorting(t *testing.T) {
+	check := func(label, input, expected string) {
+		line, err := newParsedLine([]byte(input))
+		assert.NoError(t, err)
+		line.SortTags()
+		assert.Equal(t, expected, string(line.Escaped), "%s: %q", label, input)
 	}
 
-	check("", " ", "", "")
-	check(`a`, " ", `a`, "")
-	check("日", " ", "日", "")
-	check(`hello`, " ", `hello`, "")
-	check("日本語", " ", "日本語", "")
-	check(" ", ", ", "", " ")
-	check(",", ", ", "", ",")
-	check(`h world`, ", ", `h`, " world")
-	check(`h,world`, ", ", `h`, ",world")
-	check(`hello world`, ", ", `hello`, ` world`)
-	check(`hello,world`, ", ", `hello`, `,world`)
-	check(`hello\ world more`, ", ", `hello world`, ` more`)
-	check(`hello\,world,more`, ", ", `hello,world`, `,more`)
-	check(`hello\ 日本語 more`, ", ", `hello 日本語`, ` more`)
-	check(`hello\,日本語,more`, ", ", `hello,日本語`, `,more`)
-	check(`\ `, " ", " ", "")
-	check(`\`, " ", `\`, "")
-	check(`hello\`, " ", `hello\`, "")
+	check(
+		"Simple no reordering",
+		"foo,dc=chc,host=abc01,mega=y something=123",
+		"foo,dc=chc,host=abc01,mega=y something=123",
+	)
+
+	check(
+		"Simple, with reordering",
+		"foo,host=abc01,dc=chc,mega=y something=123",
+		"foo,dc=chc,host=abc01,mega=y something=123",
+	)
+
+	check(
+		"With escapes, no reordering",
+		`foo,dc=chc,dir=\=\=>,the\ host=abc01 something=123`,
+		`foo,dc=chc,dir=\=\=>,the\ host=abc01 something=123`,
+	)
+
+	check(
+		"With escapes, with reordering",
+		`foo,dir=\=\=>,dc=chc,the\ host=abc01 something=123`,
+		`foo,dc=chc,dir=\=\=>,the\ host=abc01 something=123`,
+	)
+
+	check(
+		"Without fields or timestamp, with reordering",
+		"foo,host=abc01,dc=chc,mega=y",
+		"foo,dc=chc,host=abc01,mega=y",
+	)
 }
 
 var result int
@@ -267,7 +280,7 @@ func BenchmarkLineLookupTag(b *testing.B) {
 	defer spouttest.RestoreLogs()
 
 	rs := new(RuleSet)
-	rs.Append(CreateTagRule([]Tag{NewTag("foo", "bar")}, ""))
+	rs.Append(CreateTagRule(influx.TagSet{influx.NewTag("foo", "bar")}, ""))
 	line := []byte("hello,aaa=bbb,foo=bar,cheese=stilton world=42")
 
 	b.ResetTimer()
@@ -281,9 +294,9 @@ func BenchmarkLineLookupTagMulti(b *testing.B) {
 	defer spouttest.RestoreLogs()
 
 	rs := new(RuleSet)
-	rs.Append(CreateTagRule([]Tag{
-		NewTag("foo", "bar"),
-		NewTag("cheese", "stilton"),
+	rs.Append(CreateTagRule(influx.TagSet{
+		influx.NewTag("foo", "bar"),
+		influx.NewTag("cheese", "stilton"),
 	}, ""))
 	line := []byte("hello,aaa=bbb,foo=bar,cheese=stilton world=42")
 

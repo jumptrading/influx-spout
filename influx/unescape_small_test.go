@@ -14,7 +14,7 @@
 
 // +build small
 
-package filter
+package influx
 
 import (
 	"testing"
@@ -24,8 +24,8 @@ import (
 
 func TestUnescape(t *testing.T) {
 	check := func(input, expected string) {
-		assert.Equal(t, expected, string(influxUnescape([]byte(input))),
-			"influxUnescape(%q)", input)
+		assert.Equal(t, expected, string(Unescape([]byte(input))),
+			"Unescape(%q)", input)
 	}
 
 	// Basic cases with no escapes

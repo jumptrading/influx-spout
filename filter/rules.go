@@ -15,24 +15,20 @@
 package filter
 
 import (
-	"bytes"
 	"fmt"
 	"hash/fnv"
 	"regexp"
+	"sort"
 
 	"github.com/jumptrading/influx-spout/config"
+	"github.com/jumptrading/influx-spout/influx"
 )
 
 // Rule encapsulates a matching function and the NATS topic to
 // send lines to if the rule matches.
 type Rule struct {
 	// Function used to check if the rule matches
-	match func([]byte) bool
-
-	// needsUnescaped is true if the match function needs the
-	// unescaped version of the line. The raw version of the line is
-	// passed otherwise.
-	needsUnescaped bool
+	match func(*parsedLine) bool
 
 	// if the rule matches, the measurement is sent to this NATS subject
 	subject string
@@ -44,9 +40,8 @@ func CreateBasicRule(measurement string, subject string) Rule {
 	hh := hashMeasurement([]byte(measurement))
 
 	return Rule{
-		match: func(line []byte) bool {
-			name, _ := parseNext(line, []byte(", "))
-			return hh == hashMeasurement(name)
+		match: func(line *parsedLine) bool {
+			return hh == line.HashedMeasurement()
 		},
 		subject: subject,
 	}
@@ -63,11 +58,10 @@ func hashMeasurement(measurement []byte) uint32 {
 func CreateRegexRule(regexString, subject string) Rule {
 	reg := regexp.MustCompile(regexString)
 	return Rule{
-		match: func(line []byte) bool {
-			return reg.Match(line)
+		match: func(line *parsedLine) bool {
+			return reg.Match(line.Unescaped())
 		},
-		needsUnescaped: true,
-		subject:        subject,
+		subject: subject,
 	}
 }
 
@@ -76,34 +70,19 @@ func CreateRegexRule(regexString, subject string) Rule {
 func CreateNegativeRegexRule(regexString, subject string) Rule {
 	reg := regexp.MustCompile(regexString)
 	return Rule{
-		match: func(line []byte) bool {
-			return !reg.Match(line)
+		match: func(line *parsedLine) bool {
+			return !reg.Match(line.Unescaped())
 		},
-		needsUnescaped: true,
-		subject:        subject,
+		subject: subject,
 	}
-}
-
-// NewTag creates a new Tag instance from key & value strings.
-func NewTag(key, value string) Tag {
-	return Tag{
-		Key:   []byte(key),
-		Value: []byte(value),
-	}
-}
-
-// Tag represents a key/value pair (both bytes).
-type Tag struct {
-	Key   []byte
-	Value []byte
 }
 
 // CreateTagRule creates a rule that efficiently matches one or more
 // measurement tags.
-func CreateTagRule(tags []Tag, subject string) Rule {
+func CreateTagRule(tags influx.TagSet, subject string) Rule {
 	return Rule{
-		match: func(line []byte) bool {
-			return hasAllTags(line, tags)
+		match: func(line *parsedLine) bool {
+			return tags.SubsetOf(line.Tags)
 		},
 		subject: subject,
 	}
@@ -119,10 +98,10 @@ func RuleSetFromConfig(conf *config.Config) (*RuleSet, error) {
 			rs.Append(CreateBasicRule(r.Match, r.Subject))
 		case "tags":
 			// Convert tags as [][]string from config into []Tag.
-			tags := make([]Tag, 0, len(r.Tags))
+			tags := make(influx.TagSet, 0, len(r.Tags))
 			for _, raw := range r.Tags {
 				// This is safe because Config is validated.
-				tags = append(tags, NewTag(raw[0], raw[1]))
+				tags = append(tags, influx.NewTag(raw[0], raw[1]))
 			}
 			rs.Append(CreateTagRule(tags, r.Subject))
 		case "regex":
@@ -164,17 +143,18 @@ func (rs *RuleSet) Subjects() []string {
 // Lookup takes a raw line and returns the index of the rule in the
 // RuleSet that matches it. Returns -1 if there was no match.
 func (rs *RuleSet) Lookup(escaped []byte) int {
-	var unescaped []byte
-	var line []byte
+	line, err := newParsedLine(escaped)
+	if err != nil {
+		return -1
+	}
+	return rs.LookupParsed(line)
+}
+
+// LookupParsed takes a parsedLine and checks for a matching rule in
+// the RuleSet. The index of the matching rule is returned. Returns -1
+// if there was no match.
+func (rs *RuleSet) LookupParsed(line *parsedLine) int {
 	for i, rule := range rs.rules {
-		if rule.needsUnescaped {
-			if unescaped == nil {
-				unescaped = influxUnescape(escaped)
-			}
-			line = unescaped
-		} else {
-			line = escaped
-		}
 		if rule.match(line) {
 			return i
 		}
@@ -182,81 +162,83 @@ func (rs *RuleSet) Lookup(escaped []byte) int {
 	return -1
 }
 
-func hasAllTags(line []byte, tags []Tag) bool {
-	_, line = parseNext(line, []byte(", "))
-	if len(line) == 0 {
-		return false
+func newParsedLine(escaped []byte) (*parsedLine, error) {
+	measurement, tags, remainder, err := influx.ParseTags(escaped)
+	if err != nil {
+		return nil, err
 	}
 
-	numTags := len(tags)
-	found := make([]bool, numTags)
-	foundCount := 0
-	var key, value []byte
-	for {
-		if len(line) == 0 || line[0] == ' ' {
-			return false
-		}
-
-		key, line = parseNext(line[1:], []byte("="))
-		if len(line) == 0 {
-			return false
-		}
-
-		value, line = parseNext(line[1:], []byte(", "))
-		if len(line) == 0 {
-			return false
-		}
-
-		for t := 0; t < numTags; t++ {
-			if !found[t] && bytes.Equal(key, tags[t].Key) && bytes.Equal(value, tags[t].Value) {
-				found[t] = true
-				foundCount++
-				if foundCount == numTags {
-					return true
-				}
-			}
-		}
-	}
+	return &parsedLine{
+		Escaped:     escaped,
+		Measurement: measurement,
+		Tags:        tags,
+		Remainder:   remainder,
+	}, nil
 }
 
-// parseNext takes an escaped line protocol line and returns the
-// unescaped characters leading up to until. It also returns the
-// escaped remainder of line.
-func parseNext(s []byte, until []byte) ([]byte, []byte) {
-	if len(s) == 1 {
-		for _, c := range until {
-			if s[0] == c {
-				return nil, s
-			}
-		}
-		return s, nil
+// parsedLine caches artefacts related to a single measurement line
+// being checked by the filtering. Caching avoids unnecessarily
+// recalculating values which are used by multiple rules. Cached
+// values are calculated lazily on first use.
+//
+// parseLine also handles tag ordering (see SortTags).
+type parsedLine struct {
+	Escaped   []byte
+	unescaped []byte
+
+	Measurement       []byte
+	hashedMeasurement *uint32
+
+	Tags      influx.TagSet
+	Remainder []byte
+}
+
+func (pl *parsedLine) Unescaped() []byte {
+	// Cached unescaped version if it hasn't been generated yet.
+	if pl.unescaped == nil {
+		pl.unescaped = influx.Unescape(pl.Escaped)
+	}
+	return pl.unescaped
+}
+
+func (pl *parsedLine) HashedMeasurement() uint32 {
+	if pl.hashedMeasurement == nil {
+		h := hashMeasurement(pl.Measurement)
+		pl.hashedMeasurement = &h
+	}
+	return *pl.hashedMeasurement
+}
+
+func (pl *parsedLine) SortTags() {
+	if sort.IsSorted(pl.Tags) {
+		// Tags are already sorted so nothing to do.
+		return
 	}
 
-	escaped := false
-	i := 0
-	for {
-		i++
-		if i >= len(s) {
-			if escaped {
-				s = influxUnescape(s)
-			}
-			return s, nil
-		}
+	sort.Sort(pl.Tags)
 
-		if s[i-1] == '\\' {
-			// Skip character (it's escaped).
-			escaped = true
-			continue
-		}
+	// Replace Escaped with sorted tags version.
 
-		for _, c := range until {
-			if s[i] == c {
-				out := s[:i]
-				if escaped {
-					out = influxUnescape(out)
-				}
-				return out, s[i:]
-			}
-		}
+	var newHdr []byte
+	newHdr = append(newHdr, influx.EscapeMeasurement(pl.Measurement)...)
+	newHdr = append(newHdr, ',')
+	newHdr = append(newHdr, pl.Tags.Bytes()...)
+
+	if len(pl.Remainder) == 0 {
+		// Nothing left so "newHdr" is exactly what needs to be returned.
+		pl.Escaped = newHdr
+		return
 	}
+
+	if len(newHdr)+len(pl.Remainder)+1 == len(pl.Escaped) {
+		// Length hasn't changed so reuse memory used by original,
+		// overwriting the measurement name and tags part.
+		copy(pl.Escaped, newHdr)
+		return
+	}
+
+	// Length as changed (original escaped differently?)
+	newHdr = append(newHdr, ' ')
+	newHdr = append(newHdr, pl.Remainder...)
+	pl.Escaped = newHdr
 }
