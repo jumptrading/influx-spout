@@ -20,7 +20,8 @@ import "errors"
 // unescaped characters leading up to until. It also returns the
 // escaped remainder of line.
 func Token(s []byte, until []byte) ([]byte, []byte) {
-	if len(s) == 1 {
+	length := len(s)
+	if length == 1 {
 		for _, c := range until {
 			if s[0] == c {
 				return nil, s
@@ -33,7 +34,7 @@ func Token(s []byte, until []byte) ([]byte, []byte) {
 	i := 0
 	for {
 		i++
-		if i >= len(s) {
+		if i >= length {
 			if escaped {
 				s = Unescape(s)
 			}
