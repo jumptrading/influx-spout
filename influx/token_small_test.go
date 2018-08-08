@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestToken(t *testing.T) {
@@ -47,4 +48,36 @@ func TestToken(t *testing.T) {
 	check(`\ `, " ", " ", "")
 	check(`\`, " ", `\`, "")
 	check(`hello\`, " ", `hello\`, "")
+}
+
+func TestQuotedString(t *testing.T) {
+	check := func(input, exp, expRemainder string) {
+		actual, actualRemainder, err := QuotedString([]byte(input))
+		require.NoError(t, err)
+		assert.Equal(t, exp, string(actual), "QuotedString(`%s`)", input)
+		assert.Equal(t, expRemainder, string(actualRemainder), "QuotedString(`%s`) (remainder)", input)
+	}
+
+	fail := func(input, expError string) {
+		out, rem, err := QuotedString([]byte(input))
+		assert.Nil(t, out)
+		assert.Nil(t, rem)
+		assert.EqualError(t, err, expError)
+	}
+
+	check(`""`, "", "")
+	check(`"" foo`, "", " foo")
+	check(`"a"`, "a", "")
+	check(`"hello"`, "hello", "")
+	check(`"hello" foo`, "hello", " foo")
+	check(`"he\"llo" foo`, "he\"llo", " foo")
+	check(`"\""`, `"`, "")
+	check(`"he\"llo" foo`, "he\"llo", " foo")
+	check(`"he\llo" foo`, `he\llo`, " foo") // non-escape
+
+	fail("", "input too short")
+	fail(`"`, "input too short")
+	fail(`abc`, "first character must be double quote")
+	fail(`"foo`, "missing trailing double quote")
+	fail(`"foo\"`, "missing trailing double quote")
 }

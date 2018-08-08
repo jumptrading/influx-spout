@@ -14,6 +14,8 @@
 
 package influx
 
+import "errors"
+
 // Token takes an escaped line protocol line and returns the
 // unescaped characters leading up to until. It also returns the
 // escaped remainder of line.
@@ -52,6 +54,40 @@ func Token(s []byte, until []byte) ([]byte, []byte) {
 				}
 				return out, s[i:]
 			}
+		}
+	}
+}
+
+// QuotedString takes a byte slice which begins with a double quoted
+// string and returns the unescaped contents of the string and the
+// unprocessed remainder of the input. Errors are returned if the
+// input isn't a valid string field value.
+func QuotedString(s []byte) ([]byte, []byte, error) {
+	length := len(s)
+	if length < 2 {
+		return nil, nil, errors.New("input too short")
+	}
+	if s[0] != '"' {
+		return nil, nil, errors.New("first character must be double quote")
+	}
+
+	escaped := false
+	i := 0
+	for {
+		i++
+		if i >= length {
+			return nil, nil, errors.New("missing trailing double quote")
+		}
+		if s[i] == '"' {
+			if s[i-1] == '\\' {
+				escaped = true
+				continue
+			}
+			out := s[1:i]
+			if escaped {
+				out = Unescape(out)
+			}
+			return out, s[i+1:], nil
 		}
 	}
 }
