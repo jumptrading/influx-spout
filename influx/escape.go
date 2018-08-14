@@ -30,6 +30,33 @@ func EscapeMeasurement(in []byte) []byte {
 	return Escape(in, []byte(`, `))
 }
 
+// EscapeQuotedString escapes the characters that need to escaped in a
+// quoted string. The returned value is wrapped in double quotes.
+func EscapeQuotedString(in []byte) []byte {
+	toEscapeCount := countBytes(in, []byte{'"'})
+	if toEscapeCount == 0 {
+		// Short circuit, no escaping needed
+		out := make([]byte, len(in)+2)
+		out[0] = '"'
+		out[len(out)-1] = '"'
+		copy(out[1:], in)
+		return out
+	}
+
+	// Allocate exactly the right size to avoid further allocations
+	// and copies.
+	out := make([]byte, 0, len(in)+toEscapeCount+2)
+	out = append(out, '"')
+	for _, b := range in {
+		if b == '"' {
+			out = append(out, '\\')
+		}
+		out = append(out, b)
+	}
+	out = append(out, '"')
+	return out
+}
+
 // Escape returns IN with any bytes in CHARS backslash escaped.
 func Escape(in []byte, chars []byte) []byte {
 	if len(chars) == 0 {
