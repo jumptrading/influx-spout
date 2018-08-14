@@ -56,3 +56,21 @@ func TestEscape(t *testing.T) {
 	check(`"stuff, =things"`, ` ,"=`, `\"stuff\,\ \=things\"`)
 	check(`,日"本 語=`, ` ,"=`, `\,日\"本\ 語\=`)
 }
+
+func TestEscapeQuoted(t *testing.T) {
+	check := func(input, expected string) {
+		assert.Equal(
+			t,
+			expected,
+			string(EscapeQuotedString([]byte(input))),
+			"EscapeQuotedString(%q)", input,
+		)
+	}
+
+	check(``, `""`)
+	check(`h`, `"h"`)
+	check(`foo bar`, `"foo bar"`)
+	check(`foo "bar"`, `"foo \"bar\""`)
+	check(`"`, `"\""`)
+	check(`""`, `"\"\""`)
+}
