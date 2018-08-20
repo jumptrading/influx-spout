@@ -25,6 +25,16 @@ func AssertRecv(t *testing.T, ch <-chan string, label, expected string) {
 	}
 }
 
+// AssertNoMore checks that there aren't more items received from a
+// string channel in ShortWait time.
+func AssertNoMore(t *testing.T, ch <-chan string) {
+	select {
+	case <-ch:
+		t.Fatal("unexpectedly saw message")
+	case <-time.After(ShortWait):
+	}
+}
+
 func stripLeadingNL(s string) string {
 	// This allows long `expected` strings to be formatted nicely in
 	// the caller.

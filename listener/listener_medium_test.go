@@ -105,7 +105,7 @@ func TestBatching(t *testing.T) {
 
 	// Should receive a single batch.
 	assertBatch(t, listenerCh, strings.Join(poetry, ""))
-	assertNoMore(t, listenerCh)
+	spouttest.AssertNoMore(t, listenerCh)
 
 	assertMonitor(t, monitorCh, numLines, 1)
 }
@@ -136,7 +136,7 @@ func TestWhatComesAroundGoesAround(t *testing.T) {
 	for i := 0; i < numLines; i++ {
 		assertBatch(t, listenerCh, poetry[i])
 	}
-	assertNoMore(t, listenerCh)
+	spouttest.AssertNoMore(t, listenerCh)
 
 	assertMonitor(t, monitorCh, numLines, numLines)
 }
@@ -178,7 +178,7 @@ loop:
 		}
 	}
 
-	assertNoMore(t, listenerCh)
+	spouttest.AssertNoMore(t, listenerCh)
 
 	// Ensure that batch was output because batch size limit was
 	// reached, not the message count.
@@ -211,7 +211,7 @@ func TestBatchAge(t *testing.T) {
 
 	// Line should be emitted after 1 sec.
 	assertBatch(t, listenerCh, line)
-	assertNoMore(t, listenerCh)
+	spouttest.AssertNoMore(t, listenerCh)
 }
 
 func TestHTTPListener(t *testing.T) {
@@ -240,7 +240,7 @@ func TestHTTPListener(t *testing.T) {
 	for i := 0; i < numLines; i++ {
 		assertBatch(t, listenerCh, poetry[i])
 	}
-	assertNoMore(t, listenerCh)
+	spouttest.AssertNoMore(t, listenerCh)
 
 	assertMonitor(t, monitorCh, numLines, numLines)
 }
@@ -278,7 +278,7 @@ func TestHTTPListenerBigPOST(t *testing.T) {
 	require.NoError(t, err)
 
 	assertBatch(t, listenerCh, string(buf))
-	assertNoMore(t, listenerCh)
+	spouttest.AssertNoMore(t, listenerCh)
 
 	assertMonitor(t, monitorCh, 1, 1)
 }
@@ -337,7 +337,7 @@ func TestHTTPListenerConcurrency(t *testing.T) {
 		}
 	}
 
-	assertNoMore(t, listenerCh)
+	spouttest.AssertNoMore(t, listenerCh)
 }
 
 func TestHTTPListenerWithPrecision(t *testing.T) {
@@ -377,7 +377,7 @@ func TestHTTPListenerWithPrecision(t *testing.T) {
 
 	// Check for the expected output.
 	assertBatch(t, listenerCh, out.String())
-	assertNoMore(t, listenerCh)
+	spouttest.AssertNoMore(t, listenerCh)
 }
 
 func TestBatchAgeHTTPListener(t *testing.T) {
@@ -403,7 +403,7 @@ func TestBatchAgeHTTPListener(t *testing.T) {
 
 	// Line should be emitted after 1 sec.
 	assertBatch(t, listenerCh, line)
-	assertNoMore(t, listenerCh)
+	spouttest.AssertNoMore(t, listenerCh)
 }
 
 func BenchmarkListenerLatency(b *testing.B) {
@@ -546,14 +546,6 @@ func assertBatch(t *testing.T, ch chan string, expected string) {
 		assert.Equal(t, expected, received)
 	case <-time.After(spouttest.LongWait):
 		t.Fatal("failed to see message")
-	}
-}
-
-func assertNoMore(t *testing.T, ch chan string) {
-	select {
-	case <-ch:
-		t.Fatal("unexpectedly saw message")
-	case <-time.After(spouttest.ShortWait):
 	}
 }
 
