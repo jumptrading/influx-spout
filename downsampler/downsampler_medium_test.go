@@ -33,19 +33,25 @@ import (
 	"github.com/jumptrading/influx-spout/stats"
 )
 
-const natsPort = 44400
-const probePort = 44401
+const natsPort = 44500
+const probePort = 44501
 
 func testConfig() *config.Config {
 	return &config.Config{
-		Name:               "sampler",
+		Mode:               "downsampler",
+		Name:               "mpc-60",
 		NATSAddress:        fmt.Sprintf("nats://127.0.0.1:%d", natsPort),
 		NATSSubject:        []string{"subject0", "subject1"},
+		NATSSubjectMonitor: "downsampler-test-monitor",
 		DownsamplePeriod:   config.Duration{Duration: 1 * time.Second},
 		DownsampleSuffix:   "-arch",
 		ProbePort:          probePort,
 		NATSMaxPendingSize: 32 * datasize.MB,
 		Debug:              true,
+
+		// Make the statistician report more often during tests. This
+		// makes the tests run faster.
+		StatsInterval: config.Duration{Duration: 250 * time.Millisecond},
 	}
 }
 
@@ -67,6 +73,7 @@ func TestDownsampler(t *testing.T) {
 	// Subscribe to outputs
 	output0 := subscribeOutput(t, nc, "subject0-arch")
 	output1 := subscribeOutput(t, nc, "subject1-arch")
+	monitorCh := subscribeOutput(t, nc, conf.NATSSubjectMonitor)
 
 	// Send lines to each subject to be archived.
 	err = nc.Publish("subject0", []byte(`
@@ -88,9 +95,9 @@ int,host=host0 xyz=111i
 string,host=host0 value="two"
 string,host=host0 value="three"
 int,host=host0 xyz=333i
+bad x
 `[1:]))
 	require.NoError(t, err)
-	_ = output1
 
 	// Check archived lines.
 	assertDownsamplerRecv(t, output0, "subject0-arch", `
@@ -109,6 +116,19 @@ int,host=host0 xyz=222i
 
 	spouttest.AssertNoMore(t, output0)
 	spouttest.AssertNoMore(t, output1)
+
+	// // Check the monitor output.
+	labels := "{" + strings.Join([]string{
+		`component="downsampler"`,
+		`host="h"`,
+		`name="mpc-60"`,
+	}, ",") + "}"
+	spouttest.AssertMonitor(t, monitorCh, []string{
+		`received` + labels + ` 2`,
+		`sent` + labels + ` 2`,
+		`invalid_lines` + labels + ` 1`,
+		`failed_nats_publish` + labels + ` 0`,
+	})
 }
 
 func startDownsampler(t *testing.T, conf *config.Config) *Downsampler {
@@ -122,7 +142,7 @@ func startDownsampler(t *testing.T, conf *config.Config) *Downsampler {
 }
 
 func subscribeOutput(t *testing.T, nc *nats.Conn, chanName string) chan string {
-	output := make(chan string, 5)
+	output := make(chan string, 10)
 	_, err := nc.Subscribe(chanName, func(msg *nats.Msg) {
 		output <- string(msg.Data)
 	})

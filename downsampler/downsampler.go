@@ -24,9 +24,17 @@ import (
 
 	"github.com/jumptrading/influx-spout/config"
 	"github.com/jumptrading/influx-spout/probes"
+	"github.com/jumptrading/influx-spout/stats"
 )
 
 const maxNATSMsgSize = 1024 * 1024
+
+const (
+	statReceived          = "received"
+	statSent              = "sent"
+	statInvalidLines      = "invalid_lines"
+	statFailedNATSPublish = "failed_nats_publish"
+)
 
 // Downsampler consumes lines from one or more NATS subjects, and
 // applies downsampling to the InfluxDB measurements received from
@@ -37,6 +45,7 @@ type Downsampler struct {
 	wg     sync.WaitGroup
 	probes probes.Probes
 	stop   chan struct{}
+	stats  *stats.Stats
 }
 
 // StartDownsampler creates and configures a Downsampler.
@@ -45,6 +54,7 @@ func StartDownsampler(c *config.Config) (_ *Downsampler, err error) {
 		c:      c,
 		probes: probes.Listen(c.ProbePort),
 		stop:   make(chan struct{}),
+		stats:  stats.New(statReceived, statSent, statInvalidLines, statFailedNATSPublish),
 	}
 	defer func() {
 		if err != nil {
@@ -77,6 +87,9 @@ func StartDownsampler(c *config.Config) (_ *Downsampler, err error) {
 	if err := w.nc.Flush(); err != nil {
 		return nil, fmt.Errorf("NATS flush error: %v", err)
 	}
+
+	w.wg.Add(1)
+	go w.startStatistician()
 
 	log.Printf("downsampler subscribed to %v at %s", c.NATSSubject, c.NATSAddress)
 	log.Printf("downsampler period: %s", c.DownsamplePeriod.Duration)
@@ -113,19 +126,22 @@ func (ds *Downsampler) worker(subject string, inputCh <-chan []byte) {
 	for {
 		select {
 		case lines := <-inputCh:
-			batch.Append(lines)
+			ds.stats.Inc(statReceived)
+			errs := batch.Update(lines)
+			for _, err := range errs {
+				log.Println(err)
+				ds.stats.Inc(statInvalidLines)
+			}
 		case <-time.After(time.Until(nextEmitTime)):
 		case <-ds.stop:
 			return
 		}
 
 		if !time.Now().Before(nextEmitTime) {
-			if ds.c.Debug {
-				log.Printf("total unique fields for %s: %d", subject, batch.FieldCount())
-			}
 			buf := batch.Bytes()
 			if len(buf) > 0 {
 				if ds.c.Debug {
+					log.Printf("total unique fields for %s: %d", subject, batch.FieldCount())
 					log.Printf("publishing to %s (%d bytes)", outSubject, len(buf))
 				}
 
@@ -133,10 +149,10 @@ func (ds *Downsampler) worker(subject string, inputCh <-chan []byte) {
 				for splitter.Next() {
 					if err := ds.nc.Publish(outSubject, splitter.Chunk()); err != nil {
 						log.Printf("publish error for %s: %v", outSubject, err)
-						// XXX increment counter
+						ds.stats.Inc(statFailedNATSPublish)
 					}
 				}
-
+				ds.stats.Inc(statSent)
 			}
 
 			nextEmitTime = ds.nextTime(nextEmitTime)
@@ -148,4 +164,26 @@ func (ds *Downsampler) worker(subject string, inputCh <-chan []byte) {
 func (ds *Downsampler) nextTime(t time.Time) time.Time {
 	period := ds.c.DownsamplePeriod.Duration
 	return t.Add(period).Truncate(period)
+}
+
+// startStatistician defines a goroutine that is responsible for
+// regularly sending the downsamplers's statistics to the monitoring
+// backend.
+func (ds *Downsampler) startStatistician() {
+	defer ds.wg.Done()
+
+	labels := stats.NewLabels("downsampler", ds.c.Name)
+	for {
+		// XXX do NATS dropped metric
+		now := time.Now()
+		snap := ds.stats.Snapshot()
+		lines := stats.SnapshotToPrometheus(snap, now, labels)
+		ds.nc.Publish(ds.c.NATSSubjectMonitor, lines)
+
+		select {
+		case <-time.After(ds.c.StatsInterval.Duration):
+		case <-ds.stop:
+			return
+		}
+	}
 }

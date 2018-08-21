@@ -17,7 +17,7 @@ package downsampler
 import (
 	"bytes"
 	"errors"
-	"log"
+	"fmt"
 	"sort"
 	"strconv"
 	"time"
@@ -38,7 +38,7 @@ type samplingBatch struct {
 	ts    int64
 }
 
-func (b *samplingBatch) Append(more []byte) {
+func (b *samplingBatch) Update(more []byte) (errs []error) {
 	for _, line := range bytes.Split(more, []byte("\n")) {
 		if len(line) < 1 {
 			continue
@@ -63,13 +63,15 @@ func (b *samplingBatch) Append(more []byte) {
 		if !found {
 			fields = newFieldPairs()
 		}
-		if err := fields.update(fieldSection); err != nil {
-			// XXX counter
-			log.Printf("error parsing [%s]: %v", fieldSection, err)
+		if updateErrs := fields.update(fieldSection); len(updateErrs) > 0 {
+			for _, err := range updateErrs {
+				errs = append(errs, fmt.Errorf("error parsing [%s]: %v", fieldSection, err))
+			}
 			continue
 		}
 		b.lines[key] = fields
 	}
+	return
 }
 
 func (b *samplingBatch) FieldCount() int {
@@ -112,22 +114,24 @@ func (fp *fieldPairs) count() int {
 	return len(fp.fields)
 }
 
-func (fp *fieldPairs) update(raw []byte) error {
+func (fp *fieldPairs) update(raw []byte) (errs []error) {
 	for {
 		if len(raw) == 0 {
-			return nil
+			return
 		}
 		raw = raw[1:] // remove leading comma or space
 		var nameBytes []byte
 		nameBytes, raw = influx.Token(raw, []byte("="))
 		if len(raw) == 0 || raw[0] != '=' {
-			return errors.New("invalid field name")
+			errs = append(errs, errors.New("invalid field"))
+			return
 		}
 		name := string(nameBytes)
 
 		raw = raw[1:]
 		if len(raw) == 0 {
-			return errors.New("missing field value")
+			errs = append(errs, errors.New("missing field value"))
+			return
 		}
 
 		var rawValue []byte
@@ -136,13 +140,16 @@ func (fp *fieldPairs) update(raw []byte) error {
 			// String field
 			rawValue, raw, err = influx.QuotedString(raw)
 			if err != nil {
-				return err
+				errs = append(errs, err)
+				return
 			}
 			value, exists := fp.fields[name]
 			if !exists {
 				fp.fields[name] = newStringValue(rawValue)
 			} else {
-				value.update(rawValue)
+				if err := value.update(rawValue); err != nil {
+					errs = append(errs, err) // Non-fatal, so keep going.
+				}
 			}
 		} else {
 			// Other field
@@ -151,7 +158,9 @@ func (fp *fieldPairs) update(raw []byte) error {
 			if !exists {
 				fp.fields[name] = newFieldValue(rawValue)
 			} else {
-				value.update(rawValue)
+				if err := value.update(rawValue); err != nil {
+					errs = append(errs, err) // Non-fatal, so keep going.
+				}
 			}
 		}
 	}
@@ -183,7 +192,7 @@ func (fp *fieldPairs) bytes() []byte {
 }
 
 type fieldValue interface {
-	update([]byte)
+	update([]byte) error
 	bytes() []byte
 }
 
@@ -214,22 +223,19 @@ type intFieldValue struct {
 	count   int64
 }
 
-func (v *intFieldValue) update(b []byte) {
+func (v *intFieldValue) update(b []byte) error {
 	if len(b) < 2 || b[len(b)-1] != 'i' {
-		// XXX more details & should increment a counter too
-		log.Printf("wrong type for int: %s", b)
-		return
+		return fmt.Errorf("wrong type for int: %s", b)
 	}
 	bi, err := convert.ToInt(b[:len(b)-1])
 	if err != nil {
-		// XXX more details & should increment a counter too
-		log.Printf("wrong type for int: %s", b)
-		return
+		return fmt.Errorf("wrong type for int: %s", b)
 	}
 
 	// Update incremental average.
 	v.count++
 	v.average = v.average + ((bi - v.average) / v.count)
+	return nil
 }
 
 func (v *intFieldValue) bytes() []byte {
@@ -241,17 +247,16 @@ type floatFieldValue struct {
 	count   int64
 }
 
-func (v *floatFieldValue) update(b []byte) {
+func (v *floatFieldValue) update(b []byte) error {
 	bf, err := strconv.ParseFloat(string(b), 64)
 	if err != nil {
-		// XXX more details & should increment a counter too
-		log.Printf("wrong type for float: %s", b)
-		return
+		return fmt.Errorf("wrong type for float: %s", b)
 	}
 
 	// Update incremental average.
 	v.count++
 	v.average = v.average + ((bf - v.average) / float64(v.count))
+	return nil
 }
 
 func (v *floatFieldValue) bytes() []byte {
@@ -260,12 +265,18 @@ func (v *floatFieldValue) bytes() []byte {
 
 type stringFieldValue struct{ b []byte }
 
-func (v *stringFieldValue) update(b []byte) { v.b = b }
+func (v *stringFieldValue) update(b []byte) error {
+	v.b = b
+	return nil
+}
 func (v *stringFieldValue) bytes() []byte {
 	return influx.EscapeQuotedString(v.b)
 }
 
 type rawFieldValue struct{ b []byte }
 
-func (v *rawFieldValue) update(b []byte) { v.b = b }
-func (v *rawFieldValue) bytes() []byte   { return v.b }
+func (v *rawFieldValue) update(b []byte) error {
+	v.b = b
+	return nil
+}
+func (v *rawFieldValue) bytes() []byte { return v.b }
