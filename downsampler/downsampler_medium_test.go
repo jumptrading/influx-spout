@@ -29,6 +29,7 @@ import (
 
 	"github.com/jumptrading/influx-spout/config"
 	"github.com/jumptrading/influx-spout/influx"
+	"github.com/jumptrading/influx-spout/prometheus"
 	"github.com/jumptrading/influx-spout/spouttest"
 	"github.com/jumptrading/influx-spout/stats"
 )
@@ -118,16 +119,24 @@ int,host=host0 xyz=222i
 	spouttest.AssertNoMore(t, output1)
 
 	// // Check the monitor output.
-	labels := "{" + strings.Join([]string{
-		`component="downsampler"`,
-		`host="h"`,
-		`name="mpc-60"`,
-	}, ",") + "}"
+
+	baseLabels := prometheus.Labels{
+		prometheus.NewLabel("component", "downsampler"),
+		prometheus.NewLabel("host", "h"),
+		prometheus.NewLabel("name", "mpc-60"),
+	}
+	baseLabelStr := string(baseLabels.ToBytes())
+	extendLabels := func(name, value string) string {
+		out := append(baseLabels, prometheus.NewLabel(name, value))
+		return string(out.ToBytes())
+	}
 	spouttest.AssertMonitor(t, monitorCh, []string{
-		`received` + labels + ` 2`,
-		`sent` + labels + ` 2`,
-		`invalid_lines` + labels + ` 1`,
-		`failed_nats_publish` + labels + ` 0`,
+		`received` + baseLabelStr + ` 2`,
+		`sent` + baseLabelStr + ` 2`,
+		`invalid_lines` + baseLabelStr + ` 1`,
+		`failed_nats_publish` + baseLabelStr + ` 0`,
+		`nats_dropped` + extendLabels("subject", "subject0") + ` 0`,
+		`nats_dropped` + extendLabels("subject", "subject1") + ` 0`,
 	})
 }
 
