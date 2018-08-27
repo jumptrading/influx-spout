@@ -26,6 +26,15 @@ type Label struct {
 	Value []byte
 }
 
+// NewLabel provides a convenient ways of constructing a Label from
+// strings.
+func NewLabel(name, value string) Label {
+	return Label{
+		Name:  []byte(name),
+		Value: []byte(value),
+	}
+}
+
 // Labels contains the set of Label instances for a metric.
 type Labels []Label
 
