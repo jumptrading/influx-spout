@@ -135,49 +135,37 @@ func (ds *Downsampler) worker(subject string, inputCh <-chan []byte) {
 	defer ds.wg.Done()
 
 	outSubject := subject + ds.c.DownsampleSuffix
-	nextEmitTime := ds.nextTime(time.Now())
-	batch := newSamplingBatch(nextEmitTime)
+	assigner := newAssigner(ds.c.DownsamplePeriod.Duration, newAvgBucket, new(realClock))
 	for {
 		select {
 		case lines := <-inputCh:
 			ds.stats.Inc(statReceived)
-			errs := batch.Update(lines)
+			errs := assigner.Update(lines)
 			for _, err := range errs {
 				log.Println(err)
 				ds.stats.Inc(statInvalidLines)
 			}
-		case <-time.After(time.Until(nextEmitTime)):
+		case <-time.After(assigner.UntilNext()):
 		case <-ds.stop:
 			return
 		}
 
-		if !time.Now().Before(nextEmitTime) {
-			buf := batch.Bytes()
-			if len(buf) > 0 {
-				if ds.c.Debug {
-					log.Printf("total unique fields for %s: %d", subject, batch.FieldCount())
-					log.Printf("publishing to %s (%d bytes)", outSubject, len(buf))
-				}
-
-				splitter := newBatchSplitter(buf, maxNATSMsgSize)
-				for splitter.Next() {
-					if err := ds.nc.Publish(outSubject, splitter.Chunk()); err != nil {
-						log.Printf("publish error for %s: %v", outSubject, err)
-						ds.stats.Inc(statFailedNATSPublish)
-					}
-				}
-				ds.stats.Inc(statSent)
+		buf := assigner.Bytes()
+		if len(buf) > 0 {
+			if ds.c.Debug {
+				log.Printf("publishing to %s (%d bytes)", outSubject, len(buf))
 			}
 
-			nextEmitTime = ds.nextTime(nextEmitTime)
-			batch = newSamplingBatch(nextEmitTime)
+			splitter := newBatchSplitter(buf, maxNATSMsgSize)
+			for splitter.Next() {
+				if err := ds.nc.Publish(outSubject, splitter.Chunk()); err != nil {
+					log.Printf("publish error for %s: %v", outSubject, err)
+					ds.stats.Inc(statFailedNATSPublish)
+				}
+			}
+			ds.stats.Inc(statSent)
 		}
 	}
-}
-
-func (ds *Downsampler) nextTime(t time.Time) time.Time {
-	period := ds.c.DownsamplePeriod.Duration
-	return t.Add(period).Truncate(period)
 }
 
 // startStatistician defines a goroutine that is responsible for

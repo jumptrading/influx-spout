@@ -15,7 +15,6 @@
 package downsampler
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"sort"
@@ -26,64 +25,44 @@ import (
 	"github.com/jumptrading/influx-spout/influx"
 )
 
-func newSamplingBatch(ts time.Time) *samplingBatch {
-	return &samplingBatch{
+func newAvgBucket(ts time.Time) bucket {
+	return &avgBucket{
 		lines: make(map[string]*fieldPairs),
-		ts:    ts.UnixNano(),
+		ts:    ts,
 	}
 }
 
-type samplingBatch struct {
+type avgBucket struct {
 	lines map[string]*fieldPairs
-	ts    int64
+	ts    time.Time
 }
 
-func (b *samplingBatch) Update(more []byte) (errs []error) {
-	for _, line := range bytes.Split(more, []byte("\n")) {
-		if len(line) < 1 {
-			continue
-		}
+func (b *avgBucket) EndTime() time.Time {
+	return b.ts
+}
 
-		var keyBytes []byte
-		keyBytes, line = influx.Token(line, []byte(" ")) // key = measurement + tags
-		key := string(keyBytes)
+func (b *avgBucket) AddLine(line []byte) (errs []error) {
+	var keyBytes []byte
+	keyBytes, line = influx.Token(line, []byte(" ")) // key = measurement + tags
+	key := string(keyBytes)
 
-		// Find the part of the line that contains the fields by
-		// stripping off the timestamp (if present).
-		var fieldSection []byte
-		_, tsOffset := influx.ExtractTimestamp(line)
-		if tsOffset >= 0 {
-			fieldSection = line[:tsOffset-1]
-		} else {
-			fieldSection = line
-		}
-
-		// Assumption: tags are already ordered (filter does this).
-		fields, found := b.lines[key]
-		if !found {
-			fields = newFieldPairs()
-		}
-		if updateErrs := fields.update(fieldSection); len(updateErrs) > 0 {
-			for _, err := range updateErrs {
-				errs = append(errs, fmt.Errorf("error parsing [%s]: %v", fieldSection, err))
-			}
-			continue
-		}
-		b.lines[key] = fields
+	// Assumption: tags are already ordered (filter does this).
+	fields, found := b.lines[key]
+	if !found {
+		fields = newFieldPairs()
 	}
+	if updateErrs := fields.update(line); len(updateErrs) > 0 {
+		for _, err := range updateErrs {
+			errs = append(errs, fmt.Errorf("error parsing [%s]: %v", line, err))
+		}
+		return
+	}
+	b.lines[key] = fields
 	return
 }
 
-func (b *samplingBatch) FieldCount() int {
-	out := 0
-	for _, fields := range b.lines {
-		out += fields.count()
-	}
-	return out
-}
-
-func (b *samplingBatch) Bytes() []byte {
-	tsBytes := strconv.AppendInt(nil, b.ts, 10)
+func (b *avgBucket) Bytes() []byte {
+	tsBytes := strconv.AppendInt(nil, b.ts.UnixNano(), 10)
 	var out []byte
 
 	for key, fields := range b.lines {

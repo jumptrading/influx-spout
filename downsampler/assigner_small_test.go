@@ -271,7 +271,7 @@ func (b *fakeBucket) EndTime() time.Time {
 	return b.endTime
 }
 
-func (b *fakeBucket) Update(line []byte) []error {
+func (b *fakeBucket) AddLine(line []byte) []error {
 	parts := bytes.SplitN(line, []byte{'\n'}, 2)
 	b.seen = append(b.seen, parts[0])
 	return nil
@@ -296,7 +296,7 @@ func (b *failBucket) EndTime() time.Time {
 	return b.endTime
 }
 
-func (b *failBucket) Update(line []byte) []error {
+func (b *failBucket) AddLine(line []byte) []error {
 	return []error{errors.New("boom")}
 }
 

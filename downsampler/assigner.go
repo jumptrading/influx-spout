@@ -25,7 +25,7 @@ import (
 // bucket defines the interface for some type which collects lines for
 // some time slot.
 type bucket interface {
-	Update([]byte) []error
+	AddLine([]byte) []error
 	Bytes() []byte
 	EndTime() time.Time
 }
@@ -77,7 +77,7 @@ type assigner struct {
 // buckets will result in an error. Data errors for any lines will
 // also result in errors being returned.
 func (a *assigner) Update(lines []byte) (errs []error) {
-	for _, line := range bytes.SplitAfter(lines, []byte{'\n'}) {
+	for _, line := range bytes.Split(lines, []byte{'\n'}) {
 		if len(line) < 1 {
 			continue
 		}
@@ -87,7 +87,7 @@ func (a *assigner) Update(lines []byte) (errs []error) {
 		if err != nil {
 			errs = append(errs, err)
 		} else {
-			lineErrs := b.Update(line)
+			lineErrs := b.AddLine(line)
 			errs = append(errs, lineErrs...)
 		}
 	}
