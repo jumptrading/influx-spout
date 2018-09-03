@@ -15,17 +15,44 @@
 package spouttest
 
 import (
+	"log"
+	"time"
+
 	"github.com/nats-io/gnatsd/server"
 	"github.com/nats-io/gnatsd/test"
 )
 
 // RunGnatsd runs a gnatsd server on the specified port for testing
 // against.
-//
-// This is essentially a copy of the unexported RunServerOnPort()
-// in github.com/nats-io/go-nats/test
 func RunGnatsd(port int) *server.Server {
+	// Retry because sometimes gnatsd fails to start.
+	for attempt := 0; attempt < 5; attempt++ {
+		srv := runServer(port)
+		if srv != nil {
+			return srv
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	panic("NATS server failed to start after multiple attempts")
+}
+
+func runServer(port int) *server.Server {
 	opts := test.DefaultTestOptions
 	opts.Port = port
-	return test.RunServer(&opts)
+	s := server.New(&opts)
+	if s == nil {
+		log.Println("No NATS Server object returned.")
+		return nil
+	}
+
+	// Run server in Go routine.
+	go s.Start()
+
+	// Wait for accept loop(s) to be started
+	if !s.ReadyForConnections(20 * time.Second) {
+		log.Println("NATS Server failed to start.")
+		s.Shutdown()
+		return nil
+	}
+	return s
 }
