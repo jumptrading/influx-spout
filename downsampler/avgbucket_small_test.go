@@ -221,6 +221,17 @@ func TestMultipleErrors(t *testing.T) {
 	assertBytes(t, `foo x=1i,y=2`, b.Bytes())
 }
 
+func BenchmarkAvgBucket(b *testing.B) {
+	bucket := newAvgBucket(now)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		bucket.AddLine([]byte(`X,host=nyc01 foo=11i bar=1.1 qaz="short"`))
+		bucket.AddLine([]byte(`X,host=nyc01 foo=22i bar=2.2 qaz="long"`))
+		_ = bucket.Bytes()
+	}
+}
+
 func assertBytes(t *testing.T, expected string, actual []byte) {
 	var expectedWithTs []string
 	for _, line := range strings.Split(expected, "\n") {

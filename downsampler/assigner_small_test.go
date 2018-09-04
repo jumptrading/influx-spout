@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"math/rand"
 	"strconv"
 	"testing"
 	"time"
@@ -254,6 +255,17 @@ func TestUntilNext(t *testing.T) {
 
 	clock.Advance(time.Second)
 	assert.Equal(t, 59*time.Second, a.UntilNext())
+}
+
+func BenchmarkAssigner(b *testing.B) {
+	a := newAssigner(time.Second, newFakeBucket, new(realClock))
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		offset := time.Duration(rand.Intn(2000)-1000) * time.Millisecond
+		_ = a.Update(makeLine("a", time.Now().Add(offset)))
+		_ = a.Bytes()
+	}
 }
 
 func newFakeBucket(t time.Time) bucket {
