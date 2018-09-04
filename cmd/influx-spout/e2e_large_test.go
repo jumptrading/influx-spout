@@ -38,24 +38,11 @@ import (
 )
 
 const (
-	natsPort    = 44600
-	influxdPort = 44601
-
-	listenerPort      = 44610
-	listenerProbePort = 44611
-
-	httpListenerPort      = 44620
-	httpListenerProbePort = 44621
-
-	filterProbePort = 44631
-
-	downsamplerProbePort = 44641
-
-	writerProbePort        = 44651
-	archiveWriterProbePort = 44652
-
-	monitorPort      = 44660
-	monitorProbePort = 44661
+	natsPort         = 44600
+	influxdPort      = 44601
+	listenerPort     = 44602
+	httpListenerPort = 44603
+	monitorPort      = 44604
 
 	dbName        = "test"
 	archiveDBName = "test-archive"
@@ -79,31 +66,24 @@ func TestEndToEnd(t *testing.T) {
 	// Start spout components.
 	listener := startListener(t)
 	defer listener.Stop()
-	spouttest.AssertReadyProbe(t, listenerProbePort)
 
 	httpListener := startHTTPListener(t)
 	defer httpListener.Stop()
-	spouttest.AssertReadyProbe(t, httpListenerProbePort)
 
 	filter := startFilter(t)
 	defer filter.Stop()
-	spouttest.AssertReadyProbe(t, filterProbePort)
 
 	downsampler := startDownsampler(t)
 	defer downsampler.Stop()
-	spouttest.AssertReadyProbe(t, downsamplerProbePort)
 
 	writer := startWriter(t)
 	defer writer.Stop()
-	spouttest.AssertReadyProbe(t, writerProbePort)
 
 	archiveWriter := startArchiveWriter(t)
 	defer archiveWriter.Stop()
-	spouttest.AssertReadyProbe(t, archiveWriterProbePort)
 
 	monitor := startMonitor(t)
 	defer monitor.Stop()
-	spouttest.AssertReadyProbe(t, monitorProbePort)
 
 	// Connect to the listener.
 	addr := net.JoinHostPort("localhost", strconv.Itoa(listenerPort))
@@ -204,8 +184,7 @@ nats_address = "nats://localhost:%d"
 batch_max_count = 5
 debug = true
 nats_subject_monitor = "monitor"
-probe_port = %d
-`, listenerPort, natsPort, listenerProbePort))
+`, listenerPort, natsPort))
 }
 
 func startHTTPListener(t *testing.T) stoppable {
@@ -216,8 +195,7 @@ nats_address = "nats://localhost:%d"
 batch_max_count = 5
 debug = true
 nats_subject_monitor = "monitor"
-probe_port = %d
-`, httpListenerPort, natsPort, httpListenerProbePort))
+`, httpListenerPort, natsPort))
 }
 
 func startFilter(t *testing.T) stoppable {
@@ -226,13 +204,12 @@ mode = "filter"
 nats_address = "nats://localhost:%d"
 debug = true
 nats_subject_monitor = "monitor"
-probe_port = %d
 
 [[rule]]
 type = "basic"
 match = "cpu"
 subject = "system"
-`, natsPort, filterProbePort))
+`, natsPort))
 }
 
 func startDownsampler(t *testing.T) stoppable {
@@ -241,22 +218,21 @@ mode = "downsampler"
 nats_address = "nats://localhost:%d"
 debug = true
 nats_subject_monitor = "monitor"
-probe_port = %d
 
 nats_subject = ["system"]
 downsample_period = "3s"
-`, natsPort, downsamplerProbePort))
+`, natsPort))
 }
 
 func startWriter(t *testing.T) stoppable {
-	return baseStartWriter(t, "writer", "system", dbName, writerProbePort)
+	return baseStartWriter(t, "writer", "system", dbName)
 }
 
 func startArchiveWriter(t *testing.T) stoppable {
-	return baseStartWriter(t, "archive-writer", "system-archive", archiveDBName, archiveWriterProbePort)
+	return baseStartWriter(t, "archive-writer", "system-archive", archiveDBName)
 }
 
-func baseStartWriter(t *testing.T, name, subject, dbName string, probePort int) stoppable {
+func baseStartWriter(t *testing.T, name, subject, dbName string) stoppable {
 	return startComponent(t, name, fmt.Sprintf(`
 mode = "writer"
 name = "%s"
@@ -268,8 +244,7 @@ batch_max_count = 1
 workers = 4
 debug = true
 nats_subject_monitor = "monitor"
-probe_port = %d
-`, name, natsPort, subject, influxdPort, dbName, probePort))
+`, name, natsPort, subject, influxdPort, dbName))
 }
 
 func startMonitor(t *testing.T) stoppable {
@@ -278,16 +253,24 @@ mode = "monitor"
 nats_address = "nats://localhost:%d"
 nats_subject_monitor = "monitor"
 port = %d
-probe_port = %d
-`, natsPort, monitorPort, monitorProbePort))
+`, natsPort, monitorPort))
 }
 
 func startComponent(t *testing.T, name, configText string) stoppable {
+	probePort := getProbePort()
+	configText = fmt.Sprintf("probe_port = %d\n%s", probePort, configText)
+
 	configFilename := name + ".toml"
 	err := afero.WriteFile(config.Fs, configFilename, []byte(configText), 0600)
 	require.NoError(t, err)
 	s, err := runComponent(configFilename)
 	require.NoError(t, err)
+
+	if !spouttest.CheckReadyProbe(probePort) {
+		s.Stop()
+		t.Fatalf("startup probe for %s failed", name)
+	}
+
 	return s
 }
 
@@ -318,4 +301,12 @@ func isCPULine(line string) bool {
 
 func isLikeCPULine(line string) bool {
 	return strings.HasPrefix(line, cpuLineHeader)
+}
+
+var nextProbePort = 44620
+
+func getProbePort() int {
+	out := nextProbePort
+	nextProbePort++
+	return out
 }
