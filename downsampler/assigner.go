@@ -62,7 +62,23 @@ const (
 	next = 2
 )
 
-// XXX document algorithm
+/* assigner takes batches of measurement lines, extracts the timestamp
+from each line and assigns each line to one of 3 buckets (previous,
+current or next). Multiple buckets are used in order to account for
+clock skew between the receiving host and the hosts that generated the
+measurements.
+
+Each bucket aggregates measurements for a specific time range and has
+a width of the downsampler sampling period.
+
+When the clock reaches the end time of the "current" bucket, the
+"previous" bucket is emitted and discarded. The "current" bucket then
+becomes the "previous" bucket, "next becomes "current" and a new
+"next" bucket is created.
+
+Measurements which fall outside of the range of the buckets being
+tracked by the assigner are discarded (errors are reported).
+*/
 type assigner struct {
 	period    time.Duration
 	clock     clock
