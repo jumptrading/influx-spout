@@ -148,14 +148,14 @@ func (a *assigner) nextT(t time.Time) time.Time {
 
 func (a *assigner) findBucket(ts time.Time) (bucket, error) {
 	if ts.Before(a.tmin) {
-		return nil, fmt.Errorf("timestamp too old: %s", ts)
+		return nil, newTimestampError("too old", ts)
 	}
 	for _, b := range a.buckets {
 		if ts.Before(b.EndTime()) {
 			return b, nil
 		}
 	}
-	return nil, fmt.Errorf("timestamp too new: %s", ts)
+	return nil, newTimestampError("too new", ts)
 }
 
 // extractTimestamp returns the timestamp from the end of the line and
@@ -180,4 +180,22 @@ type realClock struct{}
 
 func (c *realClock) Now() time.Time {
 	return time.Now()
+}
+
+func isTimestampError(err error) bool {
+	_, ok := err.(*timestampError)
+	return ok
+}
+
+func newTimestampError(reason string, t time.Time) *timestampError {
+	return &timestampError{reason: reason, t: t}
+}
+
+type timestampError struct {
+	reason string
+	t      time.Time
+}
+
+func (e *timestampError) Error() string {
+	return fmt.Sprintf("timestamp %s: %s", e.reason, e.t)
 }

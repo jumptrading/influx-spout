@@ -33,6 +33,7 @@ const (
 	statReceived          = "received"
 	statSent              = "sent"
 	statInvalidLines      = "invalid_lines"
+	statInvalidTimestamps = "invalid_timestamps"
 	statFailedNATSPublish = "failed_nats_publish"
 	statNATSDropped       = "nats_dropped"
 )
@@ -54,10 +55,15 @@ type Downsampler struct {
 // StartDownsampler creates and configures a Downsampler.
 func StartDownsampler(c *config.Config) (_ *Downsampler, err error) {
 	ds := &Downsampler{
-		c:                c,
-		probes:           probes.Listen(c.ProbePort),
-		stop:             make(chan struct{}),
-		stats:            stats.New(statReceived, statSent, statInvalidLines, statFailedNATSPublish),
+		c:      c,
+		probes: probes.Listen(c.ProbePort),
+		stop:   make(chan struct{}),
+		stats: stats.New(
+			statReceived,
+			statSent,
+			statInvalidLines,
+			statInvalidTimestamps,
+			statFailedNATSPublish),
 		statsNATSDropped: stats.NewAnon(len(c.NATSSubject)),
 	}
 	defer func() {
@@ -142,8 +148,14 @@ func (ds *Downsampler) worker(subject string, inputCh <-chan []byte) {
 			ds.stats.Inc(statReceived)
 			errs := assigner.Update(lines)
 			for _, err := range errs {
-				log.Println(err)
-				ds.stats.Inc(statInvalidLines)
+				if ds.c.Debug {
+					log.Println(err)
+				}
+				if isTimestampError(err) {
+					ds.stats.Inc(statInvalidTimestamps)
+				} else {
+					ds.stats.Inc(statInvalidLines)
+				}
 			}
 		case <-time.After(assigner.UntilNext()):
 		case <-ds.stop:

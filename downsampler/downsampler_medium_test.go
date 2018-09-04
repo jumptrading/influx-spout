@@ -87,6 +87,7 @@ bool,host=1 b=false
 nums,host=host0 x=333i,y=2.5
 bool,host=0 b=false
 bool,host=1 b=true
+too_old_timestamp 123
 `[1:]))
 	require.NoError(t, err)
 
@@ -96,7 +97,8 @@ int,host=host0 xyz=111i
 string,host=host0 value="two"
 string,host=host0 value="three"
 int,host=host0 xyz=333i
-bad x
+too_new_timestamp 9223372036854775807
+invalid x
 `[1:]))
 	require.NoError(t, err)
 
@@ -134,6 +136,7 @@ int,host=host0 xyz=222i
 		`received` + baseLabelStr + ` 2`,
 		`sent` + baseLabelStr + ` 2`,
 		`invalid_lines` + baseLabelStr + ` 1`,
+		`invalid_timestamps` + baseLabelStr + ` 2`,
 		`failed_nats_publish` + baseLabelStr + ` 0`,
 		`nats_dropped` + extendLabels("subject", "subject0") + ` 0`,
 		`nats_dropped` + extendLabels("subject", "subject1") + ` 0`,
