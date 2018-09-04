@@ -49,13 +49,17 @@ const (
 
 	filterProbePort = 44631
 
-	writerProbePort = 44641
+	downsamplerProbePort = 44641
 
-	monitorPort      = 44650
-	monitorProbePort = 44651
+	writerProbePort        = 44651
+	archiveWriterProbePort = 44652
 
-	influxDBName = "test"
-	sendCount    = 10
+	monitorPort      = 44660
+	monitorProbePort = 44661
+
+	dbName        = "test"
+	archiveDBName = "test-archive"
+	sendCount     = 10
 )
 
 func TestEndToEnd(t *testing.T) {
@@ -86,9 +90,17 @@ func TestEndToEnd(t *testing.T) {
 	defer filter.Stop()
 	spouttest.AssertReadyProbe(t, filterProbePort)
 
+	downsampler := startDownsampler(t, fs)
+	defer downsampler.Stop()
+	spouttest.AssertReadyProbe(t, downsamplerProbePort)
+
 	writer := startWriter(t, fs)
 	defer writer.Stop()
 	spouttest.AssertReadyProbe(t, writerProbePort)
+
+	archiveWriter := startArchiveWriter(t, fs)
+	defer archiveWriter.Stop()
+	spouttest.AssertReadyProbe(t, archiveWriterProbePort)
 
 	monitor := startMonitor(t, fs)
 	defer monitor.Stop()
@@ -116,49 +128,40 @@ func TestEndToEnd(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	// Check "database".
-	maxWaitTime := time.Now().Add(spouttest.LongWait)
-	for {
-		lines := influxd.Lines()
-		recvCount := len(lines[influxDBName])
-		if recvCount == sendCount {
-			// Expected number of lines received...
-			// Now check they are correct.
-			for _, line := range lines[influxDBName] {
-				if !strings.HasPrefix(line, cpuLine) {
-					t.Fatalf("unexpected line received: %s", line)
-				}
-			}
-
-			// No writes to other databases are expected.
-			assert.Len(t, lines, 1)
-
-			break // Success
-		}
-		if time.Now().After(maxWaitTime) {
-			t.Fatalf("failed to see expected database records. Saw %d records.", recvCount)
-		}
-		time.Sleep(250 * time.Millisecond)
-	}
+	// Check "databases".
+	checkDatabase(t, influxd, dbName, sendCount, isCPULine)
+	checkDatabase(t, influxd, archiveDBName, 1, isLikeCPULine)
+	assert.Equal(t, 2, influxd.DatabaseCount()) // primary + archive
 
 	// Check metrics published by monitor component.
 	expectedMetrics := regexp.MustCompile(`
+failed_nats_publish{component="downsampler",host="h",name="downsampler"} 0
 failed_nats_publish{component="filter",host="h",name="filter"} 0
 failed_nats_publish{component="listener",host="h",name="listener"} 0
 failed_writes{component="writer",host="h",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44601",name="writer"} 0
+failed_writes{component="writer",host="h",influxdb_address="localhost",influxdb_dbname="test-archive",influxdb_port="44601",name="archive-writer"} 0
+invalid_lines{component="downsampler",host="h",name="downsampler"} 0
+invalid_timestamps{component="downsampler",host="h",name="downsampler"} 0
 invalid_time{component="filter",host="h",name="filter"} 0
 max_pending{component="writer",host="h",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44601",name="writer"} \d+
+max_pending{component="writer",host="h",influxdb_address="localhost",influxdb_dbname="test-archive",influxdb_port="44601",name="archive-writer"} \d+
+nats_dropped{component="downsampler",host="h",name="downsampler",subject="system"} 0
 nats_dropped{component="filter",host="h",name="filter"} 0
 nats_dropped{component="writer",host="h",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44601",name="writer",subject="system"} 0
+nats_dropped{component="writer",host="h",influxdb_address="localhost",influxdb_dbname="test-archive",influxdb_port="44601",name="archive-writer",subject="system-archive"} 0
 passed{component="filter",host="h",name="filter"} 10
 processed{component="filter",host="h",name="filter"} 20
 read_errors{component="listener",host="h",name="listener"} 0
+received{component="downsampler",host="h",name="downsampler"} 2
 received{component="listener",host="h",name="listener"} 5
 received{component="writer",host="h",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44601",name="writer"} 2
+received{component="writer",host="h",influxdb_address="localhost",influxdb_dbname="test-archive",influxdb_port="44601",name="archive-writer"} 1
 rejected{component="filter",host="h",name="filter"} 10
+sent{component="downsampler",host="h",name="downsampler"} 1
 sent{component="listener",host="h",name="listener"} 1
 triggered{component="filter",host="h",name="filter",rule="system"} 10
 write_requests{component="writer",host="h",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44601",name="writer"} 2
+write_requests{component="writer",host="h",influxdb_address="localhost",influxdb_dbname="test-archive",influxdb_port="44601",name="archive-writer"} 1
 $`[1:])
 	var lines string
 	for try := 0; try < 20; try++ {
@@ -178,7 +181,8 @@ $`[1:])
 	t.Fatalf("Failed to see expected metrics. Last saw:\n%s", lines)
 }
 
-const cpuLine = "cpu,cls=server,env=prod user=13.33,usage_system=0.16,usage_idle=86.53"
+const cpuLineHeader = "cpu,cls=server,env=prod "
+const cpuLine = cpuLineHeader + "user=13.33,usage_system=0.16,usage_idle=86.53"
 
 func makeTestLines() *bytes.Buffer {
 	now := time.Now().UnixNano()
@@ -232,11 +236,33 @@ subject = "system"
 `, natsPort, filterProbePort))
 }
 
-func startWriter(t *testing.T, fs afero.Fs) stoppable {
-	return startComponent(t, fs, "writer", fmt.Sprintf(`
-mode = "writer"
+func startDownsampler(t *testing.T, fs afero.Fs) stoppable {
+	return startComponent(t, fs, "downsampler", fmt.Sprintf(`
+mode = "downsampler"
 nats_address = "nats://localhost:%d"
+debug = true
+nats_subject_monitor = "monitor"
+probe_port = %d
+
 nats_subject = ["system"]
+downsample_period = "3s"
+`, natsPort, downsamplerProbePort))
+}
+
+func startWriter(t *testing.T, fs afero.Fs) stoppable {
+	return baseStartWriter(t, fs, "writer", "system", dbName, writerProbePort)
+}
+
+func startArchiveWriter(t *testing.T, fs afero.Fs) stoppable {
+	return baseStartWriter(t, fs, "archive-writer", "system-archive", archiveDBName, archiveWriterProbePort)
+}
+
+func baseStartWriter(t *testing.T, fs afero.Fs, name, subject, dbName string, probePort int) stoppable {
+	return startComponent(t, fs, name, fmt.Sprintf(`
+mode = "writer"
+name = "%s"
+nats_address = "nats://localhost:%d"
+nats_subject = ["%s"]
 influxdb_port = %d
 influxdb_dbname = "%s"
 batch_max_count = 1
@@ -244,7 +270,7 @@ workers = 4
 debug = true
 nats_subject_monitor = "monitor"
 probe_port = %d
-`, natsPort, influxdPort, influxDBName, writerProbePort))
+`, name, natsPort, subject, influxdPort, dbName, probePort))
 }
 
 func startMonitor(t *testing.T, fs afero.Fs) stoppable {
@@ -264,4 +290,33 @@ func startComponent(t *testing.T, fs afero.Fs, name, config string) stoppable {
 	s, err := runComponent(configFilename)
 	require.NoError(t, err)
 	return s
+}
+
+func checkDatabase(t *testing.T, db *spouttest.FakeInfluxDB, dbName string, expectedCount int, checkLine func(string) bool) {
+	maxWaitTime := time.Now().Add(spouttest.LongWait)
+	for {
+		lines := db.Lines(dbName)
+		recvCount := len(lines)
+		if recvCount == expectedCount {
+			// Expected number of lines received. Now check they are correct.
+			for _, line := range lines {
+				if !checkLine(line) {
+					t.Fatalf("unexpected line received: %s", line)
+				}
+			}
+			break // Success
+		}
+		if time.Now().After(maxWaitTime) {
+			t.Fatalf("failed to see expected database records. Saw %d records.", recvCount)
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+}
+
+func isCPULine(line string) bool {
+	return strings.HasPrefix(line, cpuLine)
+}
+
+func isLikeCPULine(line string) bool {
+	return strings.HasPrefix(line, cpuLineHeader)
 }

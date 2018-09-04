@@ -66,17 +66,20 @@ func (f *FakeInfluxDB) Stop() {
 	f.wg.Wait()
 }
 
-// Lines returned the lines received for each "database". The returned
-// map and slices are copies. Lines() is goroutine-safe.
-func (f *FakeInfluxDB) Lines() map[string][]string {
+// DatabaseCount returns the number of databases that have been
+// written to.
+func (f *FakeInfluxDB) DatabaseCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	return len(f.lines)
+}
 
-	out := make(map[string][]string)
-	for db, lines := range f.lines {
-		out[db] = append([]string(nil), lines...)
-	}
-	return out
+// Lines returned the lines received for a given "database".
+func (f *FakeInfluxDB) Lines(dbName string) []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	lines := f.lines[dbName]
+	return append([]string(nil), lines...)
 }
 
 func (f *FakeInfluxDB) run() {
