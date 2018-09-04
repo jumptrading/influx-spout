@@ -74,35 +74,34 @@ func TestEndToEnd(t *testing.T) {
 	defer influxd.Stop()
 
 	// Use a fake filesystem (for config files).
-	fs := afero.NewMemMapFs()
-	config.Fs = fs
+	config.Fs = afero.NewMemMapFs()
 
 	// Start spout components.
-	listener := startListener(t, fs)
+	listener := startListener(t)
 	defer listener.Stop()
 	spouttest.AssertReadyProbe(t, listenerProbePort)
 
-	httpListener := startHTTPListener(t, fs)
+	httpListener := startHTTPListener(t)
 	defer httpListener.Stop()
 	spouttest.AssertReadyProbe(t, httpListenerProbePort)
 
-	filter := startFilter(t, fs)
+	filter := startFilter(t)
 	defer filter.Stop()
 	spouttest.AssertReadyProbe(t, filterProbePort)
 
-	downsampler := startDownsampler(t, fs)
+	downsampler := startDownsampler(t)
 	defer downsampler.Stop()
 	spouttest.AssertReadyProbe(t, downsamplerProbePort)
 
-	writer := startWriter(t, fs)
+	writer := startWriter(t)
 	defer writer.Stop()
 	spouttest.AssertReadyProbe(t, writerProbePort)
 
-	archiveWriter := startArchiveWriter(t, fs)
+	archiveWriter := startArchiveWriter(t)
 	defer archiveWriter.Stop()
 	spouttest.AssertReadyProbe(t, archiveWriterProbePort)
 
-	monitor := startMonitor(t, fs)
+	monitor := startMonitor(t)
 	defer monitor.Stop()
 	spouttest.AssertReadyProbe(t, monitorProbePort)
 
@@ -197,8 +196,8 @@ foo,env=dev bar=99 %d
 	return out
 }
 
-func startListener(t *testing.T, fs afero.Fs) stoppable {
-	return startComponent(t, fs, "listener", fmt.Sprintf(`
+func startListener(t *testing.T) stoppable {
+	return startComponent(t, "listener", fmt.Sprintf(`
 mode = "listener"
 port = %d
 nats_address = "nats://localhost:%d"
@@ -209,8 +208,8 @@ probe_port = %d
 `, listenerPort, natsPort, listenerProbePort))
 }
 
-func startHTTPListener(t *testing.T, fs afero.Fs) stoppable {
-	return startComponent(t, fs, "listener", fmt.Sprintf(`
+func startHTTPListener(t *testing.T) stoppable {
+	return startComponent(t, "listener", fmt.Sprintf(`
 mode = "listener_http"
 port = %d
 nats_address = "nats://localhost:%d"
@@ -221,8 +220,8 @@ probe_port = %d
 `, httpListenerPort, natsPort, httpListenerProbePort))
 }
 
-func startFilter(t *testing.T, fs afero.Fs) stoppable {
-	return startComponent(t, fs, "filter", fmt.Sprintf(`
+func startFilter(t *testing.T) stoppable {
+	return startComponent(t, "filter", fmt.Sprintf(`
 mode = "filter"
 nats_address = "nats://localhost:%d"
 debug = true
@@ -236,8 +235,8 @@ subject = "system"
 `, natsPort, filterProbePort))
 }
 
-func startDownsampler(t *testing.T, fs afero.Fs) stoppable {
-	return startComponent(t, fs, "downsampler", fmt.Sprintf(`
+func startDownsampler(t *testing.T) stoppable {
+	return startComponent(t, "downsampler", fmt.Sprintf(`
 mode = "downsampler"
 nats_address = "nats://localhost:%d"
 debug = true
@@ -249,16 +248,16 @@ downsample_period = "3s"
 `, natsPort, downsamplerProbePort))
 }
 
-func startWriter(t *testing.T, fs afero.Fs) stoppable {
-	return baseStartWriter(t, fs, "writer", "system", dbName, writerProbePort)
+func startWriter(t *testing.T) stoppable {
+	return baseStartWriter(t, "writer", "system", dbName, writerProbePort)
 }
 
-func startArchiveWriter(t *testing.T, fs afero.Fs) stoppable {
-	return baseStartWriter(t, fs, "archive-writer", "system-archive", archiveDBName, archiveWriterProbePort)
+func startArchiveWriter(t *testing.T) stoppable {
+	return baseStartWriter(t, "archive-writer", "system-archive", archiveDBName, archiveWriterProbePort)
 }
 
-func baseStartWriter(t *testing.T, fs afero.Fs, name, subject, dbName string, probePort int) stoppable {
-	return startComponent(t, fs, name, fmt.Sprintf(`
+func baseStartWriter(t *testing.T, name, subject, dbName string, probePort int) stoppable {
+	return startComponent(t, name, fmt.Sprintf(`
 mode = "writer"
 name = "%s"
 nats_address = "nats://localhost:%d"
@@ -273,8 +272,8 @@ probe_port = %d
 `, name, natsPort, subject, influxdPort, dbName, probePort))
 }
 
-func startMonitor(t *testing.T, fs afero.Fs) stoppable {
-	return startComponent(t, fs, "monitor", fmt.Sprintf(`
+func startMonitor(t *testing.T) stoppable {
+	return startComponent(t, "monitor", fmt.Sprintf(`
 mode = "monitor"
 nats_address = "nats://localhost:%d"
 nats_subject_monitor = "monitor"
@@ -283,9 +282,9 @@ probe_port = %d
 `, natsPort, monitorPort, monitorProbePort))
 }
 
-func startComponent(t *testing.T, fs afero.Fs, name, config string) stoppable {
+func startComponent(t *testing.T, name, configText string) stoppable {
 	configFilename := name + ".toml"
-	err := afero.WriteFile(fs, configFilename, []byte(config), 0600)
+	err := afero.WriteFile(config.Fs, configFilename, []byte(configText), 0600)
 	require.NoError(t, err)
 	s, err := runComponent(configFilename)
 	require.NoError(t, err)
