@@ -20,9 +20,10 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
+	"github.com/jumptrading/influx-spout/spouttest"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 const probesPort = 44450
@@ -77,7 +78,26 @@ func assertNotReady(t *testing.T) {
 
 func assertProbe(t *testing.T, path string, expectedStatus int) {
 	url := fmt.Sprintf("http://localhost:%d/%s", probesPort, path)
-	resp, err := http.Get(url)
-	require.NoError(t, err)
-	assert.Equal(t, expectedStatus, resp.StatusCode)
+	client := &http.Client{Timeout: 2 * time.Second}
+	maxTime := time.Now().Add(spouttest.LongWait)
+
+	var resp *http.Response
+	var err error
+	for {
+		resp, err = client.Get(url)
+		if err == nil && expectedStatus == resp.StatusCode {
+			return // Success
+		}
+		if time.Now().Before(maxTime) {
+			time.Sleep(100 * time.Millisecond)
+		} else {
+			break
+		}
+	}
+
+	msg := fmt.Sprintf("failed to see expected probe status. Last err=%v", err)
+	if resp != nil {
+		msg = fmt.Sprintf("%s. Last status: %d.", msg, resp.StatusCode)
+	}
+	t.Fatal(msg)
 }
