@@ -32,35 +32,41 @@ The following diagram shows a typical influx-spout deployment, and the
 flow of data between the various components:
 
 ```
-                           +-----+              +------+
-                           | UDP |              | HTTP |
-                           +-----+              +------+
-                              |                     |
-                              v                     v
-                     +-----------------+   +-----------------+
-                     |                 |   |                 |
-                     |     Listener    |   |  HTTP Listener  |
-                     |                 |   |                 |
-                     +-----------------+   +-----------------+
-                              |                     |
-                              v                     v
- +----------+   +-------------------------------------------------+   +---------+
- |          |<--+                                                 |   |         |
- |  Filter  |   |                     NATS                        +-->| Monitor |
- |          +-->|                                                 |   |         |
- +----------+   +--------+----------------+----------------+------+   +----+----+
-                         |                |                |               |
-                         v                v                v               |
-                   +----------+     +----------+     +----------+          |
-                   |          |     |          |     |          |          |
-                   |  Writer  |     |  Writer  |     |  Writer  |          |
-                   |          |     |          |     |          |          |
-                   +-----+----+     +-----+----+     +-----+----+          |
-                         |                |                |               |
-                         v                v                v               V
-                   +----------+     +----------+     +----------+   +----------------+
-                   | InfluxDB |     | InfluxDB |     | InfluxDB |   | Metrics (HTTP) |
-                   +----------+     +----------+     +----------+   +----------------+
+                                 +-----+              +------+
+                                 | UDP |              | HTTP |
+                                 +--+--+              +---+--+
+                                    |                     |
+                                    v                     v
+                           +-----------------+   +-----------------+
+                           |                 |   |                 |
+                           |     Listener    |   |  HTTP Listener  |
+                           |                 |   |                 |
+                           +--------+--------+   +--------+--------+
+                                    |                     |
+                                    v                     v
+ +----------------+   +-------------------------------------------------+
+ |                |<--+                                                 |
+ |    Filter(s)   |   |                                                 |
+ |                +-->|                                                 |   +---------+
+ +----------------+   |                                                 |   |         |
+                      |                      NATS                       +-->| Monitor |
+ +----------------+   |                                                 |   |         |
+ |                |<--+                                                 |   +----+----+
+ | Downsampler(s) |   |                                                 |        |
+ |                +-->|                                                 |        |
+ +----------------+   +-------+----------------+----------------+-------+        |
+                              |                |                |                |
+                              v                v                v                |
+                        +----------+     +----------+     +----------+           |
+                        |          |     |          |     |          |           |
+                        |  Writer  |     |  Writer  |     |  Writer  |           |
+                        |          |     |          |     |          |           |
+                        +-----+----+     +-----+----+     +-----+----+           |
+                              |                |                |                |
+                              v                v                v                V
+                        +----------+     +----------+     +----------+   +----------------+
+                        | InfluxDB |     | InfluxDB |     | InfluxDB |   | Metrics (HTTP) |
+                        +----------+     +----------+     +----------+   +----------------+
 ```
 
 All the influx-spout components may be run on a single host or may be
@@ -338,6 +344,66 @@ subject = "not-web"
 
 Ordering of rules in the configuration is important. Only the first rule that
 matches a given measurement is applied.
+
+
+### Downsampler
+
+The downsampler reads measurements from one or more NATS subjects,
+accumlates them and emits sampled values at a configured sampling
+period. This is useful for generating long term archive feeds of
+measurements.
+
+Integer and float fields are averaged over each sampling period. For
+string and boolean fields, the latest value for each sampling interval
+is emitted.
+
+The input subjects to a downsampler are intended to be the outputs
+from the filter.
+
+The downsampler sends its output to NATS subjects that match the input
+subjects with a suffix as configured by `downsample_suffix` (default
+is `-archive`). For example, averaged measurements for an input
+subject of `monitoring` would be output by the downsampler to a
+NATS subject named `monitoring-archive`.
+
+Writers should be configured to consume the downsampler output
+subjects and write them to an InfluxDB instance for storage.
+
+```toml
+mode = "downsampler"  # Required
+
+# Address of NATS server.
+nats_address = "nats://localhost:4222"
+
+# Subjects to accumulate measurements from (these should be filter outputs).
+nats_subject = ["influx-spout"]
+
+# The period to sample measurements over. Averaged measurements will be
+# emitted for each period at this interval.
+downsample_period = "1m"
+
+# This suffix will be added to each input NATS subject name to form the
+# output subject names.
+downsample_suffix = "-archive"
+
+# The maximum size that the pending buffer for the NATS subject that the
+# downsampler is reading from may become. Measurements will be dropped if
+# this limit is reached.
+nats_max_pending_size = "200MB"
+
+# The downsampler will publish its own metrics to this NATS subject (for
+# consumption by the monitor).
+nats_subject_monitor = "influx-spout-monitor"
+
+# The downsampler will publish its internal metrics to the monitor component at
+# this interval.
+stats_interval = "3s"
+
+# The downsampler will serve Kubernetes liveness and readiness probes on this
+# port at /healthz and /readyz. Set to 0 (the default) to disable probes support.
+probe_port = 0
+```
+
 
 ### Writer
 

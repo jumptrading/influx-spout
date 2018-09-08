@@ -38,24 +38,15 @@ import (
 )
 
 const (
-	natsPort    = 44600
-	influxdPort = 44601
+	natsPort         = 44600
+	influxdPort      = 44601
+	listenerPort     = 44602
+	httpListenerPort = 44603
+	monitorPort      = 44604
 
-	listenerPort      = 44610
-	listenerProbePort = 44611
-
-	httpListenerPort      = 44620
-	httpListenerProbePort = 44621
-
-	filterProbePort = 44631
-
-	writerProbePort = 44641
-
-	monitorPort      = 44650
-	monitorProbePort = 44651
-
-	influxDBName = "test"
-	sendCount    = 10
+	dbName        = "test"
+	archiveDBName = "test-archive"
+	sendCount     = 10
 )
 
 func TestEndToEnd(t *testing.T) {
@@ -70,29 +61,29 @@ func TestEndToEnd(t *testing.T) {
 	defer influxd.Stop()
 
 	// Use a fake filesystem (for config files).
-	fs := afero.NewMemMapFs()
-	config.Fs = fs
+	config.Fs = afero.NewMemMapFs()
 
 	// Start spout components.
-	listener := startListener(t, fs)
+	listener := startListener(t)
 	defer listener.Stop()
-	spouttest.AssertReadyProbe(t, listenerProbePort)
 
-	httpListener := startHTTPListener(t, fs)
+	httpListener := startHTTPListener(t)
 	defer httpListener.Stop()
-	spouttest.AssertReadyProbe(t, httpListenerProbePort)
 
-	filter := startFilter(t, fs)
+	filter := startFilter(t)
 	defer filter.Stop()
-	spouttest.AssertReadyProbe(t, filterProbePort)
 
-	writer := startWriter(t, fs)
+	downsampler := startDownsampler(t)
+	defer downsampler.Stop()
+
+	writer := startWriter(t)
 	defer writer.Stop()
-	spouttest.AssertReadyProbe(t, writerProbePort)
 
-	monitor := startMonitor(t, fs)
+	archiveWriter := startArchiveWriter(t)
+	defer archiveWriter.Stop()
+
+	monitor := startMonitor(t)
 	defer monitor.Stop()
-	spouttest.AssertReadyProbe(t, monitorProbePort)
 
 	// Connect to the listener.
 	addr := net.JoinHostPort("localhost", strconv.Itoa(listenerPort))
@@ -116,49 +107,40 @@ func TestEndToEnd(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	// Check "database".
-	maxWaitTime := time.Now().Add(spouttest.LongWait)
-	for {
-		lines := influxd.Lines()
-		recvCount := len(lines[influxDBName])
-		if recvCount == sendCount {
-			// Expected number of lines received...
-			// Now check they are correct.
-			for _, line := range lines[influxDBName] {
-				if !strings.HasPrefix(line, cpuLine) {
-					t.Fatalf("unexpected line received: %s", line)
-				}
-			}
-
-			// No writes to other databases are expected.
-			assert.Len(t, lines, 1)
-
-			break // Success
-		}
-		if time.Now().After(maxWaitTime) {
-			t.Fatalf("failed to see expected database records. Saw %d records.", recvCount)
-		}
-		time.Sleep(250 * time.Millisecond)
-	}
+	// Check "databases".
+	checkDatabase(t, influxd, dbName, sendCount, isCPULine)
+	checkDatabase(t, influxd, archiveDBName, 1, isLikeCPULine)
+	assert.Equal(t, 2, influxd.DatabaseCount()) // primary + archive
 
 	// Check metrics published by monitor component.
 	expectedMetrics := regexp.MustCompile(`
+failed_nats_publish{component="downsampler",host="h",name="downsampler"} 0
 failed_nats_publish{component="filter",host="h",name="filter"} 0
 failed_nats_publish{component="listener",host="h",name="listener"} 0
 failed_writes{component="writer",host="h",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44601",name="writer"} 0
+failed_writes{component="writer",host="h",influxdb_address="localhost",influxdb_dbname="test-archive",influxdb_port="44601",name="archive-writer"} 0
+invalid_lines{component="downsampler",host="h",name="downsampler"} 0
+invalid_timestamps{component="downsampler",host="h",name="downsampler"} 0
 invalid_time{component="filter",host="h",name="filter"} 0
 max_pending{component="writer",host="h",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44601",name="writer"} \d+
+max_pending{component="writer",host="h",influxdb_address="localhost",influxdb_dbname="test-archive",influxdb_port="44601",name="archive-writer"} \d+
+nats_dropped{component="downsampler",host="h",name="downsampler",subject="system"} 0
 nats_dropped{component="filter",host="h",name="filter"} 0
 nats_dropped{component="writer",host="h",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44601",name="writer",subject="system"} 0
+nats_dropped{component="writer",host="h",influxdb_address="localhost",influxdb_dbname="test-archive",influxdb_port="44601",name="archive-writer",subject="system-archive"} 0
 passed{component="filter",host="h",name="filter"} 10
 processed{component="filter",host="h",name="filter"} 20
 read_errors{component="listener",host="h",name="listener"} 0
+received{component="downsampler",host="h",name="downsampler"} 2
 received{component="listener",host="h",name="listener"} 5
 received{component="writer",host="h",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44601",name="writer"} 2
+received{component="writer",host="h",influxdb_address="localhost",influxdb_dbname="test-archive",influxdb_port="44601",name="archive-writer"} 1
 rejected{component="filter",host="h",name="filter"} 10
+sent{component="downsampler",host="h",name="downsampler"} 1
 sent{component="listener",host="h",name="listener"} 1
 triggered{component="filter",host="h",name="filter",rule="system"} 10
 write_requests{component="writer",host="h",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44601",name="writer"} 2
+write_requests{component="writer",host="h",influxdb_address="localhost",influxdb_dbname="test-archive",influxdb_port="44601",name="archive-writer"} 1
 $`[1:])
 	var lines string
 	for try := 0; try < 20; try++ {
@@ -178,7 +160,8 @@ $`[1:])
 	t.Fatalf("Failed to see expected metrics. Last saw:\n%s", lines)
 }
 
-const cpuLine = "cpu,cls=server,env=prod user=13.33,usage_system=0.16,usage_idle=86.53"
+const cpuLineHeader = "cpu,cls=server,env=prod "
+const cpuLine = cpuLineHeader + "user=13.33,usage_system=0.16,usage_idle=86.53"
 
 func makeTestLines() *bytes.Buffer {
 	now := time.Now().UnixNano()
@@ -193,75 +176,137 @@ foo,env=dev bar=99 %d
 	return out
 }
 
-func startListener(t *testing.T, fs afero.Fs) stoppable {
-	return startComponent(t, fs, "listener", fmt.Sprintf(`
+func startListener(t *testing.T) stoppable {
+	return startComponent(t, "listener", fmt.Sprintf(`
 mode = "listener"
 port = %d
 nats_address = "nats://localhost:%d"
 batch_max_count = 5
 debug = true
 nats_subject_monitor = "monitor"
-probe_port = %d
-`, listenerPort, natsPort, listenerProbePort))
+`, listenerPort, natsPort))
 }
 
-func startHTTPListener(t *testing.T, fs afero.Fs) stoppable {
-	return startComponent(t, fs, "listener", fmt.Sprintf(`
+func startHTTPListener(t *testing.T) stoppable {
+	return startComponent(t, "listener", fmt.Sprintf(`
 mode = "listener_http"
 port = %d
 nats_address = "nats://localhost:%d"
 batch_max_count = 5
 debug = true
 nats_subject_monitor = "monitor"
-probe_port = %d
-`, httpListenerPort, natsPort, httpListenerProbePort))
+`, httpListenerPort, natsPort))
 }
 
-func startFilter(t *testing.T, fs afero.Fs) stoppable {
-	return startComponent(t, fs, "filter", fmt.Sprintf(`
+func startFilter(t *testing.T) stoppable {
+	return startComponent(t, "filter", fmt.Sprintf(`
 mode = "filter"
 nats_address = "nats://localhost:%d"
 debug = true
 nats_subject_monitor = "monitor"
-probe_port = %d
 
 [[rule]]
 type = "basic"
 match = "cpu"
 subject = "system"
-`, natsPort, filterProbePort))
+`, natsPort))
 }
 
-func startWriter(t *testing.T, fs afero.Fs) stoppable {
-	return startComponent(t, fs, "writer", fmt.Sprintf(`
-mode = "writer"
+func startDownsampler(t *testing.T) stoppable {
+	return startComponent(t, "downsampler", fmt.Sprintf(`
+mode = "downsampler"
 nats_address = "nats://localhost:%d"
+debug = true
+nats_subject_monitor = "monitor"
+
 nats_subject = ["system"]
+downsample_period = "3s"
+`, natsPort))
+}
+
+func startWriter(t *testing.T) stoppable {
+	return baseStartWriter(t, "writer", "system", dbName)
+}
+
+func startArchiveWriter(t *testing.T) stoppable {
+	return baseStartWriter(t, "archive-writer", "system-archive", archiveDBName)
+}
+
+func baseStartWriter(t *testing.T, name, subject, dbName string) stoppable {
+	return startComponent(t, name, fmt.Sprintf(`
+mode = "writer"
+name = "%s"
+nats_address = "nats://localhost:%d"
+nats_subject = ["%s"]
 influxdb_port = %d
 influxdb_dbname = "%s"
 batch_max_count = 1
 workers = 4
 debug = true
 nats_subject_monitor = "monitor"
-probe_port = %d
-`, natsPort, influxdPort, influxDBName, writerProbePort))
+`, name, natsPort, subject, influxdPort, dbName))
 }
 
-func startMonitor(t *testing.T, fs afero.Fs) stoppable {
-	return startComponent(t, fs, "monitor", fmt.Sprintf(`
+func startMonitor(t *testing.T) stoppable {
+	return startComponent(t, "monitor", fmt.Sprintf(`
 mode = "monitor"
 nats_address = "nats://localhost:%d"
 nats_subject_monitor = "monitor"
 port = %d
-probe_port = %d
-`, natsPort, monitorPort, monitorProbePort))
+`, natsPort, monitorPort))
 }
 
-func startComponent(t *testing.T, fs afero.Fs, name, config string) stoppable {
+func startComponent(t *testing.T, name, configText string) stoppable {
+	probePort := getProbePort()
+	configText = fmt.Sprintf("probe_port = %d\n%s", probePort, configText)
+
 	configFilename := name + ".toml"
-	err := afero.WriteFile(fs, configFilename, []byte(config), 0600)
+	err := afero.WriteFile(config.Fs, configFilename, []byte(configText), 0600)
 	require.NoError(t, err)
 	s, err := runComponent(configFilename)
 	require.NoError(t, err)
+
+	if !spouttest.CheckReadyProbe(probePort) {
+		s.Stop()
+		t.Fatalf("startup probe for %s failed", name)
+	}
+
 	return s
+}
+
+func checkDatabase(t *testing.T, db *spouttest.FakeInfluxDB, dbName string, expectedCount int, checkLine func(string) bool) {
+	maxWaitTime := time.Now().Add(spouttest.LongWait)
+	for {
+		lines := db.Lines(dbName)
+		recvCount := len(lines)
+		if recvCount == expectedCount {
+			// Expected number of lines received. Now check they are correct.
+			for _, line := range lines {
+				if !checkLine(line) {
+					t.Fatalf("unexpected line received: %s", line)
+				}
+			}
+			break // Success
+		}
+		if time.Now().After(maxWaitTime) {
+			t.Fatalf("failed to see expected database records. Saw %d records.", recvCount)
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+}
+
+func isCPULine(line string) bool {
+	return strings.HasPrefix(line, cpuLine)
+}
+
+func isLikeCPULine(line string) bool {
+	return strings.HasPrefix(line, cpuLineHeader)
+}
+
+var nextProbePort = 44620
+
+func getProbePort() int {
+	out := nextProbePort
+	nextProbePort++
+	return out
 }

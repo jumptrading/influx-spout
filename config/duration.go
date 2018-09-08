@@ -29,3 +29,8 @@ func (d *Duration) UnmarshalText(text []byte) error {
 	d.Duration, err = time.ParseDuration(string(text))
 	return err
 }
+
+// IsZero returns true if the duration is 0.
+func (d *Duration) IsZero() bool {
+	return d.Duration == time.Duration(0)
+}

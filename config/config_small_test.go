@@ -109,6 +109,8 @@ func TestAllDefaults(t *testing.T) {
 	assert.Equal(t, "writer", conf.Mode)
 	assert.Equal(t, 8, conf.Workers)
 	assert.Equal(t, 30*time.Second, conf.WriteTimeout.Duration)
+	assert.Equal(t, time.Duration(0), conf.DownsamplePeriod.Duration)
+	assert.Equal(t, "-archive", conf.DownsampleSuffix)
 	assert.Equal(t, 4*datasize.MB, conf.ReadBufferSize)
 	assert.Equal(t, 200*datasize.MB, conf.NATSMaxPendingSize)
 	assert.Equal(t, 10*time.Minute, conf.MaxTimeDelta.Duration)
@@ -147,6 +149,12 @@ func TestDefaultHTTPListenerBatchSize(t *testing.T) {
 	conf, err := parseConfig(`mode = "listener_http"`)
 	require.NoError(t, err)
 	assert.Equal(t, 1*datasize.MB, conf.BatchMaxSize)
+}
+
+func TestDefaultDownsamplePeriod(t *testing.T) {
+	conf, err := parseConfig(`mode = "downsampler"`)
+	require.NoError(t, err)
+	assert.Equal(t, time.Minute, conf.DownsamplePeriod.Duration)
 }
 
 func TestNoMode(t *testing.T) {
@@ -297,89 +305,90 @@ func TestValidateProblems(t *testing.T) {
 	Fs = afero.NewMemMapFs()
 
 	tests := []struct {
-		config string
 		err    string
+		config string
 	}{{
+		"invalid mode: frog",
 		`
 mode = "frog"
 `,
-		"invalid mode: frog",
 	}, {
+		"listener port out of range",
 		`
 mode = "listener"
 port = -1
 `,
-		"listener port out of range",
 	}, {
+		"listener port out of range",
 		`
 mode = "listener"
 port = 65536
 `,
-		"listener port out of range",
 	}, {
+		"listener port out of range",
 		`
 mode = "listener_http"
 port = -1
 `,
-		"listener port out of range",
 	}, {
+		"listener port out of range",
 		`
 mode = "listener_http"
 port = 65536
 `,
-		"listener port out of range",
 	}, {
+		"probe_port out of range",
 		`
 mode = "filter"
 probe_port = 65536
 `,
-		"probe_port out of range",
 	}, {
+		"probe_port out of range",
 		`
 mode = "writer"
 probe_port = -1
 `,
-		"probe_port out of range",
 	}, {
+		"pprof_port out of range",
 		`
 mode = "filter"
 pprof_port = 65536
 `,
-		"pprof_port out of range",
 	}, {
+		"pprof_port out of range",
 		`
 mode = "writer"
 pprof_port = -1
 `,
-		"pprof_port out of range",
 	}, {
+		"listener should only use one NATS subject",
 		`
 mode = "listener"
 nats_subject = ["one", "two"]
 `,
-		"listener should only use one NATS subject",
 	}, {
+		"listener should only use one NATS subject",
 		`
 mode = "listener_http"
 nats_subject = ["one", "two"]
 `,
-		"listener should only use one NATS subject",
 	}, {
+		"filter should only use one NATS subject",
 		`
 mode = "filter"
 nats_subject = ["one", "two"]
 `,
-		"filter should only use one NATS subject",
 	}, {
-		`
-mode = "filter"
-
-[[rule]]
-match = "needle"
-subject = "foo"
-`,
 		`rule missing "type"`,
+		`
+mode = "filter"
+
+[[rule]]
+match = "needle"
+subject = "foo"
+`,
 	}, {
+		`rule missing "match"`,
 		`
 mode = "filter"
 
@@ -387,8 +396,8 @@ mode = "filter"
 type = "basic"
 subject = "foo"
 `,
-		`rule missing "match"`,
 	}, {
+		`rule missing "subject"`,
 		`
 mode = "filter"
 
@@ -396,8 +405,8 @@ mode = "filter"
 type = "basic"
 match = "needle"
 `,
-		`rule missing "subject"`,
 	}, {
+		`basic rule cannot use "tags"`,
 		`
 mode = "filter"
 
@@ -407,8 +416,8 @@ match = "something"
 subject = "out"
 tags = [["abc", "def"]]
 `,
-		`basic rule cannot use "tags"`,
 	}, {
+		`tags rule cannot use "match"`,
 		`
 mode = "filter"
 
@@ -417,8 +426,8 @@ type = "tags"
 subject = "out"
 match = "something"
 `,
-		`tags rule cannot use "match"`,
 	}, {
+		`tags rule missing "tags"`,
 		`
 mode = "filter"
 
@@ -426,8 +435,8 @@ mode = "filter"
 type = "tags"
 subject = "out"
 `,
-		`tags rule missing "tags"`,
 	}, {
+		`each tags item must contain 2 values`,
 		`
 mode = "filter"
 
@@ -436,42 +445,42 @@ type = "tags"
 tags = [["abc", "def", "zzz"]]
 subject = "out"
 `,
-		`each tags item must contain 2 values`,
 	}, {
+		"writer needs at least one NATS subject",
 		`
 mode = "writer"
 nats_subject = []
 `,
-		"writer needs at least one NATS subject",
 	}, {
+		"influxdb_port out of range",
 		`
 mode = "writer"
 influxdb_port = 65536
 `,
-		"influxdb_port out of range",
 	}, {
+		"influxdb_port out of range",
 		`
 mode = "writer"
 influxdb_port = 0
 `,
-		"influxdb_port out of range",
 	}, {
+		`rule missing "type"`,
 		`
 mode = "writer"
 
 [[rule]]
 match = "needle"
 `,
-		`rule missing "type"`,
 	}, {
+		`rule missing "match"`,
 		`
 mode = "writer"
 
 [[rule]]
 type = "basic"
 `,
-		`rule missing "match"`,
 	}, {
+		`writer rules shouldn't have subject ("matches")`,
 		`
 mode = "writer"
 
@@ -480,7 +489,27 @@ type = "basic"
 match = "needle"
 subject = "matches"
 `,
-		`writer rules shouldn't have subject ("matches")`,
+	}, {
+		`downsample_period is only for downsampler mode`,
+		`
+mode = "filter"
+downsample_period = "30s"
+`,
+	}, {
+		`downsample_suffix must be set`,
+		`
+mode = "downsampler"
+downsample_period = "30s"
+downsample_suffix = ""
+`,
+	}, {
+		`downsample_suffix must be set`,
+		`
+mode = "downsampler"
+
+downsample_period = "30s"
+downsample_suffix = ""
+`,
 	},
 	}
 

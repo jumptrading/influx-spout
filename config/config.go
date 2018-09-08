@@ -56,6 +56,8 @@ type Config struct {
 	ProbePort           int               `toml:"probe_port"`
 	PprofPort           int               `toml:"pprof_port"`
 	Debug               bool              `toml:"debug"`
+	DownsamplePeriod    Duration          `toml:"downsample_period"`
+	DownsampleSuffix    string            `toml:"downsample_suffix"`
 }
 
 // Rule contains the configuration for a single filter rule.
@@ -82,6 +84,7 @@ func newDefaultConfig() *Config {
 		ReadBufferSize:      4 * datasize.MB,
 		NATSMaxPendingSize:  200 * datasize.MB,
 		MaxTimeDelta:        Duration{10 * time.Minute},
+		DownsampleSuffix:    "-archive",
 		StatsInterval:       Duration{3 * time.Second},
 		ProbePort:           0,
 		PprofPort:           0,
@@ -99,11 +102,17 @@ func (c *Config) Validate() error {
 		return errors.New("pprof_port out of range")
 	}
 
+	if c.Mode != "downsampler" && c.DownsamplePeriod.Duration != time.Duration(0) {
+		return errors.New("downsample_period is only for downsampler mode")
+	}
+
 	switch c.Mode {
 	case "listener", "listener_http":
 		return c.validateListener()
 	case "filter":
 		return c.validateFilter()
+	case "downsampler":
+		return c.validateDownsampler()
 	case "writer":
 		return c.validateWriter()
 	case "monitor":
@@ -153,6 +162,16 @@ func (c *Config) validateFilter() error {
 				}
 			}
 		}
+	}
+	return nil
+}
+
+func (c *Config) validateDownsampler() error {
+	if c.DownsamplePeriod.Duration == time.Duration(0) {
+		return errors.New("downsample_period must be set")
+	}
+	if c.DownsampleSuffix == "" {
+		return errors.New("downsample_suffix must be set")
 	}
 	return nil
 }
@@ -217,6 +236,10 @@ func NewConfigFromFile(fileName string) (*Config, error) {
 		case "monitor":
 			conf.Port = 9331
 		}
+	}
+
+	if conf.Mode == "downsampler" && conf.DownsamplePeriod.IsZero() {
+		conf.DownsamplePeriod.Duration = time.Minute
 	}
 
 	if err := conf.Validate(); err != nil {
