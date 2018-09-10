@@ -52,9 +52,7 @@ func (b *avgBucket) AddLine(line []byte) (errs []error) {
 		fields = newFieldPairs()
 	}
 	if updateErrs := fields.update(line); len(updateErrs) > 0 {
-		for _, err := range updateErrs {
-			errs = append(errs, fmt.Errorf("error parsing [%s]: %v", line, err))
-		}
+		errs = append(errs, updateErrs...)
 		return
 	}
 	b.lines[key] = fields

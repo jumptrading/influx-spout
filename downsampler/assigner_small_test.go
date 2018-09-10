@@ -46,8 +46,9 @@ func TestTooOld(t *testing.T) {
 	a := newAssigner(time.Minute, newFakeBucket, clock)
 
 	ts := clock.now.Add(-61 * time.Second)
-	errs := a.Update(makeLine("x", ts))
-	assertSingleError(t, errs, "timestamp too old: "+fmt.Sprint(ts))
+	line := makeLine("x", ts)
+	errs := a.Update(line)
+	assertSingleError(t, errs, fmt.Sprintf("timestamp %s too old in [%s]", ts, stripNL(line)))
 }
 
 func TestPrevSlot(t *testing.T) {
@@ -147,8 +148,10 @@ func TestTooNew(t *testing.T) {
 	a := newAssigner(time.Minute, newFakeBucket, clock)
 
 	ts := clock.now.Add(2 * time.Minute)
-	errs := a.Update(makeLine("x", ts))
-	assertSingleError(t, errs, "timestamp too new: "+fmt.Sprint(ts))
+	line := makeLine("x", ts)
+	errs := a.Update(line)
+
+	assertSingleError(t, errs, fmt.Sprintf("timestamp %s too new in [%s]", ts, stripNL(line)))
 }
 
 func TestAllSlots(t *testing.T) {
@@ -229,11 +232,13 @@ func TestBucketErrors(t *testing.T) {
 	clock := newFakeClock()
 	a := newAssigner(time.Minute, newFailBucket, clock)
 
-	errs := a.Update(makeLine("x", clock.now))
-	assertSingleError(t, errs, "boom")
+	line0 := makeLine("x", clock.now)
+	errs := a.Update(line0)
+	assertSingleError(t, errs, fmt.Sprintf("boom in [%s]", stripNL(line0)))
 
-	errs = a.Update(makeLine("y", clock.now))
-	assertSingleError(t, errs, "boom")
+	line1 := makeLine("y", clock.now)
+	errs = a.Update(line1)
+	assertSingleError(t, errs, fmt.Sprintf("boom in [%s]", stripNL(line1)))
 }
 
 func TestUntilNext(t *testing.T) {
@@ -346,4 +351,15 @@ func makeLine(text string, t time.Time) []byte {
 
 func timestamp(t time.Time) []byte {
 	return []byte(strconv.FormatInt(t.UnixNano(), 10))
+}
+
+func stripNL(line []byte) []byte {
+	length := len(line)
+	if length == 0 {
+		return line
+	}
+	if line[length-1] == '\n' {
+		return line[:len(line)-1]
+	}
+	return line
 }
