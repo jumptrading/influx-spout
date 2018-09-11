@@ -98,13 +98,16 @@ func (a *assigner) Update(lines []byte) (errs []error) {
 			continue
 		}
 
+		origLine := line
+
 		ts, line := a.extractTimestamp(line)
 		b, err := a.findBucket(ts)
 		if err != nil {
-			errs = append(errs, err)
+			errs = append(errs, newLineError(err, origLine))
 		} else {
-			lineErrs := b.AddLine(line)
-			errs = append(errs, lineErrs...)
+			for _, err := range b.AddLine(line) {
+				errs = append(errs, newLineError(err, origLine))
+			}
 		}
 	}
 	return errs
@@ -148,14 +151,14 @@ func (a *assigner) nextT(t time.Time) time.Time {
 
 func (a *assigner) findBucket(ts time.Time) (bucket, error) {
 	if ts.Before(a.tmin) {
-		return nil, newTimestampError("too old", ts)
+		return nil, newTimestampError(ts, "too old")
 	}
 	for _, b := range a.buckets {
 		if ts.Before(b.EndTime()) {
 			return b, nil
 		}
 	}
-	return nil, newTimestampError("too new", ts)
+	return nil, newTimestampError(ts, "too new")
 }
 
 // extractTimestamp returns the timestamp from the end of the line and
@@ -183,19 +186,35 @@ func (c *realClock) Now() time.Time {
 }
 
 func isTimestampError(err error) bool {
+	if lerr, ok := err.(*lineError); ok {
+		err = lerr.reason
+	}
 	_, ok := err.(*timestampError)
 	return ok
 }
 
-func newTimestampError(reason string, t time.Time) *timestampError {
-	return &timestampError{reason: reason, t: t}
+func newTimestampError(t time.Time, reason string) *timestampError {
+	return &timestampError{t: t, reason: reason}
 }
 
 type timestampError struct {
-	reason string
 	t      time.Time
+	reason string
 }
 
 func (e *timestampError) Error() string {
-	return fmt.Sprintf("timestamp %s: %s", e.reason, e.t)
+	return fmt.Sprintf("timestamp %s %s", e.t, e.reason)
+}
+
+func newLineError(reason error, line []byte) *lineError {
+	return &lineError{reason: reason, line: line}
+}
+
+type lineError struct {
+	reason error
+	line   []byte
+}
+
+func (e *lineError) Error() string {
+	return fmt.Sprintf("%v in [%s]", e.reason, e.line)
 }
