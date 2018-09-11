@@ -62,7 +62,7 @@ func TestFloatTypeChange(t *testing.T) {
 
 	// Now send it as a string, change should be ignored.
 	errs := b.AddLine([]byte(`foo,dc=nyc x="foo"`))
-	assertSingleError(t, errs, `error parsing [ x="foo"]: wrong type for float: foo`)
+	assertSingleError(t, errs, `wrong type for float: foo`)
 	assertBytes(t, `foo,dc=nyc x=1.2`, b.Bytes())
 }
 
@@ -88,7 +88,7 @@ func TestIntTypeChange(t *testing.T) {
 
 	// Now send it as a string, change should be ignored.
 	errs := b.AddLine([]byte(`foo,dc=nyc x="foo"`))
-	assertSingleError(t, errs, `error parsing [ x="foo"]: wrong type for int: foo`)
+	assertSingleError(t, errs, `wrong type for int: foo`)
 	assertBytes(t, `foo,dc=nyc x=42i`, b.Bytes())
 }
 
@@ -112,7 +112,7 @@ func TestUnterminatedStringField(t *testing.T) {
 	b := newAvgBucket(now)
 	errs := b.AddLine([]byte(`foo,host=nyc01 bar="delta omega`))
 
-	assertSingleError(t, errs, `error parsing [ bar="delta omega]: missing trailing double quote`)
+	assertSingleError(t, errs, `missing trailing double quote`)
 	assert.Len(t, b.Bytes(), 0) // line should be rejected
 }
 
@@ -194,7 +194,7 @@ func TestInvalidField(t *testing.T) {
 	b := newAvgBucket(now)
 	errs := b.AddLine([]byte(`foo x`))
 
-	assertSingleError(t, errs, `error parsing [ x]: invalid field`)
+	assertSingleError(t, errs, `invalid field`)
 	assertBytes(t, "", b.Bytes())
 }
 
@@ -202,7 +202,7 @@ func TestMissingFieldValue(t *testing.T) {
 	b := newAvgBucket(now)
 	errs := b.AddLine([]byte(`foo x=`))
 
-	assertSingleError(t, errs, `error parsing [ x=]: missing field value`)
+	assertSingleError(t, errs, `missing field value`)
 	assertBytes(t, "", b.Bytes())
 }
 
@@ -215,8 +215,8 @@ func TestMultipleErrors(t *testing.T) {
 	errs = b.AddLine([]byte(`foo x=1,y=2i`))
 
 	require.Len(t, errs, 2)
-	assert.EqualError(t, errs[0], `error parsing [ x=1,y=2i]: wrong type for int: 1`)
-	assert.EqualError(t, errs[1], `error parsing [ x=1,y=2i]: wrong type for float: 2i`)
+	assert.EqualError(t, errs[0], `wrong type for int: 1`)
+	assert.EqualError(t, errs[1], `wrong type for float: 2i`)
 
 	assertBytes(t, `foo x=1i,y=2`, b.Bytes())
 }
