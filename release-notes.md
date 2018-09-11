@@ -1,3 +1,55 @@
+# v2.1.0
+
+## New downsampler component
+
+The downsamper is useful for creating rolled up versions of metrics
+streams for long term archive.
+
+It reads measurements from one or more NATS subjects, averaging
+numeric fields over a sampling period (as set by `downsample_period`),
+emitting the averaged values every sampling period. For non-numeric
+fields, the last value seen for each sampling period is
+emitted. Measurements are emitted on clean time boundaries regardless
+of when the downsampler was started.
+
+Downsampled lines are emitted to a NATS subject with the same name as
+the input subject but with a suffix as set by the `downsample_suffix`
+configuration option (default is `-archive`)
+
+## filter: New "tags rule type
+
+A new rule type has been introduced which allows matching against one
+or more exact tags on measurement lines. The approach taken is much
+faster than using regexes to achieve the same kinds of matches
+(80-1000% depending on number tags to match and line size). This
+approach is also much safer as matching is independent of tag order
+and matches tag keys and values precisely.
+
+## filter: Tag sorting
+
+The filter now orders tag keys in all measurement lines passing
+through it. This ensures the best performance when lines are inserted
+into InfluxDB and is also required for the downsampler component.
+
+## filter: Avoid unnecessary escaping
+
+Unescaping of lines is now avoided where possible avoiding unnecessary
+computation and memory allocation. This improves performance
+significantly in many cases.
+
+## filter: Measurement name hash caching
+
+The hash of measurement names in lines are now cached. This speeds up
+matching when there are multiple "basic" filter rules.
+
+## Other
+
+- Fixed invalid TOML in README
+- Fix race in `probes` package tests
+- Retry gnatsd startup in tests (a common reason for CI failure)
+- Automatically manage probe port allocations in end-to-end test
+- Generate releases out of Travis CI
+
 # v2.0.0
 
 ## Configuration cleanup
