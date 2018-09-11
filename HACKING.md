@@ -80,9 +80,11 @@ problem or a bug in influx-spout.
 
 ## Releases
 
-Public releases of influx-spout are managed using
-[GoReleaser](https://goreleaser.com/). It must be installed on any
-host that is going to create and publish a release.
+Public releases of influx-spout are automatically created when a
+tagged revision successfully builds in [Travis CI](https://travis-ci.org/).
+[GoReleaser](https://goreleaser.com/) is used to create release
+tarbals and create a [release](https://github.com/jumptrading/influx-spout/releases)
+on Github.
 
 To publish a new release:
 
@@ -91,10 +93,9 @@ To publish a new release:
   level 1 header for the release (e.g. `# v3.2.1`). The
   `git log --reverse <previous-tag>..HEAD` command is useful for
   browsing the commits in the release.
-* Commit and merge the updates to `release-notes.md`.
+* Commit and merge the updates to `release-notes.md` to the `master`
+  branch on Github.
 * Create an annotated tag for the release. For example: `git tag v3.2.1 -m "3.2.1 release"`
 * Push the tag to Github. For example: `git push origin v3.2.1`
-* Publish the release using the Make target: `make goreleaser`
-
-This will build the release artifacts, generate a changelog and
-publish these to [Github](https://github.com/jumptrading/influx-spout/releases).
+* If the tagged revision builds successfully under Travis CI a release
+  should be automatically published to Github.
