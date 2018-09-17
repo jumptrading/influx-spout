@@ -129,6 +129,10 @@ func (c *Config) validateListener() error {
 	if len(c.NATSSubject) != 1 {
 		return errors.New("listener should only use one NATS subject")
 	}
+	if c.BatchMaxSize > datasize.MB {
+		// NATS can only accept messages up to 1MB in size.
+		return errors.New("listener batch must be 1MB or smaller")
+	}
 	return nil
 }
 

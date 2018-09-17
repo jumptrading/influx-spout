@@ -373,6 +373,18 @@ mode = "listener_http"
 nats_subject = ["one", "two"]
 `,
 	}, {
+		"listener batch must be 1MB or smaller",
+		`
+mode = "listener"
+batch_max_size = 1048577
+`,
+	}, {
+		"listener batch must be 1MB or smaller",
+		`
+mode = "listener_http"
+batch_max_size = 1048577
+`,
+	}, {
 		"filter should only use one NATS subject",
 		`
 mode = "filter"
