@@ -22,6 +22,7 @@ import (
 
 	"github.com/nats-io/go-nats"
 
+	"github.com/jumptrading/influx-spout/batchsplitter"
 	"github.com/jumptrading/influx-spout/config"
 	"github.com/jumptrading/influx-spout/probes"
 	"github.com/jumptrading/influx-spout/stats"
@@ -168,7 +169,7 @@ func (ds *Downsampler) worker(subject string, inputCh <-chan []byte) {
 				log.Printf("publishing to %s (%d bytes)", outSubject, len(buf))
 			}
 
-			splitter := newBatchSplitter(buf, maxNATSMsgSize)
+			splitter := batchsplitter.New(buf, maxNATSMsgSize)
 			for splitter.Next() {
 				if err := ds.nc.Publish(outSubject, splitter.Chunk()); err != nil {
 					log.Printf("publish error for %s: %v", outSubject, err)
