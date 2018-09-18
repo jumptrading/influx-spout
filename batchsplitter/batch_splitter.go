@@ -14,6 +14,8 @@
 
 package batchsplitter
 
+import "github.com/c2h5oh/datasize"
+
 // New returns a BatchSplitter which will efficiently
 // split BUF into chunks no larger than CHUNKSIZE with splits occuring
 // on newline boundaries.
@@ -23,10 +25,10 @@ package batchsplitter
 // Under no circumstances will chunks of more than chunkSize be
 // returned. In the unlikely case of a line existing that is larger
 // than chunkSize, it will be broken up.
-func New(buf []byte, chunkSize int) *BatchSplitter {
+func New(buf []byte, chunkSize datasize.ByteSize) *BatchSplitter {
 	return &BatchSplitter{
 		buf:       buf,
-		chunkSize: chunkSize,
+		chunkSize: int(chunkSize),
 	}
 }
 

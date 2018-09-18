@@ -30,6 +30,9 @@ import (
 // line is then overlaid on top of it.
 const commonFileName = "/etc/influx-spout.toml"
 
+// MaxNATSMsgSize is the maximum size of message that NATS will accept.
+const MaxNATSMsgSize = datasize.MB
+
 // Config represents the configuration for a single influx-spout
 // component.
 type Config struct {
@@ -129,9 +132,8 @@ func (c *Config) validateListener() error {
 	if len(c.NATSSubject) != 1 {
 		return errors.New("listener should only use one NATS subject")
 	}
-	if c.BatchMaxSize > datasize.MB {
-		// NATS can only accept messages up to 1MB in size.
-		return errors.New("listener batch must be 1MB or smaller")
+	if c.BatchMaxSize > MaxNATSMsgSize {
+		return fmt.Errorf("listener batch must be %s or smaller", MaxNATSMsgSize)
 	}
 	return nil
 }

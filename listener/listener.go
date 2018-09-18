@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/jumptrading/influx-spout/batch"
+	"github.com/jumptrading/influx-spout/batchsplitter"
 	"github.com/jumptrading/influx-spout/config"
 	"github.com/jumptrading/influx-spout/influx"
 	"github.com/jumptrading/influx-spout/probes"
@@ -391,9 +392,19 @@ func (l *Listener) sendBatch() {
 	}
 
 	l.stats.Inc(statSent)
-	if err := l.nc.Publish(l.c.NATSSubject[0], l.batch.Bytes()); err != nil {
-		l.stats.Inc(statFailedNATSPublish)
-		l.handleNatsError(err)
+
+	// The goal is for the batch size to never be bigger than what
+	// NATS will accept but there is a small chance that a series of
+	// large incoming chunks could cause the batch to grow beyond the
+	// intended limit. For these cases, use the batchsplitter just in
+	// case. batchsplitter has very low overhead when no splitting is
+	// required.
+	splitter := batchsplitter.New(l.batch.Bytes(), config.MaxNATSMsgSize)
+	for splitter.Next() {
+		if err := l.nc.Publish(l.c.NATSSubject[0], splitter.Chunk()); err != nil {
+			l.stats.Inc(statFailedNATSPublish)
+			l.handleNatsError(err)
+		}
 	}
 	l.batch.Reset()
 }
