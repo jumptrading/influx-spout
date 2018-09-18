@@ -44,6 +44,8 @@ type Config struct {
 	NATSSubjectJunkyard string            `toml:"nats_subject_junkyard"`
 	InfluxDBAddress     string            `toml:"influxdb_address"`
 	InfluxDBPort        int               `toml:"influxdb_port"`
+	InfluxDBUser        string            `toml:"-"`
+	InfluxDBPass        string            `toml:"-"`
 	DBName              string            `toml:"influxdb_dbname"`
 	BatchMaxCount       int               `toml:"batch_max_count"`
 	BatchMaxSize        datasize.ByteSize `toml:"batch_max_size"`
@@ -189,6 +191,12 @@ func (c *Config) validateWriter() error {
 	if c.InfluxDBPort < 1 || c.InfluxDBPort > 65535 {
 		return errors.New("influxdb_port out of range")
 	}
+	if c.InfluxDBUser != "" && c.InfluxDBPass == "" {
+		return errors.New("$INFLUXDB_USER without $INFLUXDB_PASS")
+	}
+	if c.InfluxDBUser == "" && c.InfluxDBPass != "" {
+		return errors.New("$INFLUXDB_PASS without $INFLUXDB_USER")
+	}
 
 	for _, rule := range c.Rule {
 		if rule.Rtype == "" {
@@ -246,6 +254,11 @@ func NewConfigFromFile(fileName string) (*Config, error) {
 
 	if conf.Mode == "downsampler" && conf.DownsamplePeriod.IsZero() {
 		conf.DownsamplePeriod.Duration = time.Minute
+	}
+
+	if conf.Mode == "writer" {
+		conf.InfluxDBUser = os.Getenv("INFLUXDB_USER")
+		conf.InfluxDBPass = os.Getenv("INFLUXDB_PASS")
 	}
 
 	if err := conf.Validate(); err != nil {

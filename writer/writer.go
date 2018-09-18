@@ -217,8 +217,15 @@ func (w *Writer) shouldSend(batch *batch.Batch) bool {
 
 // sendBatch sends the accumulated batch via HTTP to InfluxDB.
 func (w *Writer) sendBatch(batch *batch.Batch, client *http.Client) error {
-	reader := bytes.NewReader(batch.Bytes())
-	resp, err := client.Post(w.url, "application/json; charset=UTF-8", reader)
+	req, err := http.NewRequest("POST", w.url, bytes.NewReader(batch.Bytes()))
+	if err != nil {
+		return err
+	}
+	req.Header.Add("Content-Type", "application/json; charset=UTF-8")
+	if w.c.InfluxDBUser != "" {
+		req.SetBasicAuth(w.c.InfluxDBUser, w.c.InfluxDBPass)
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send HTTP request: %v\n", err)
 	}
