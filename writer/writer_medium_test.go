@@ -116,6 +116,24 @@ func TestBasicWriter(t *testing.T) {
 	})
 }
 
+func TestInfluxDBAuth(t *testing.T) {
+	nc, closeNATS := runGnatsd(t)
+	defer closeNATS()
+
+	influxd := runTestInfluxd()
+	defer influxd.Stop()
+
+	conf := testConfig()
+	conf.InfluxDBUser = "user"
+	conf.InfluxDBPass = "pass"
+	w := startWriter(t, conf)
+	defer w.Stop()
+
+	line := "What's in a name?"
+	publish(t, nc, conf.NATSSubject[0], line)
+	influxd.AssertWriteWithAuth(t, line, "user", "pass")
+}
+
 func TestBatchMBLimit(t *testing.T) {
 	nc, closeNATS := runGnatsd(t)
 	defer closeNATS()
@@ -146,7 +164,7 @@ func TestBatchMBLimit(t *testing.T) {
 	// BatchMaxMB is exceed
 	select {
 	case msg := <-influxd.Writes:
-		assert.Len(t, msg, totalSize)
+		assert.Len(t, msg.Body, totalSize)
 	case <-time.After(spouttest.LongWait):
 		t.Fatal("timed out waiting for messages")
 	}
@@ -328,7 +346,7 @@ func publish(t require.TestingT, nc *nats.Conn, subject, msg string) {
 type testInfluxd struct {
 	server *http.Server
 	wg     sync.WaitGroup
-	Writes chan string
+	Writes chan write
 	ready  chan struct{}
 }
 
@@ -337,7 +355,7 @@ func runTestInfluxd() *testInfluxd {
 		server: &http.Server{
 			Addr: fmt.Sprintf(":%d", influxPort),
 		},
-		Writes: make(chan string, 99),
+		Writes: make(chan write, 99),
 		ready:  make(chan struct{}),
 	}
 
@@ -359,8 +377,21 @@ func (s *testInfluxd) Stop() {
 
 func (s *testInfluxd) AssertWrite(t *testing.T, expected string) {
 	select {
-	case msg := <-s.Writes:
-		assert.Equal(t, msg, expected)
+	case write := <-s.Writes:
+		assert.Equal(t, expected, write.Body)
+		assert.Equal(t, "", write.Username)
+		assert.Equal(t, "", write.Password)
+	case <-time.After(spouttest.LongWait):
+		t.Fatal("timed out waiting for message")
+	}
+}
+
+func (s *testInfluxd) AssertWriteWithAuth(t *testing.T, expected, username, password string) {
+	select {
+	case write := <-s.Writes:
+		assert.Equal(t, expected, write.Body)
+		assert.Equal(t, username, write.Username)
+		assert.Equal(t, password, write.Password)
 	case <-time.After(spouttest.LongWait):
 		t.Fatal("timed out waiting for message")
 	}
@@ -391,5 +422,14 @@ func (s *testInfluxd) handleWrite(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNoContent)
 
-	s.Writes <- string(body)
+	username, password, _ := r.BasicAuth()
+	s.Writes <- write{
+		Body:     string(body),
+		Username: username,
+		Password: password,
+	}
+}
+
+type write struct {
+	Body, Username, Password string
 }

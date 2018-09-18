@@ -491,6 +491,11 @@ A writer will batch up messages until one of the limits defined by the
 `batch_max_count`, `batch_max_size` or `batch_max_age` options is
 reached.
 
+The writer also supports optional HTTP basic authentication to the
+InfluxDB backend. The username and password are set using the
+`INFLUXDB_USER` and `INFLUXDB_PASS` environment variables. These
+options can't be set via the configuration file.
+
 ### Monitor
 
 The monitor is responsible for collecting metrics from the other

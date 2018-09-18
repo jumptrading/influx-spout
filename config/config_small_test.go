@@ -18,6 +18,7 @@ package config
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -31,6 +32,12 @@ import (
 const testConfigBaseName = "something"
 
 var testConfigFileName = filepath.Join("some", "dir", testConfigBaseName+".toml")
+
+func init() {
+	// Clear these to ensure consistent test environment.
+	os.Setenv("INFLUXDB_USER", "")
+	os.Setenv("INFLUXDB_PASS", "")
+}
 
 func TestCorrectConfigFile(t *testing.T) {
 	const validConfigSample = `
@@ -101,6 +108,8 @@ func TestAllDefaults(t *testing.T) {
 	assert.Equal(t, "influx-spout-junk", conf.NATSSubjectJunkyard)
 	assert.Equal(t, "localhost", conf.InfluxDBAddress)
 	assert.Equal(t, 8086, conf.InfluxDBPort)
+	assert.Equal(t, "", conf.InfluxDBUser)
+	assert.Equal(t, "", conf.InfluxDBPass)
 	assert.Equal(t, "influx-spout-junk", conf.DBName)
 	assert.Equal(t, 10, conf.BatchMaxCount)
 	assert.Equal(t, 10*datasize.MB, conf.BatchMaxSize)
@@ -155,6 +164,18 @@ func TestDefaultDownsamplePeriod(t *testing.T) {
 	conf, err := parseConfig(`mode = "downsampler"`)
 	require.NoError(t, err)
 	assert.Equal(t, time.Minute, conf.DownsamplePeriod.Duration)
+}
+
+func TestInfluxAuth(t *testing.T) {
+	os.Setenv("INFLUXDB_USER", "user")
+	defer os.Setenv("INFLUXDB_USER", "")
+	os.Setenv("INFLUXDB_PASS", "secret")
+	defer os.Setenv("INFLUXDB_PASS", "")
+
+	conf, err := parseConfig(`mode = "writer"`)
+	require.NoError(t, err)
+	assert.Equal(t, "user", conf.InfluxDBUser)
+	assert.Equal(t, "secret", conf.InfluxDBPass)
 }
 
 func TestNoMode(t *testing.T) {
@@ -532,4 +553,16 @@ downsample_suffix = ""
 		assert.Nil(t, conf)
 		assert.EqualError(t, err, test.err)
 	}
+}
+
+func TestTextValidateAuth(t *testing.T) {
+	config0 := newDefaultConfig()
+	config0.Mode = "writer"
+	config0.InfluxDBUser = "hello"
+	assert.EqualError(t, config0.Validate(), "$INFLUXDB_USER without $INFLUXDB_PASS")
+
+	config1 := newDefaultConfig()
+	config1.Mode = "writer"
+	config1.InfluxDBPass = "hello"
+	assert.EqualError(t, config1.Validate(), "$INFLUXDB_PASS without $INFLUXDB_USER")
 }
