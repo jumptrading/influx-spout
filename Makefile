@@ -72,6 +72,14 @@ coverage:
 benchmark:
 	./runtests -b -r small medium large
 
-.PHONY: goreleaser
-goreleaser:
-	bash -c "goreleaser --rm-dist --release-notes=<(awk '/^# .+/{p++} p==2{print; exit} p>=1' release-notes.md | grep -Ev '^# .+')"
+.PHONY: release
+release: latest-release-notes.md do-goreleaser
+	sh do-goreleaser --release-notes=latest-release-notes.md --rm-dist
+
+# do-goreleaser is a script which downloads and runs the latest release of the goreleaser tool.
+do-goreleaser:
+	curl -sL https://git.io/goreleaser > $@
+
+# Extract the release notes for the topmost release in release-notes.md.
+latest-release-notes.md: release-notes.md
+	awk '/^# .+/{p++} p==2{print; exit} p>=1' release-notes.md | grep -Ev '^# .+' > $@
