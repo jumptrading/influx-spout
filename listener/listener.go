@@ -361,16 +361,9 @@ func (l *Listener) listenHTTP(server *http.Server) {
 }
 
 func (l *Listener) maybeSendBatch() {
-	if !l.shouldSend() {
-		return
+	if l.shouldSend() {
+		l.sendBatch()
 	}
-
-	l.stats.Inc(statSent)
-	if err := l.nc.Publish(l.c.NATSSubject[0], l.batch.Bytes()); err != nil {
-		l.stats.Inc(statFailedNATSPublish)
-		l.handleNatsError(err)
-	}
-	l.batch.Reset()
 }
 
 func (l *Listener) shouldSend() bool {
