@@ -14,17 +14,19 @@
 
 // +build small
 
-package downsampler
+package batchsplitter_test
 
 import (
 	"testing"
 
+	"github.com/c2h5oh/datasize"
+	"github.com/jumptrading/influx-spout/batchsplitter"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestEmpty(t *testing.T) {
 	b := []byte("")
-	splitter := newBatchSplitter(b, 100)
+	splitter := batchsplitter.New(b, 100*datasize.B)
 
 	assert.False(t, splitter.Next())
 	assert.Nil(t, splitter.Chunk())
@@ -32,7 +34,7 @@ func TestEmpty(t *testing.T) {
 
 func TestNoSplit(t *testing.T) {
 	b := []byte("abcdefghij\n")
-	splitter := newBatchSplitter(b, 100)
+	splitter := batchsplitter.New(b, 100*datasize.B)
 
 	assert.True(t, splitter.Next())
 	assert.Equal(t, b, splitter.Chunk())
@@ -43,7 +45,7 @@ func TestNoSplit(t *testing.T) {
 
 func TestNoSplitWithLines(t *testing.T) {
 	b := []byte("abcd\nefg\nhij")
-	splitter := newBatchSplitter(b, 100)
+	splitter := batchsplitter.New(b, 100*datasize.B)
 
 	assert.True(t, splitter.Next())
 	assert.Equal(t, b, splitter.Chunk())
@@ -54,7 +56,7 @@ func TestNoSplitWithLines(t *testing.T) {
 
 func TestNoSplitExact(t *testing.T) {
 	b := []byte("abcd\nefg\nhij")
-	splitter := newBatchSplitter(b, len(b))
+	splitter := batchsplitter.New(b, datasize.ByteSize(len(b)))
 
 	assert.True(t, splitter.Next())
 	assert.Equal(t, b, splitter.Chunk())
@@ -65,7 +67,7 @@ func TestNoSplitExact(t *testing.T) {
 
 func TestChunks(t *testing.T) {
 	b := []byte("1111\n2222\n333\n")
-	splitter := newBatchSplitter(b, 6)
+	splitter := batchsplitter.New(b, 6*datasize.B)
 
 	assert.True(t, splitter.Next())
 	assert.Equal(t, []byte("1111\n"), splitter.Chunk())
@@ -82,7 +84,7 @@ func TestChunks(t *testing.T) {
 
 func TestChunksExact(t *testing.T) {
 	b := []byte("1111\n2222\n3333\n")
-	splitter := newBatchSplitter(b, 5)
+	splitter := batchsplitter.New(b, 5*datasize.B)
 
 	assert.True(t, splitter.Next())
 	assert.Equal(t, []byte("1111\n"), splitter.Chunk())
@@ -99,7 +101,7 @@ func TestChunksExact(t *testing.T) {
 
 func TestLineTooLong(t *testing.T) {
 	b := []byte("01234567")
-	splitter := newBatchSplitter(b, 3)
+	splitter := batchsplitter.New(b, 3*datasize.B)
 
 	assert.True(t, splitter.Next())
 	assert.Equal(t, []byte("012"), splitter.Chunk())
@@ -116,7 +118,7 @@ func TestLineTooLong(t *testing.T) {
 
 func TestMultiLineTooLong(t *testing.T) {
 	b := []byte("0123456\n88\n99")
-	splitter := newBatchSplitter(b, 3)
+	splitter := batchsplitter.New(b, 3*datasize.B)
 
 	assert.True(t, splitter.Next())
 	assert.Equal(t, []byte("012"), splitter.Chunk())

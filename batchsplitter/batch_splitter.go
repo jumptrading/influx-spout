@@ -12,24 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package downsampler
+package batchsplitter
 
-// newBatchSplitter returns a batchSplitter which will efficiently
+import "github.com/c2h5oh/datasize"
+
+// New returns a BatchSplitter which will efficiently
 // split BUF into chunks no larger than CHUNKSIZE with splits occuring
 // on newline boundaries.
 //
 // Use repeated calls to Next to generate the splits.
 //
 // Under no circumstances will chunks of more than chunkSize be
-// returned. If a line is larger than chunkSize, it will be broken up.
-func newBatchSplitter(buf []byte, chunkSize int) *batchSplitter {
-	return &batchSplitter{
+// returned. In the unlikely case of a line existing that is larger
+// than chunkSize, it will be broken up.
+func New(buf []byte, chunkSize datasize.ByteSize) *BatchSplitter {
+	return &BatchSplitter{
 		buf:       buf,
-		chunkSize: chunkSize,
+		chunkSize: int(chunkSize),
 	}
 }
 
-type batchSplitter struct {
+// BatchSplitter which will efficiently split a byte slice into chunks
+// of no larger than some size with splits occuring on newline
+// boundaries.
+type BatchSplitter struct {
 	buf       []byte
 	chunkSize int
 	out       []byte
@@ -37,7 +43,7 @@ type batchSplitter struct {
 
 // Next scans for the next chunk, returning true if there was another
 // chunk to return. Use Chunk() to retrieve the bytes for the chunk.
-func (s *batchSplitter) Next() bool {
+func (s *BatchSplitter) Next() bool {
 	if len(s.buf) == 0 {
 		s.out = nil
 		return false
@@ -68,6 +74,6 @@ func (s *batchSplitter) Next() bool {
 
 // Chunk returns the chunk found by the last call to Next(). The
 // returned slice is only useful until the next call to Next().
-func (s *batchSplitter) Chunk() []byte {
+func (s *BatchSplitter) Chunk() []byte {
 	return s.out
 }
