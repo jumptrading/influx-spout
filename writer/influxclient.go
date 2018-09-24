@@ -35,7 +35,6 @@ func newInfluxClient(c *config.Config) *influxClient {
 			Transport: &http.Transport{
 				MaxIdleConns:        2,
 				MaxIdleConnsPerHost: 2,
-				MaxConnsPerHost:     2,
 				IdleConnTimeout:     30 * time.Second,
 				DisableCompression:  true,
 			},
