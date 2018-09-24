@@ -22,12 +22,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"strconv"
 	"sync"
 	"time"
-
-	"net/http"
 
 	"github.com/nats-io/go-nats"
 
@@ -85,8 +84,6 @@ func StartWriter(c *config.Config) (_ *Writer, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("NATS Error: can't connect: %v", err)
 	}
-
-	http.DefaultTransport.(*http.Transport).MaxIdleConnsPerHost = 100
 
 	jobs := make(chan *nats.Msg, 1024)
 	w.wg.Add(w.c.Workers)
@@ -148,9 +145,11 @@ func (w *Writer) worker(jobs <-chan *nats.Msg) {
 	defer w.wg.Done()
 
 	tr := &http.Transport{
-		MaxIdleConns:       10,
-		IdleConnTimeout:    30 * time.Second,
-		DisableCompression: true,
+		MaxIdleConns:        1,
+		MaxIdleConnsPerHost: 1,
+		MaxConnsPerHost:     2,
+		IdleConnTimeout:     30 * time.Second,
+		DisableCompression:  true,
 	}
 	client := &http.Client{
 		Transport: tr,
