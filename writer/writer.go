@@ -18,11 +18,8 @@ package writer
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
-	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
 	"strconv"
 	"sync"
@@ -51,7 +48,6 @@ const (
 // InfluxDB endpoint.
 type Writer struct {
 	c      *config.Config
-	url    string
 	nc     *nats.Conn
 	rules  *filter.RuleSet
 	stats  *stats.Stats
@@ -64,7 +60,6 @@ type Writer struct {
 func StartWriter(c *config.Config) (_ *Writer, err error) {
 	w := &Writer{
 		c:      c,
-		url:    fmt.Sprintf("http://%s:%d/write?db=%s", c.InfluxDBAddress, c.InfluxDBPort, c.DBName),
 		stats:  stats.New(statReceived, statWriteRequests, statFailedWrites, statMaxPending),
 		probes: probes.Listen(c.ProbePort),
 		stop:   make(chan struct{}),
@@ -144,18 +139,7 @@ func (w *Writer) Stop() {
 func (w *Writer) worker(jobs <-chan *nats.Msg) {
 	defer w.wg.Done()
 
-	tr := &http.Transport{
-		MaxIdleConns:        1,
-		MaxIdleConnsPerHost: 1,
-		MaxConnsPerHost:     2,
-		IdleConnTimeout:     30 * time.Second,
-		DisableCompression:  true,
-	}
-	client := &http.Client{
-		Transport: tr,
-		Timeout:   w.c.WriteTimeout.Duration,
-	}
-
+	dbClient := newInfluxClient(w.c)
 	batch := batch.New(32 * os.Getpagesize())
 	batchAppend := w.getBatchWriteFunc(batch)
 	for {
@@ -172,7 +156,7 @@ func (w *Writer) worker(jobs <-chan *nats.Msg) {
 		if w.shouldSend(batch) {
 			w.stats.Inc(statWriteRequests)
 
-			if err := w.sendBatch(batch, client); err != nil {
+			if err := dbClient.Write(batch.Bytes()); err != nil {
 				w.stats.Inc(statFailedWrites)
 				log.Printf("Error: %v", err)
 			}
@@ -212,36 +196,6 @@ func (w *Writer) shouldSend(batch *batch.Batch) bool {
 	return batch.Writes() >= w.c.BatchMaxCount ||
 		uint64(batch.Size()) >= w.c.BatchMaxSize.Bytes() ||
 		batch.Age() >= w.c.BatchMaxAge.Duration
-}
-
-// sendBatch sends the accumulated batch via HTTP to InfluxDB.
-func (w *Writer) sendBatch(batch *batch.Batch, client *http.Client) error {
-	req, err := http.NewRequest("POST", w.url, bytes.NewReader(batch.Bytes()))
-	if err != nil {
-		return err
-	}
-	req.Header.Add("Content-Type", "application/json; charset=UTF-8")
-	if w.c.InfluxDBUser != "" {
-		req.SetBasicAuth(w.c.InfluxDBUser, w.c.InfluxDBPass)
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to send HTTP request: %v\n", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode > 300 {
-		errText := fmt.Sprintf("received HTTP %v from %v", resp.Status, w.url)
-		if w.c.Debug {
-			body, err := ioutil.ReadAll(resp.Body)
-			if err == nil {
-				errText += fmt.Sprintf("\nresponse body: %s\n", body)
-			}
-		}
-		return errors.New(errText)
-	}
-
-	return nil
 }
 
 // This goroutine is responsible for monitoring the statistics and
