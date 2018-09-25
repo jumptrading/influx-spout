@@ -442,7 +442,6 @@ influxdb_dbname = "influx-spout-junk"
 # will be triggered. Increasing this number reduces communication overhead
 # with InfluxDB but increases latency.
 batch_max_count = 10
-
 # The maximum amount of message data a writer worker may collect. If
 # this limit is reached, a write to InfluxDB is performed.
 batch_max_size = "10MB"
@@ -457,6 +456,18 @@ workers = 8
 # The maximum amount of time a writer will wait for an InfluxDB write to
 # complete. Writes which time out will be dropped.
 write_timeout = "30s"
+
+# The maximum number of batches that failed to write to InfluxDB to track for
+# retry at any given time. The oldest batch being kept for retry will be
+# discarded if necessary to keep the set of batches being retried within this
+# limit. Set to 0 to disable write retries.
+writer_retry_batches = 1
+
+# The amount of time between InfluxDB write retry attempts.
+writer_retry_interval = "10s"
+
+# The maximum amount of time to keep retrying a given batch.
+writer_retry_timeout = "1m"
 
 # The maximum size that the pending buffer for the NATS subject that the filter
 # is reading from may become. Measurements will be dropped if this limit is reached.

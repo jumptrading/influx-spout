@@ -53,6 +53,9 @@ type Config struct {
 	Port                int               `toml:"port"`
 	Workers             int               `toml:"workers"`
 	WriteTimeout        Duration          `toml:"write_timeout"`
+	WriterRetryBatches  int               `toml:"writer_retry_batches"`
+	WriterRetryInterval Duration          `toml:"writer_retry_interval"`
+	WriterRetryTimeout  Duration          `toml:"writer_retry_timeout"`
 	ReadBufferSize      datasize.ByteSize `toml:"read_buffer_size"`
 	NATSMaxPendingSize  datasize.ByteSize `toml:"nats_max_pending_size"`
 	Rule                []Rule            `toml:"rule"`
@@ -86,6 +89,9 @@ func newDefaultConfig() *Config {
 		BatchMaxAge:         Duration{5 * time.Minute},
 		Workers:             8,
 		WriteTimeout:        Duration{30 * time.Second},
+		WriterRetryBatches:  1,
+		WriterRetryInterval: Duration{10 * time.Second},
+		WriterRetryTimeout:  Duration{time.Minute},
 		ReadBufferSize:      4 * datasize.MB,
 		NATSMaxPendingSize:  200 * datasize.MB,
 		MaxTimeDelta:        Duration{10 * time.Minute},
