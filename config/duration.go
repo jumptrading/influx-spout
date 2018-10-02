@@ -16,6 +16,12 @@ package config
 
 import "time"
 
+// NewDuration returns a new config.Duration which wraps a
+// time.Duration.
+func NewDuration(d time.Duration) Duration {
+	return Duration{Duration: d}
+}
+
 // Duration is used to support parsing of time durations directly into
 // time.Duration instances. Use the embedded Duration field to access
 // to the underlying time.Duration.

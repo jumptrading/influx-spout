@@ -53,7 +53,7 @@ func testConfig() *config.Config {
 		DBName:             "metrics",
 		BatchMaxCount:      1,
 		BatchMaxSize:       10 * datasize.MB,
-		BatchMaxAge:        config.Duration{5 * time.Minute},
+		BatchMaxAge:        config.NewDuration(5 * time.Minute),
 		Port:               influxPort,
 		Workers:            96,
 		NATSMaxPendingSize: 32 * datasize.MB,
@@ -182,7 +182,7 @@ func TestBatchTimeLimit(t *testing.T) {
 	conf := testConfig()
 	conf.Workers = 1
 	conf.BatchMaxCount = 9999
-	conf.BatchMaxAge = config.Duration{time.Second}
+	conf.BatchMaxAge = config.NewDuration(time.Second)
 	w := startWriter(t, conf)
 	defer w.Stop()
 
