@@ -140,6 +140,20 @@ func (w *Writer) worker(jobs <-chan *nats.Msg) {
 	defer w.wg.Done()
 
 	dbClient := newInfluxClient(w.c)
+
+	var (
+		retryCh      chan []byte
+		retryWriteCh <-chan struct{}
+		retryErrCh   <-chan error
+	)
+	if w.c.WriterRetryBatches > 0 {
+		retryCh = make(chan []byte, 1)
+		rw := newRetryWorker(retryCh, dbClient, w.c)
+		defer rw.Stop()
+		retryWriteCh = rw.Writes()
+		retryErrCh = rw.WriteErrors()
+	}
+
 	batch := batch.New(32 * os.Getpagesize())
 	batchAppend := w.getBatchWriteFunc(batch)
 	for {
@@ -147,6 +161,11 @@ func (w *Writer) worker(jobs <-chan *nats.Msg) {
 		case j := <-jobs:
 			w.stats.Inc(statReceived)
 			batchAppend(j.Data)
+		case <-retryWriteCh:
+			w.stats.Inc(statWriteRequests)
+		case err := <-retryErrCh:
+			w.stats.Inc(statFailedWrites)
+			log.Printf("Retry error: %v", err)
 		case <-time.After(time.Second):
 			// Wake up regularly to check batch age
 		case <-w.stop:
@@ -159,6 +178,13 @@ func (w *Writer) worker(jobs <-chan *nats.Msg) {
 			if err := dbClient.Write(batch.Bytes()); err != nil {
 				w.stats.Inc(statFailedWrites)
 				log.Printf("Error: %v", err)
+				if retryCh != nil {
+					// Copy the bytes because the underlying batch
+					// buffer will be reused. A copy is relatively
+					// expensive but is only made in the (hopefully)
+					// rare case of a retry.
+					retryCh <- batch.CopyBytes()
+				}
 			}
 
 			// Reset buffer on success or error; batch will not be sent again.

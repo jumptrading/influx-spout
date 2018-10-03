@@ -26,11 +26,7 @@ type dbWriter interface {
 	Write([]byte) error
 }
 
-func newRetryWorker(
-	inputCh <-chan []byte,
-	dbWriter dbWriter,
-	c *config.Config,
-) *retryWorker {
+func newRetryWorker(inputCh <-chan []byte, dbWriter dbWriter, c *config.Config) *retryWorker {
 	w := &retryWorker{
 		inputCh:       inputCh,
 		dbWriter:      dbWriter,
@@ -39,7 +35,8 @@ func newRetryWorker(
 			maxBatches: c.WriterRetryBatches,
 			maxTTL:     c.WriterRetryTimeout.Duration,
 		},
-		writeErrors: make(chan error, 16),
+		writes:      make(chan struct{}, c.WriterRetryBatches*4),
+		writeErrors: make(chan error, c.WriterRetryBatches*4),
 		stop:        make(chan struct{}),
 	}
 	w.wg.Add(1)
@@ -59,12 +56,16 @@ func newRetryWorker(
 // retried at any one time. Old batches will be discarded if necessary
 // to enforce this constraint.
 //
+// Writes attempts to InfluxDB are reported to the channel returned by
+// Writes().  This channel should be consumed regularly.
+//
 // Failures to write to InfluxDB are reported to the channel returned
 // by WriteErrors().  This channel should be consumed regularly.
 type retryWorker struct {
 	inputCh       <-chan []byte
 	dbWriter      dbWriter
 	retryInterval time.Duration
+	writes        chan struct{}
 	writeErrors   chan error
 	queue         *retryQueue
 	stop          chan struct{}
@@ -78,6 +79,10 @@ func (w *retryWorker) Stop() {
 
 func (w *retryWorker) WriteErrors() <-chan error {
 	return w.writeErrors
+}
+
+func (w *retryWorker) Writes() <-chan struct{} {
+	return w.writes
 }
 
 func (w *retryWorker) loop() {
@@ -98,21 +103,27 @@ func (w *retryWorker) loop() {
 
 			buf := w.queue.Front()
 			if buf != nil {
+				w.reportWrite()
 				err := w.dbWriter.Write(buf)
-
 				if err != nil {
 					if isPermanentError(err) {
 						w.queue.DropFront()
 					} else {
 						w.queue.CycleFront()
 					}
-
 					w.reportError(err)
 				} else {
 					w.queue.DropFront()
 				}
 			}
 		}
+	}
+}
+
+func (w *retryWorker) reportWrite() {
+	select {
+	case w.writes <- struct{}{}:
+	default:
 	}
 }
 
