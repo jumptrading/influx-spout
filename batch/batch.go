@@ -64,6 +64,16 @@ func (b *Batch) Bytes() []byte {
 	return b.buf
 }
 
+// CopyBytes returns a copy of the underlying Batch byte slice. This
+// is expensive compare to Bytes() as it involves memory allocation,
+// but unlike the slice returned by Bytes(), the returned slice will
+// be unaffected by future changes to the Batch.
+func (b *Batch) CopyBytes() []byte {
+	out := make([]byte, len(b.buf))
+	copy(out, b.buf)
+	return out
+}
+
 // Writes returns the number of write operations to the batch since it
 // was last reset (or created, if never reset).
 func (b *Batch) Writes() int {
