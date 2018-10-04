@@ -44,7 +44,7 @@ func testConfig() *config.Config {
 		NATSAddress:        fmt.Sprintf("nats://127.0.0.1:%d", natsPort),
 		NATSSubject:        []string{"subject0", "subject1"},
 		NATSSubjectMonitor: "downsampler-test-monitor",
-		DownsamplePeriod:   config.Duration{Duration: 1 * time.Second},
+		DownsamplePeriod:   config.NewDuration(1 * time.Second),
 		DownsampleSuffix:   "-arch",
 		ProbePort:          probePort,
 		NATSMaxPendingSize: 32 * datasize.MB,
@@ -52,7 +52,7 @@ func testConfig() *config.Config {
 
 		// Make the statistician report more often during tests. This
 		// makes the tests run faster.
-		StatsInterval: config.Duration{Duration: 250 * time.Millisecond},
+		StatsInterval: config.NewDuration(250 * time.Millisecond),
 	}
 }
 

@@ -106,6 +106,25 @@ func TestReset(t *testing.T) {
 	assert.Equal(t, []byte{}, b.Bytes())
 }
 
+func TestCopyBytes(t *testing.T) {
+	b := New(10)
+	b.Append([]byte("foo"))
+
+	b0 := b.Bytes()
+	assert.Equal(t, []byte("foo"), b0)
+
+	b1 := b.CopyBytes()
+	assert.Equal(t, []byte("foo"), b1)
+
+	// Reset and reuse the batch.
+	b.Reset()
+	b.Append([]byte("bar"))
+
+	// b0 should reflect the new data. b1 should remain unchanged.
+	assert.Equal(t, []byte("bar"), b0)
+	assert.Equal(t, []byte("foo"), b1)
+}
+
 func TestAge(t *testing.T) {
 	// Batch shouldn't age if there's no data in it.
 	b := New(10)

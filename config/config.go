@@ -53,6 +53,9 @@ type Config struct {
 	Port                int               `toml:"port"`
 	Workers             int               `toml:"workers"`
 	WriteTimeout        Duration          `toml:"write_timeout"`
+	WriterRetryBatches  int               `toml:"writer_retry_batches"`
+	WriterRetryInterval Duration          `toml:"writer_retry_interval"`
+	WriterRetryTimeout  Duration          `toml:"writer_retry_timeout"`
 	ReadBufferSize      datasize.ByteSize `toml:"read_buffer_size"`
 	NATSMaxPendingSize  datasize.ByteSize `toml:"nats_max_pending_size"`
 	Rule                []Rule            `toml:"rule"`
@@ -83,14 +86,17 @@ func newDefaultConfig() *Config {
 		InfluxDBPort:        8086,
 		DBName:              "influx-spout-junk",
 		BatchMaxCount:       10,
-		BatchMaxAge:         Duration{5 * time.Minute},
+		BatchMaxAge:         NewDuration(5 * time.Minute),
 		Workers:             8,
-		WriteTimeout:        Duration{30 * time.Second},
+		WriteTimeout:        NewDuration(30 * time.Second),
+		WriterRetryBatches:  1,
+		WriterRetryInterval: NewDuration(10 * time.Second),
+		WriterRetryTimeout:  NewDuration(time.Minute),
 		ReadBufferSize:      4 * datasize.MB,
 		NATSMaxPendingSize:  200 * datasize.MB,
-		MaxTimeDelta:        Duration{10 * time.Minute},
+		MaxTimeDelta:        NewDuration(10 * time.Minute),
 		DownsampleSuffix:    "-archive",
-		StatsInterval:       Duration{3 * time.Second},
+		StatsInterval:       NewDuration(3 * time.Second),
 		ProbePort:           0,
 		PprofPort:           0,
 	}

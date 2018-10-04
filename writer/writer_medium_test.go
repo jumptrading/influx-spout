@@ -53,11 +53,12 @@ func testConfig() *config.Config {
 		DBName:             "metrics",
 		BatchMaxCount:      1,
 		BatchMaxSize:       10 * datasize.MB,
-		BatchMaxAge:        config.Duration{5 * time.Minute},
+		BatchMaxAge:        config.NewDuration(5 * time.Minute),
 		Port:               influxPort,
 		Workers:            96,
 		NATSMaxPendingSize: 32 * datasize.MB,
 		ProbePort:          probePort,
+		StatsInterval:      config.NewDuration(400 * time.Millisecond),
 	}
 }
 
@@ -182,7 +183,7 @@ func TestBatchTimeLimit(t *testing.T) {
 	conf := testConfig()
 	conf.Workers = 1
 	conf.BatchMaxCount = 9999
-	conf.BatchMaxAge = config.Duration{time.Second}
+	conf.BatchMaxAge = config.NewDuration(time.Second)
 	w := startWriter(t, conf)
 	defer w.Stop()
 
@@ -192,6 +193,55 @@ func TestBatchTimeLimit(t *testing.T) {
 
 	influxd.AssertWrite(t, "foo")
 	influxd.AssertNoWrite(t)
+}
+
+func TestWriteRetries(t *testing.T) {
+	stats.SetHostname("h")
+
+	nc, closeNATS := runGnatsd(t)
+	defer closeNATS()
+
+	// Fail twice then succeed.
+	influxd := runTestInfluxd(
+		http.StatusBadGateway,
+		http.StatusServiceUnavailable,
+	)
+	defer influxd.Stop()
+
+	conf := testConfig()
+	conf.Workers = 1
+	conf.WriterRetryBatches = 1
+	conf.WriterRetryInterval = config.NewDuration(250 * time.Millisecond)
+	conf.WriterRetryTimeout = config.NewDuration(5 * time.Second)
+
+	// Subscribe to stats output.
+	monitorCh := make(chan string, 10)
+	_, err := nc.Subscribe(conf.NATSSubjectMonitor, func(msg *nats.Msg) {
+		monitorCh <- string(msg.Data)
+	})
+	require.NoError(t, err)
+
+	w := startWriter(t, conf)
+	defer w.Stop()
+
+	line := "Out, out, brief candle!"
+	publish(t, nc, conf.NATSSubject[0], line)
+	influxd.AssertWrite(t, line)
+
+	// Check the monitor output.
+	labels := "{" + strings.Join([]string{
+		`component="writer"`,
+		`host="h"`,
+		`influxdb_address="localhost"`,
+		`influxdb_dbname="metrics"`,
+		fmt.Sprintf(`influxdb_port="%d"`, influxPort),
+		`name="foo"`,
+	}, ",") + "}"
+	spouttest.AssertMonitor(t, monitorCh, []string{
+		`received` + labels + ` 1`,
+		`write_requests` + labels + ` 3`,
+		`failed_writes` + labels + ` 2`,
+	})
 }
 
 func TestBasicFilterRule(t *testing.T) {
@@ -348,15 +398,19 @@ type testInfluxd struct {
 	wg     sync.WaitGroup
 	Writes chan write
 	ready  chan struct{}
+
+	mu       sync.Mutex
+	statuses []int
 }
 
-func runTestInfluxd() *testInfluxd {
+func runTestInfluxd(statuses ...int) *testInfluxd {
 	s := &testInfluxd{
 		server: &http.Server{
 			Addr: fmt.Sprintf(":%d", influxPort),
 		},
-		Writes: make(chan write, 99),
-		ready:  make(chan struct{}),
+		statuses: statuses,
+		Writes:   make(chan write, 99),
+		ready:    make(chan struct{}),
 	}
 
 	s.wg.Add(1)
@@ -420,7 +474,13 @@ func (s *testInfluxd) handleWrite(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		panic(fmt.Sprintf("Body read: %s", err))
 	}
-	w.WriteHeader(http.StatusNoContent)
+
+	status := s.nextReturnStatus()
+	w.WriteHeader(status)
+	if status >= 300 {
+		// Only record write if a success code was returned.
+		return
+	}
 
 	username, password, _ := r.BasicAuth()
 	s.Writes <- write{
@@ -428,6 +488,16 @@ func (s *testInfluxd) handleWrite(w http.ResponseWriter, r *http.Request) {
 		Username: username,
 		Password: password,
 	}
+}
+
+func (s *testInfluxd) nextReturnStatus() (status int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.statuses) < 1 {
+		return http.StatusNoContent
+	}
+	status, s.statuses = s.statuses[0], s.statuses[1:]
+	return status
 }
 
 type write struct {

@@ -60,6 +60,10 @@ batch_max_age = "1m"
 workers = 96
 
 write_timeout = "32s"
+writer_retry_batches = 5
+writer_retry_interval = "30s"
+writer_retry_timeout = "2h"
+
 read_buffer_size = 43210
 nats_max_pending_size = "100MB"
 max_time_delta = "789s"
@@ -79,7 +83,12 @@ pprof_port = 5432
 	assert.Equal(t, 5*datasize.MB, conf.BatchMaxSize)
 	assert.Equal(t, time.Minute, conf.BatchMaxAge.Duration)
 	assert.Equal(t, 96, conf.Workers)
+
 	assert.Equal(t, 32*time.Second, conf.WriteTimeout.Duration)
+	assert.Equal(t, 5, conf.WriterRetryBatches)
+	assert.Equal(t, 30*time.Second, conf.WriterRetryInterval.Duration)
+	assert.Equal(t, 2*time.Hour, conf.WriterRetryTimeout.Duration)
+
 	assert.Equal(t, 43210*datasize.B, conf.ReadBufferSize)
 	assert.Equal(t, 100*datasize.MB, conf.NATSMaxPendingSize)
 	assert.Equal(t, 789*time.Second, conf.MaxTimeDelta.Duration)
@@ -118,6 +127,9 @@ func TestAllDefaults(t *testing.T) {
 	assert.Equal(t, "writer", conf.Mode)
 	assert.Equal(t, 8, conf.Workers)
 	assert.Equal(t, 30*time.Second, conf.WriteTimeout.Duration)
+	assert.Equal(t, 1, conf.WriterRetryBatches)
+	assert.Equal(t, 10*time.Second, conf.WriterRetryInterval.Duration)
+	assert.Equal(t, time.Minute, conf.WriterRetryTimeout.Duration)
 	assert.Equal(t, time.Duration(0), conf.DownsamplePeriod.Duration)
 	assert.Equal(t, "-archive", conf.DownsampleSuffix)
 	assert.Equal(t, 4*datasize.MB, conf.ReadBufferSize)

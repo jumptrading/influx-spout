@@ -16,7 +16,6 @@ package writer
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -57,7 +56,7 @@ type influxClient struct {
 func (ic *influxClient) Write(buf []byte) error {
 	req, err := http.NewRequest("POST", ic.url, bytes.NewReader(buf))
 	if err != nil {
-		return err
+		return newClientError(err, true)
 	}
 	req.Header.Add("Content-Type", "application/json; charset=UTF-8")
 	if ic.username != "" {
@@ -65,11 +64,11 @@ func (ic *influxClient) Write(buf []byte) error {
 	}
 	resp, err := ic.client.Do(req)
 	if err != nil {
-		return fmt.Errorf("failed to send HTTP request: %v\n", err)
+		return newClientError(fmt.Sprintf("failed to send HTTP request: %v", err), false)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode > 300 {
+	if !isHTTPPOSTSuccess(resp.StatusCode) {
 		errText := fmt.Sprintf("received HTTP %v from %v", resp.Status, ic.url)
 		if ic.debug {
 			body, err := ioutil.ReadAll(resp.Body)
@@ -77,8 +76,53 @@ func (ic *influxClient) Write(buf []byte) error {
 				errText += fmt.Sprintf("\nresponse body: %s\n", body)
 			}
 		}
-		return errors.New(errText)
+		return newClientError(errText, isHTTPClientError(resp.StatusCode))
 	}
 
 	return nil
+}
+
+func isHTTPPOSTSuccess(code int) bool {
+	return code >= 200 && code < 300
+}
+
+func isHTTPClientError(code int) bool {
+	return code >= 400 && code < 500
+}
+
+func newClientError(err interface{}, permanent bool) *clientError {
+	return &clientError{
+		message:   fmt.Sprint(err),
+		permanent: permanent,
+	}
+}
+
+// clientError may be returned by Write. As well as an error message, it
+// includes whether the error is permanent or not.
+type clientError struct {
+	message   string
+	permanent bool
+}
+
+// clientError implements the error interface.
+func (e *clientError) Error() string {
+	return e.message
+}
+
+// Permanent returns true if the error is permanent. Operations
+// resulting in non-permanent/temporary errors may be retried.
+func (e *clientError) Permanent() bool {
+	return e.permanent
+}
+
+// isPermanentError examines the supplied error and returns true if it
+// is permanent.
+func isPermanentError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if apiErr, ok := err.(*clientError); ok {
+		return apiErr.Permanent()
+	}
+	return false // non-clientErrors are considered temporary
 }

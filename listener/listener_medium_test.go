@@ -65,7 +65,7 @@ func testConfig() *config.Config {
 		NATSSubjectMonitor: natsMonitorSubject,
 		BatchMaxCount:      1,
 		BatchMaxSize:       1 * datasize.MB,
-		BatchMaxAge:        config.Duration{60 * time.Second},
+		BatchMaxAge:        config.NewDuration(60 * time.Second),
 		ReadBufferSize:     4 * datasize.MB,
 
 		Port:      listenPort,
@@ -73,7 +73,7 @@ func testConfig() *config.Config {
 
 		// Make the statistician report more often during tests. This
 		// makes the tests run faster.
-		StatsInterval: config.Duration{250 * time.Millisecond},
+		StatsInterval: config.NewDuration(250 * time.Millisecond),
 	}
 }
 
@@ -194,7 +194,7 @@ func TestBatchAge(t *testing.T) {
 	// batch age expiry.
 	conf := testConfig()
 	conf.BatchMaxCount = 9999
-	conf.BatchMaxAge = config.Duration{time.Second}
+	conf.BatchMaxAge = config.NewDuration(time.Second)
 
 	listener := startListener(t, conf)
 	defer listener.Stop()
@@ -388,7 +388,7 @@ func TestBatchAgeHTTPListener(t *testing.T) {
 	// batch age expiry.
 	conf := testConfig()
 	conf.BatchMaxCount = 9999
-	conf.BatchMaxAge = config.Duration{time.Second}
+	conf.BatchMaxAge = config.NewDuration(time.Second)
 	listener := startHTTPListener(t, conf)
 	defer listener.Stop()
 
