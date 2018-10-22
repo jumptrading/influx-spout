@@ -442,8 +442,12 @@ influxdb_dbname = "influx-spout-junk"
 # will be triggered. Increasing this number reduces communication overhead
 # with InfluxDB but increases latency.
 batch_max_count = 10
-# The maximum amount of message data a writer worker may collect. If
-# this limit is reached, a write to InfluxDB is performed.
+
+# The maximum amount of message data a writer worker may collect. If this limit
+# is reached, a write to InfluxDB is performed.
+#
+# This should be no larger than the max-body-size option configured for the
+# InfluxDB being written to. The default max-body-size value is 25MB.
 batch_max_size = "10MB"
 
 # The maximum amount of time a writer worker is allowed to hold on to collected
