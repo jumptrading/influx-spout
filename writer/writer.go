@@ -40,7 +40,6 @@ const (
 	statReceived      = "received"
 	statWriteRequests = "write_requests"
 	statFailedWrites  = "failed_writes"
-	statMaxPending    = "max_pending"
 	statNATSDropped   = "nats_dropped"
 )
 
@@ -61,7 +60,7 @@ type Writer struct {
 func StartWriter(c *config.Config) (_ *Writer, err error) {
 	w := &Writer{
 		c:      c,
-		stats:  stats.New(statReceived, statWriteRequests, statFailedWrites, statMaxPending),
+		stats:  stats.New(statReceived, statWriteRequests, statFailedWrites),
 		probes: probes.Listen(c.ProbePort),
 		stop:   make(chan struct{}),
 	}

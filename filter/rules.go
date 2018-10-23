@@ -24,8 +24,8 @@ import (
 	"github.com/jumptrading/influx-spout/influx"
 )
 
-// Rule encapsulates a matching function and the NATS topic to
-// send lines to if the rule matches.
+// Rule encapsulates a matching function and the NATS subject to send
+// lines to if the rule matches.
 type Rule struct {
 	// Function used to check if the rule matches
 	match func(*parsedLine) bool

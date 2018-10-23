@@ -14,54 +14,44 @@
 
 package influx
 
-import "bytes"
+import (
+	"bytes"
+)
 
 // Unescape returns a new slice containing the unescaped version of
 // in.
 //
-// This is the same as Unescape() from
-// github.com/influxdata/influxdb/pkg/escape.
-// It's copied here because it's not worth vendoring all of influxdb
-// just for this.
+// This has the same semantics as Unescape() from
+// github.com/influxdata/influxdb/pkg/escape but is faster.
 func Unescape(in []byte) []byte {
 	if bytes.IndexByte(in, '\\') == -1 {
 		return in
 	}
 
-	i := 0
 	inLen := len(in)
+	i := 0
 
 	// The output will be no more than inLen. Preallocating the
 	// capacity here is faster and uses less memory than letting
 	// append allocate.
-	out := make([]byte, 0, inLen)
+	out := make([]byte, inLen)
+	j := 0
 
 	for {
 		if i >= inLen {
 			break
 		}
-		if in[i] == '\\' && i+1 < inLen {
-			switch in[i+1] {
-			case ',':
-				out = append(out, ',')
-				i += 2
-				continue
-			case '"':
-				out = append(out, '"')
-				i += 2
-				continue
-			case ' ':
-				out = append(out, ' ')
-				i += 2
-				continue
-			case '=':
-				out = append(out, '=')
-				i += 2
+		ii := i + 1
+		if in[i] == '\\' && ii < inLen {
+			switch in[ii] {
+			case ',', '"', ' ', '=':
+				out[j] = in[ii]
+				i, j = i+2, j+1
 				continue
 			}
 		}
-		out = append(out, in[i])
-		i++
+		out[j] = in[i]
+		i, j = ii, j+1
 	}
-	return out
+	return out[:j]
 }
