@@ -68,3 +68,14 @@ func TestUnescape(t *testing.T) {
 	check(`日\`, `日\`)
 	check(`hello\`, `hello\`)
 }
+
+var benchOut []byte
+
+func BenchmarkUnescape(b *testing.B) {
+	var x []byte
+	for i := 0; i < b.N; i++ {
+		x = Unescape([]byte("hello"))
+		x = Unescape([]byte(`foo\,\"\ \=bar`))
+	}
+	benchOut = x
+}
