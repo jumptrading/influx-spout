@@ -111,6 +111,7 @@ using a string and should use a unit suffix. These examples are all
 valid ways to express the same duration: `"7200s"`, `"120m"`,
 `"2h"`. Valid suffixes are "ns", "us", "ms", "s", "m" and "h".
 
+
 ## Modes
 
 This section documents the various influx-spout component modes and
@@ -418,10 +419,6 @@ shown.
 ```toml
 mode = "writer"  # Required
 
-# Name to use for identifying a writer's internal metrics.
-# (to separate metrics from different writers from each other)
-name = "[default is configuration file path with directory & extension stripped]"
-
 # Address of NATS server.
 nats_address = "nats://localhost:4222"
 
@@ -518,7 +515,7 @@ influx-spout components and serving then over HTTP in [Prometheus data
 exposition format](https://prometheus.io/docs/instrumenting/exposition_formats/). Metrics
 are available at `/metrics` on the configured port.
 
-The supported configuration options for the writer mode follow. Defaults are
+The supported configuration options for the monitor mode follow. Defaults are
 shown.
 
 ```toml
@@ -542,6 +539,102 @@ probe_port = 0
 # to disable pprof support.
 pprof_port = 0
 ```
+
+
+## Metrics
+
+Each influx-spout component exposes internal metrics in [Prometheus
+format](https://prometheus.io/docs/instrumenting/exposition_formats/). These
+metrics can be retrieved using the HTTP endpoint exposed by the
+monitor component.
+
+The metrics published by each component are documented below. Each metric will have at least the following labels:
+
+| Label     | Description |
+| --------- | ----------- |
+| component | The component type (e.g. "listener" or "writer") |
+| name      | The configured name of component instance. This defaults to the configuration file name with the directory and extension stripped but can be overriden with the `name` option. |
+| host      | The hostname on which the component is running |
+
+Some metrics will include more labels which are documented below.
+
+### Listener
+
+| Metric              | Description |
+| ------------------- | ----------- |
+| received            | UDP packets received |
+| sent                | Batches sent on for further processing |
+| read_errors         | Failed UDP reads |
+| failed_nats_publish | Failed attempts to publish to NATS |
+
+### HTTP Listener
+
+| Metric              | Description |
+| ------------------- | ----------- |
+| received            | Inbound HTTP requests handled |
+| sent                | Batches sent on for further processing |
+| read_errors         | Failures during HTTP request handling |
+| failed_nats_publish | Failed attempts to publish to NATS |
+
+### Filter
+
+| Metric              | Description |
+| ------------------- | ----------- |
+| processed           | Input lines processed by the filter |
+| passed              | Input lines that matched a filter rule |
+| rejected            | Input lines which didn't match a filter rule |
+| invalid_time        | Lines which were rejected because the timestamp was invalid or out of range |
+| failed_nats_publish | Failed attempts to publish to NATS |
+| nats_dropped        | Batches dropped by NATS because topic size limits were exceeded (filter too busy) |
+
+In addition a `triggered` metric is published for each configured
+rule. The value is a count of how many lines have matched this rule. A
+`rule` label containing the output NATS subject is included with each
+`triggered` metric.
+
+### Downsampler
+
+| Metric              | Description |
+| ------------------- | ----------- |
+| received            | Batches received by the downsampler |
+| sent                | Batches sent by the downsampler (one per worker per sampling interval) |
+| invalid_lines       | Lines rejected because they could not be parsed |
+| invalid_timestamps  | Lines rejected because the timestamp was out of range |
+| failed_nats_publish | Failed attempts to publish to NATS |
+
+In addition, a `nats_droppped` metric will be published for each
+configured input subject. This includes a `subject` label and is a
+count of the batches dropped by NATS because topic size limits were
+exceeded (downsampler too busy).
+
+### Writer
+
+As well as the standard labels, all writer metrics include the following labels:
+
+| Label            | Description |
+| ---------------- | ----------- |
+| influxdb_address | The address of the InfluxDB endpoint being written to |
+| influxdb_port    | The port of the InfluxDB endpoint being written to |
+| influxdb_dbname  | The InfluxDB database name being written to |
+
+A writer emits the following metrics:
+
+| Metric              | Description |
+| ------------------- | ----------- |
+| received            | Batches received by the writer |
+| write_requests      | Attempts to write to InfluxDB (including retries) |
+| failed_writes       | Failed attempts to write to InfluxDB (including retries) |
+
+In addition, a `nats_droppped` metric will be published for each
+configured input subject. This includes a `subject` label and is a
+count of the batches dropped by NATS because topic size limits were
+exceeded (writer too busy).
+
+### Monitor
+
+The monitor component only aggregates metrics from other components
+and does not currently publish its own metrics.
+
 
 ## Running tests
 

@@ -40,7 +40,7 @@ const (
 
 // StartFilter creates a Filter instance, sets up its rules based on
 // the configuration give and sets up a subscription for the incoming
-// NATS topic.
+// NATS subject.
 func StartFilter(conf *config.Config) (_ *Filter, err error) {
 	f := &Filter{
 		c:      conf,
