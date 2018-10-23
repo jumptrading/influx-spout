@@ -122,8 +122,6 @@ failed_writes{component="writer",host="h",influxdb_address="localhost",influxdb_
 invalid_lines{component="downsampler",host="h",name="downsampler"} 0
 invalid_timestamps{component="downsampler",host="h",name="downsampler"} 0
 invalid_time{component="filter",host="h",name="filter"} 0
-max_pending{component="writer",host="h",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44601",name="writer"} \d+
-max_pending{component="writer",host="h",influxdb_address="localhost",influxdb_dbname="test-archive",influxdb_port="44601",name="archive-writer"} \d+
 nats_dropped{component="downsampler",host="h",name="downsampler",subject="system"} 0
 nats_dropped{component="filter",host="h",name="filter"} 0
 nats_dropped{component="writer",host="h",influxdb_address="localhost",influxdb_dbname="test",influxdb_port="44601",name="writer",subject="system"} 0
