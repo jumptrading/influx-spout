@@ -172,6 +172,50 @@ func TestBatchMBLimit(t *testing.T) {
 	influxd.AssertNoWrite(t)
 }
 
+func TestBatchMBLimitOvershoot(t *testing.T) {
+	nc, closeNATS := runGnatsd(t)
+	defer closeNATS()
+
+	influxd := runTestInfluxd()
+	defer influxd.Stop()
+
+	// No filter rules.
+	conf := testConfig()
+	conf.Workers = 1
+	conf.BatchMaxCount = 9999
+	conf.BatchMaxSize = 100
+	w := startWriter(t, conf)
+	defer w.Stop()
+
+	// Send 4 chunks which cause the batch size limit to be overshot
+	// by 20 bytes.
+	const chunkSize = 30
+	const chunks = 4
+	chunk := make([]byte, chunkSize)
+	for i := range chunk {
+		chunk[i] = byte('x')
+	}
+	for i := 0; i < chunks; i++ {
+		publish(t, nc, conf.NATSSubject[0], string(chunk))
+	}
+
+	// The messages should come through in two batches. One should be
+	// the batch size (100 bytes) and then the remaining 20 bytes.
+	select {
+	case msg := <-influxd.Writes:
+		assert.Len(t, msg.Body, int(conf.BatchMaxSize))
+	case <-time.After(spouttest.LongWait):
+		t.Fatal("timed out waiting for messages")
+	}
+	select {
+	case msg := <-influxd.Writes:
+		assert.Len(t, msg.Body, (chunkSize*chunks)-int(conf.BatchMaxSize))
+	case <-time.After(spouttest.LongWait):
+		t.Fatal("timed out waiting for messages")
+	}
+	influxd.AssertNoWrite(t)
+}
+
 func TestBatchTimeLimit(t *testing.T) {
 	nc, closeNATS := runGnatsd(t)
 	defer closeNATS()
