@@ -28,6 +28,7 @@ import (
 	"github.com/nats-io/go-nats"
 
 	"github.com/jumptrading/influx-spout/batch"
+	"github.com/jumptrading/influx-spout/batchsplitter"
 	"github.com/jumptrading/influx-spout/config"
 	"github.com/jumptrading/influx-spout/filter"
 	"github.com/jumptrading/influx-spout/probes"
@@ -174,15 +175,25 @@ func (w *Writer) worker(jobs <-chan *nats.Msg) {
 		if w.shouldSend(batch) {
 			w.stats.Inc(statWriteRequests)
 
-			if err := dbClient.Write(batch.Bytes()); err != nil {
-				w.stats.Inc(statFailedWrites)
-				log.Printf("Error: %v", err)
-				if retryCh != nil {
-					// Copy the bytes because the underlying batch
-					// buffer will be reused. A copy is relatively
-					// expensive but is only made in the (hopefully)
-					// rare case of a retry.
-					retryCh <- batch.CopyBytes()
+			// It is possible for the batch to end up being slightly
+			// larger than the configured maximum batch size because
+			// inbound messages will almost never align exactly with
+			// the maximum batch size. Split up the batch if required.
+			splitter := batchsplitter.New(batch.Bytes(), w.c.BatchMaxSize)
+			for splitter.Next() {
+				chunk := splitter.Chunk()
+				if err := dbClient.Write(chunk); err != nil {
+					w.stats.Inc(statFailedWrites)
+					log.Printf("Error: %v", err)
+					if retryCh != nil {
+						// Copy the bytes because the underlying batch
+						// buffer will be reused. A copy is relatively
+						// expensive but is only made in the (hopefully)
+						// rare case of a retry.
+						retryChunk := make([]byte, len(chunk))
+						copy(retryChunk, chunk)
+						retryCh <- retryChunk
+					}
 				}
 			}
 
