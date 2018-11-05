@@ -20,7 +20,7 @@ import (
 	"time"
 )
 
-const minReadSize = 1024
+const maxReadSize = 65536
 
 // New returns a new batch buffer with the initial capacity
 // specified (in bytes).
@@ -117,10 +117,7 @@ func (b *Batch) ReadFrom(r io.Reader) (int64, error) {
 
 	var total int64
 	for {
-		// If there's not much capacity left, grow the buffer.
-		if b.Remaining() <= minReadSize {
-			b.grow()
-		}
+		b.growIfLow()
 		n, err := r.Read(b.buf[len(b.buf):cap(b.buf)])
 		if n > 0 {
 			b.buf = b.buf[:len(b.buf)+n]
@@ -140,11 +137,7 @@ func (b *Batch) ReadFrom(r io.Reader) (int64, error) {
 func (b *Batch) ReadOnceFrom(r io.Reader) (int, error) {
 	b.countWrite()
 
-	// If there's not much capacity left, grow the buffer.
-	if b.Remaining() <= minReadSize {
-		b.grow()
-	}
-
+	b.growIfLow()
 	n, err := r.Read(b.buf[len(b.buf):cap(b.buf)])
 	if n > 0 {
 		b.buf = b.buf[:len(b.buf)+n]
@@ -152,10 +145,22 @@ func (b *Batch) ReadOnceFrom(r io.Reader) (int, error) {
 	return n, err
 }
 
-// grow doubles the size of the Batch's internal buffer. This is
-// expensive and should be avoided where possible.
+func (b *Batch) growIfLow() {
+	if b.Remaining() < maxReadSize {
+		b.grow()
+	}
+}
+
+// grow doubles the size of the Batch's internal buffer. If the new
+// size is less than maxReadSize, then the buffer is grown to at least
+// maxReadSize. This call is expensive and should be avoided where
+// possible.
 func (b *Batch) grow() {
-	newBuf := make([]byte, int(cap(b.buf)*2))
+	newSize := cap(b.buf) * 2
+	if newSize < maxReadSize {
+		newSize = cap(b.buf) + maxReadSize
+	}
+	newBuf := make([]byte, int(newSize))
 	copy(newBuf, b.buf)
 	newBuf = newBuf[:len(b.buf)]
 	b.buf = newBuf
