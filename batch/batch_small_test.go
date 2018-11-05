@@ -18,6 +18,7 @@ package batch
 
 import (
 	"bytes"
+	"io"
 	"testing"
 	"time"
 
@@ -80,6 +81,17 @@ func TestReadFrom(t *testing.T) {
 	assert.Equal(t, []byte("foo"), b.Bytes())
 }
 
+func TestReadFromNoData(t *testing.T) {
+	b := New(10)
+	count, err := b.ReadFrom(new(noDataReader))
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), count)
+
+	assert.Equal(t, 0, b.Size())
+	// Write count shouldn't be incremented if there was no data.
+	assert.Equal(t, 0, b.Writes())
+}
+
 func TestReadOnceFrom(t *testing.T) {
 	b := New(10)
 	r := bytes.NewReader([]byte("foo"))
@@ -91,6 +103,18 @@ func TestReadOnceFrom(t *testing.T) {
 	assert.Equal(t, 17, b.Remaining())
 	assert.Equal(t, 1, b.Writes())
 	assert.Equal(t, []byte("foo"), b.Bytes())
+}
+
+func TestReadOnceNoData(t *testing.T) {
+	b := New(10)
+
+	count, err := b.ReadOnceFrom(new(noDataReader))
+	require.NoError(t, err)
+	assert.Equal(t, 0, count)
+
+	assert.Equal(t, 0, b.Size())
+	// Write count shouldn't be incremented if there was no data.
+	assert.Equal(t, 0, b.Writes())
 }
 
 func TestReset(t *testing.T) {
@@ -158,6 +182,12 @@ func TestAge(t *testing.T) {
 
 	testClock.advance(time.Second)
 	assert.Equal(t, time.Second, b.Age())
+}
+
+type noDataReader struct{}
+
+func (r *noDataReader) Read([]byte) (int, error) {
+	return 0, io.EOF
 }
 
 type fakeClock struct {
