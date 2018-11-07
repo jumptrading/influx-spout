@@ -55,15 +55,17 @@ func TestAppend(t *testing.T) {
 func TestAppendGrow(t *testing.T) {
 	b := New(2) // only 2 bytes!
 
-	b.Append([]byte("foo")) // add 3 bytes of data to cause growth
+	// Add 3 bytes of data to cause growth.
+	b.Append([]byte("foo"))
 	assert.Equal(t, 3, b.Size())
-	assert.Equal(t, 1, b.Remaining())
+	assert.Equal(t, maxReadSize+2-3, b.Remaining())
 	assert.Equal(t, 1, b.Writes())
 	assert.Equal(t, []byte("foo"), b.Bytes())
 
-	b.Append([]byte("bar")) // add another 3 bytes of data to cause growth again
+	// Add another 3 bytes of data (no growth)
+	b.Append([]byte("bar"))
 	assert.Equal(t, 6, b.Size())
-	assert.Equal(t, 2, b.Remaining())
+	assert.Equal(t, maxReadSize-4, b.Remaining())
 	assert.Equal(t, 2, b.Writes())
 	assert.Equal(t, []byte("foobar"), b.Bytes())
 }
@@ -76,7 +78,7 @@ func TestReadFrom(t *testing.T) {
 	assert.Equal(t, int64(3), count)
 
 	assert.Equal(t, 3, b.Size())
-	assert.Equal(t, 37, b.Remaining())
+	assert.Equal(t, maxReadSize+10-3, b.Remaining())
 	assert.Equal(t, 1, b.Writes())
 	assert.Equal(t, []byte("foo"), b.Bytes())
 }
@@ -100,7 +102,7 @@ func TestReadOnceFrom(t *testing.T) {
 	assert.Equal(t, 3, count)
 
 	assert.Equal(t, 3, b.Size())
-	assert.Equal(t, 17, b.Remaining())
+	assert.Equal(t, maxReadSize+10-3, b.Remaining())
 	assert.Equal(t, 1, b.Writes())
 	assert.Equal(t, []byte("foo"), b.Bytes())
 }

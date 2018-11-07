@@ -20,7 +20,7 @@ import (
 	"time"
 )
 
-const minReadSize = 1024
+const maxReadSize = 65536
 
 // New returns a new batch buffer with the initial capacity
 // specified (in bytes).
@@ -107,10 +107,7 @@ func (b *Batch) Append(more []byte) {
 func (b *Batch) ReadFrom(r io.Reader) (int64, error) {
 	var total int64
 	for {
-		// If there's not much capacity left, grow the buffer.
-		if b.Remaining() <= minReadSize {
-			b.grow()
-		}
+		b.growIfLow()
 		n, err := r.Read(b.buf[len(b.buf):cap(b.buf)])
 		if n > 0 {
 			b.buf = b.buf[:len(b.buf)+n]
@@ -131,12 +128,9 @@ func (b *Batch) ReadFrom(r io.Reader) (int64, error) {
 
 // ReadOnceFrom reads into the Batch just once from an io.Reader.
 func (b *Batch) ReadOnceFrom(r io.Reader) (int, error) {
-	// If there's not much capacity left, grow the buffer.
-	if b.Remaining() <= minReadSize {
-		b.grow()
-	}
-
-	n, err := r.Read(b.buf[len(b.buf):cap(b.buf)])
+	b.countWrite()
+	b.growIfLow()
+  n, err := r.Read(b.buf[len(b.buf):cap(b.buf)])
 	if n > 0 {
 		b.buf = b.buf[:len(b.buf)+n]
 		b.countWrite()
@@ -145,6 +139,27 @@ func (b *Batch) ReadOnceFrom(r io.Reader) (int, error) {
 		err = nil
 	}
 	return n, err
+}
+
+func (b *Batch) growIfLow() {
+	if b.Remaining() < maxReadSize {
+		b.grow()
+	}
+}
+
+// grow doubles the size of the Batch's internal buffer. If the new
+// size is less than maxReadSize, then the buffer is grown to at least
+// maxReadSize. This call is expensive and should be avoided where
+// possible.
+func (b *Batch) grow() {
+	newSize := cap(b.buf) * 2
+	if newSize < maxReadSize {
+		newSize = cap(b.buf) + maxReadSize
+	}
+	newBuf := make([]byte, int(newSize))
+	copy(newBuf, b.buf)
+	newBuf = newBuf[:len(b.buf)]
+	b.buf = newBuf
 }
 
 // EnsureNewline adds a newline to the end of the batch if there
@@ -165,15 +180,6 @@ func (b *Batch) appendImpl(more []byte) {
 	lenBatch := len(b.buf)
 	b.buf = b.buf[:lenBatch+lenMore]
 	copy(b.buf[lenBatch:], more)
-}
-
-// grow doubles the size of the Batch's internal buffer. This is
-// expensive and should be avoided where possible.
-func (b *Batch) grow() {
-	newBuf := make([]byte, int(cap(b.buf)*2))
-	copy(newBuf, b.buf)
-	newBuf = newBuf[:len(b.buf)]
-	b.buf = newBuf
 }
 
 func (b *Batch) countWrite() {
