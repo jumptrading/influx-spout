@@ -149,6 +149,27 @@ func TestCopyBytes(t *testing.T) {
 	assert.Equal(t, []byte("foo"), b1)
 }
 
+func TestEnsureNewline(t *testing.T) {
+	b := New(64)
+
+	// Does nothing if batch is empty.
+	b.EnsureNewline()
+	assert.Equal(t, []byte{}, b.Bytes())
+
+	// Newline added if needed.
+	b.Append([]byte("foo"))
+	b.EnsureNewline()
+	assert.Equal(t, []byte("foo\n"), b.Bytes())
+
+	// No newline added if not required.
+	b.Append([]byte("bar\n"))
+	b.EnsureNewline()
+	assert.Equal(t, []byte("foo\nbar\n"), b.Bytes())
+
+	// Addition of newlines shouldn't contribute to write count.
+	assert.Equal(t, 2, b.Writes())
+}
+
 func TestAge(t *testing.T) {
 	// Batch shouldn't age if there's no data in it.
 	b := New(10)
