@@ -99,15 +99,7 @@ func (b *Batch) Reset() {
 // Append adds some bytes to the Batch, growing the Batch if required.
 func (b *Batch) Append(more []byte) {
 	b.countWrite()
-
-	lenMore := len(more)
-	for b.Remaining() < lenMore {
-		b.grow()
-	}
-
-	lenBatch := len(b.buf)
-	b.buf = b.buf[:lenBatch+lenMore]
-	copy(b.buf[lenBatch:], more)
+	b.appendImpl(more)
 }
 
 // ReadFrom reads everything from an io.Reader, growing the Batch if
@@ -164,6 +156,26 @@ func (b *Batch) grow() {
 	copy(newBuf, b.buf)
 	newBuf = newBuf[:len(b.buf)]
 	b.buf = newBuf
+}
+
+// EnsureNewline adds a newline to the end of the batch if there
+// isn't one already present.
+func (b *Batch) EnsureNewline() {
+	n := len(b.buf)
+	if n > 0 && b.buf[n-1] != '\n' {
+		b.appendImpl([]byte{'\n'})
+	}
+}
+
+func (b *Batch) appendImpl(more []byte) {
+	lenMore := len(more)
+	for b.Remaining() < lenMore {
+		b.grow()
+	}
+
+	lenBatch := len(b.buf)
+	b.buf = b.buf[:lenBatch+lenMore]
+	copy(b.buf[lenBatch:], more)
 }
 
 func (b *Batch) countWrite() {
