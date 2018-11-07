@@ -214,6 +214,38 @@ func TestBatchAge(t *testing.T) {
 	spouttest.AssertNoMore(t, listenerCh)
 }
 
+func TestMissingNewline(t *testing.T) {
+	stats.SetHostname("h")
+
+	s := spouttest.RunGnatsd(natsPort)
+	defer s.Shutdown()
+
+	lines := []string{
+		"one\ntwo",
+		"three",
+		"four\n",
+		"five",
+	}
+	conf := testConfig()
+	conf.BatchMaxCount = len(lines)
+	listener := startListener(t, conf)
+	defer listener.Stop()
+
+	listenerCh, unsubListener := subListener(t)
+	defer unsubListener()
+
+	// Send lines, some without a newline at the end.
+	conn := dialListener(t)
+	defer conn.Close()
+	for _, line := range lines {
+		_, err := conn.Write([]byte(line))
+		require.NoError(t, err)
+	}
+
+	assertBatch(t, listenerCh, "one\ntwo\nthree\nfour\nfive\n")
+	spouttest.AssertNoMore(t, listenerCh)
+}
+
 func TestHTTPListener(t *testing.T) {
 	stats.SetHostname("h")
 

@@ -198,6 +198,7 @@ func (l *Listener) listenUDP(sc *net.UDPConn) {
 				log.Printf("listener read %d bytes", bytesRead)
 			}
 			l.stats.Inc(statReceived)
+			l.batch.EnsureNewline()
 		}
 
 		l.maybeSendBatch()
