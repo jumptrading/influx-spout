@@ -105,8 +105,6 @@ func (b *Batch) Append(more []byte) {
 // ReadFrom reads everything from an io.Reader, growing the Batch if
 // required.
 func (b *Batch) ReadFrom(r io.Reader) (int64, error) {
-	b.countWrite()
-
 	var total int64
 	for {
 		b.growIfLow()
@@ -117,6 +115,9 @@ func (b *Batch) ReadFrom(r io.Reader) (int64, error) {
 		}
 
 		if err != nil {
+			if total > 0 {
+				b.countWrite()
+			}
 			if err == io.EOF {
 				err = nil
 			}
@@ -127,12 +128,14 @@ func (b *Batch) ReadFrom(r io.Reader) (int64, error) {
 
 // ReadOnceFrom reads into the Batch just once from an io.Reader.
 func (b *Batch) ReadOnceFrom(r io.Reader) (int, error) {
-	b.countWrite()
-
 	b.growIfLow()
-	n, err := r.Read(b.buf[len(b.buf):cap(b.buf)])
+        n, err := r.Read(b.buf[len(b.buf):cap(b.buf)])
 	if n > 0 {
 		b.buf = b.buf[:len(b.buf)+n]
+		b.countWrite()
+	}
+	if err == io.EOF {
+		err = nil
 	}
 	return n, err
 }
