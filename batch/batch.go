@@ -128,9 +128,8 @@ func (b *Batch) ReadFrom(r io.Reader) (int64, error) {
 
 // ReadOnceFrom reads into the Batch just once from an io.Reader.
 func (b *Batch) ReadOnceFrom(r io.Reader) (int, error) {
-	b.countWrite()
 	b.growIfLow()
-  n, err := r.Read(b.buf[len(b.buf):cap(b.buf)])
+        n, err := r.Read(b.buf[len(b.buf):cap(b.buf)])
 	if n > 0 {
 		b.buf = b.buf[:len(b.buf)+n]
 		b.countWrite()
