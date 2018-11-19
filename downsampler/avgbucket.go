@@ -98,7 +98,7 @@ func (fp *fieldPairs) update(raw []byte) (errs []error) {
 		}
 		raw = raw[1:] // remove leading comma or space
 		var nameBytes []byte
-		nameBytes, raw = influx.Token(raw, []byte("="))
+		nameBytes, raw = influx.TokenEscaped(raw, []byte("="))
 		if len(raw) == 0 || raw[0] != '=' {
 			errs = append(errs, errors.New("invalid field"))
 			return

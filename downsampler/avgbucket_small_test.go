@@ -204,6 +204,13 @@ func TestEscapingInTags(t *testing.T) {
 	assertBytes(t, `foo,ab\ cd=ef\=gh bar=123i`, b.Bytes())
 }
 
+func TestEscapingInFieldName(t *testing.T) {
+	b := newAvgBucket(now)
+
+	require.Nil(t, b.AddLine([]byte(`foo ab\ cd=123i`)))
+	assertBytes(t, `foo ab\ cd=123i`, b.Bytes())
+}
+
 func TestInvalidField(t *testing.T) {
 	b := newAvgBucket(now)
 	errs := b.AddLine([]byte(`foo x`))
