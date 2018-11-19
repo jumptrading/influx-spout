@@ -17,9 +17,11 @@ package influx
 import "errors"
 
 // Token takes an escaped line protocol line and returns the
-// unescaped characters leading up to until. It also returns the
-// escaped remainder of line.
-func Token(s []byte, until []byte) ([]byte, []byte) {
+// characters leading up to until. Escaping behavior is controlled
+// by the unescape boolean. It also returns the escaped remainder of
+// line.
+
+func Token(s []byte, until []byte, unescape bool) ([]byte, []byte) {
 	length := len(s)
 	if length == 1 {
 		for _, c := range until {
@@ -35,7 +37,7 @@ func Token(s []byte, until []byte) ([]byte, []byte) {
 	for {
 		i++
 		if i >= length {
-			if escaped {
+			if escaped && unescape {
 				s = Unescape(s)
 			}
 			return s, nil
@@ -50,7 +52,7 @@ func Token(s []byte, until []byte) ([]byte, []byte) {
 		for _, c := range until {
 			if s[i] == c {
 				out := s[:i]
-				if escaped {
+				if escaped && unescape {
 					out = Unescape(out)
 				}
 				return out, s[i:]

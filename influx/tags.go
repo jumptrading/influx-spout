@@ -97,7 +97,7 @@ func (t TagSet) Bytes() []byte {
 // also returned unchanged. Errors are returned if incorrectly
 // formatted tags are present in the line.
 func ParseTags(line []byte) ([]byte, TagSet, []byte, error) {
-	measurement, line := Token(line, []byte(", "))
+	measurement, line := Token(line, []byte(", "), true)
 
 	if len(line) == 0 {
 		// Measurement without anything else.
@@ -114,12 +114,12 @@ func ParseTags(line []byte) ([]byte, TagSet, []byte, error) {
 			return measurement, tags, line[1:], nil
 		}
 
-		key, line = Token(line[1:], []byte("= ,"))
+		key, line = Token(line[1:], []byte("= ,"), true)
 		if len(line) == 0 || line[0] != '=' {
 			return nil, nil, nil, errors.New("invalid tag")
 		}
 
-		value, line = Token(line[1:], []byte(", "))
+		value, line = Token(line[1:], []byte(", "), true)
 		if len(value) == 0 {
 			return nil, nil, nil, errors.New("invalid tag")
 		}
