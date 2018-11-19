@@ -24,30 +24,33 @@ import (
 )
 
 func TestToken(t *testing.T) {
-	check := func(input, until, exp, expRemainder string) {
-		actual, actualRemainder := Token([]byte(input), []byte(until))
+	check := func(input, until, exp, expRemainder string, unescape bool) {
+		actual, actualRemainder := Token([]byte(input), []byte(until), unescape)
 		assert.Equal(t, exp, string(actual), "Token(%q, %q)", input, until)
 		assert.Equal(t, expRemainder, string(actualRemainder), "Token(%q, %q) (remainder)", input, until)
 	}
 
-	check("", " ", "", "")
-	check(`a`, " ", `a`, "")
-	check("日", " ", "日", "")
-	check(`hello`, " ", `hello`, "")
-	check("日本語", " ", "日本語", "")
-	check(" ", ", ", "", " ")
-	check(",", ", ", "", ",")
-	check(`h world`, ", ", `h`, " world")
-	check(`h,world`, ", ", `h`, ",world")
-	check(`hello world`, ", ", `hello`, ` world`)
-	check(`hello,world`, ", ", `hello`, `,world`)
-	check(`hello\ world more`, ", ", `hello world`, ` more`)
-	check(`hello\,world,more`, ", ", `hello,world`, `,more`)
-	check(`hello\ 日本語 more`, ", ", `hello 日本語`, ` more`)
-	check(`hello\,日本語,more`, ", ", `hello,日本語`, `,more`)
-	check(`\ `, " ", " ", "")
-	check(`\`, " ", `\`, "")
-	check(`hello\`, " ", `hello\`, "")
+	check("", " ", "", "", true)
+	check(`a`, " ", `a`, "", true)
+	check("日", " ", "日", "", true)
+	check(`hello`, " ", `hello`, "", true)
+	check("日本語", " ", "日本語", "", true)
+	check(" ", ", ", "", " ", true)
+	check(",", ", ", "", ",", true)
+	check(`h world`, ", ", `h`, " world", true)
+	check(`h,world`, ", ", `h`, ",world", true)
+	check(`hello world`, ", ", `hello`, ` world`, true)
+	check(`hello,world`, ", ", `hello`, `,world`, true)
+	check(`hello\ world more`, ", ", `hello world`, ` more`, true)
+	check(`hello\,world,more`, ", ", `hello,world`, `,more`, true)
+	check(`hello\ world more`, ", ", `hello\ world`, ` more`, false)
+	check(`hello\,world,more`, ", ", `hello\,world`, `,more`, false)
+	check(`hello\ 日本語 more`, ", ", `hello 日本語`, ` more`, true)
+	check(`hello\,日本語,more`, ", ", `hello,日本語`, `,more`, true)
+	check(`\ `, " ", " ", "", true)
+	check(`\ `, " ", `\ `, "", false)
+	check(`\`, " ", `\`, "", true)
+	check(`hello\`, " ", `hello\`, "", true)
 }
 
 func TestQuotedString(t *testing.T) {

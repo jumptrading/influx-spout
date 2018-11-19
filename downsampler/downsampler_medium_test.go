@@ -92,11 +92,11 @@ too_old_timestamp 123
 	require.NoError(t, err)
 
 	err = nc.Publish("subject1", []byte(`
-string,host=host0 value="one"
-int,host=host0 xyz=111i
-string,host=host0 value="two"
-string,host=host0 value="three"
-int,host=host0 xyz=333i
+string,host=host\ 0 value="one"
+int,host=host\ 0 xyz=111i
+string,host=host\ 0 value="two"
+string,host=host\ 0 value="three"
+int,host=host\ 0 xyz=333i
 too_new_timestamp 9223372036854775807
 invalid x
 `[1:]))
@@ -110,8 +110,8 @@ bool,host=0 b=false
 bool,host=1 b=true
 `)
 	assertDownsamplerRecv(t, output1, "subject1-arch", `
-string,host=host0 value="three"
-int,host=host0 xyz=222i
+string,host=host\ 0 value="three"
+int,host=host\ 0 xyz=222i
 `)
 
 	// Now wait a little and ensure that nothing else is emitted.
