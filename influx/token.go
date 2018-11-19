@@ -17,19 +17,31 @@ package influx
 import "errors"
 
 // Token takes an escaped line protocol line and returns the
-// characters leading up to until. Escaping behavior is controlled
-// by the unescape boolean. It also returns the escaped remainder of
-// line.
+// unescaped characters leading up to until.
+func Token(s []byte, until []byte) ([]byte, []byte) {
+	tok, remainder, escaped := token(s, until)
+	if escaped {
+		tok = Unescape(tok)
+	}
+	return tok, remainder
+}
 
-func Token(s []byte, until []byte, unescape bool) ([]byte, []byte) {
+// TokenEscaped takes an escaped line protocol line and returns the
+// escaped characters leading up to until.
+func TokenEscaped(s []byte, until []byte) ([]byte, []byte) {
+	tok, remainder, _ := token(s, until)
+	return tok, remainder
+}
+
+func token(s []byte, until []byte) ([]byte, []byte, bool) {
 	length := len(s)
 	if length == 1 {
 		for _, c := range until {
 			if s[0] == c {
-				return nil, s
+				return nil, s, false
 			}
 		}
-		return s, nil
+		return s, nil, false
 	}
 
 	escaped := false
@@ -37,10 +49,7 @@ func Token(s []byte, until []byte, unescape bool) ([]byte, []byte) {
 	for {
 		i++
 		if i >= length {
-			if escaped && unescape {
-				s = Unescape(s)
-			}
-			return s, nil
+			return s, nil, escaped
 		}
 
 		if s[i-1] == '\\' {
@@ -52,10 +61,7 @@ func Token(s []byte, until []byte, unescape bool) ([]byte, []byte) {
 		for _, c := range until {
 			if s[i] == c {
 				out := s[:i]
-				if escaped && unescape {
-					out = Unescape(out)
-				}
-				return out, s[i:]
+				return out, s[i:], escaped
 			}
 		}
 	}
