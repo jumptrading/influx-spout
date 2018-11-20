@@ -1,3 +1,55 @@
+# v2.2.0
+
+## Listener batch size handling
+
+- Fail config validation if listener batch size is greater than
+  1MB. NATS will only accept messages of up to 1MB in size.
+- Ensure the listener will never send a batch to NATS that is bigger
+  than the 1MB which NATS will accept. This was previously possible
+  under some circumstances.
+
+## InfluxDB HTTP basic auth support
+
+influx-spout writers can now authenticate to InfluxDB backends if
+required. The username and password are read from two environment
+variables (`INFLUXDB_USER` and `INFLUXDB_PASS`).
+
+## Write retries
+
+influx-spout writers will now retry failed writes for a configurable
+number of times. Retries are configured by the following new options:
+
+* `writer_retry_batches`: The maximum number of batches that failed to
+  write to InfluxDB to track for retry at any given time. The oldest retry batch will be
+  discarded if necessary to keep the set of batches being retried within this
+  limit. Default is 1. Set to 0 to disable write retries.
+* `writer_retry_interval`: The amount of time between write retry
+  attempts. Default is "10s".
+* `writer_retry_timeout`: The maximum amount of time to keep retrying
+  a given batch. Default is "1m"
+
+## Enforce maximum writer batch size
+
+When writing a batch to InfluxDB it is possible for the batch size to
+exceed the maximum batch size because incoming lines are unlikely to
+exactly fit inside the desired batch size. A BatchSplitter is now used
+to ensure that the configured batch size is never exceeded.
+
+This is important because InfluxDB has a maximum body size that it will accept.
+
+## Other
+
+- Fixed escape handling bugs in downsampler component.
+- The Prometheus metrics published by each influx-spout component is
+  now documented in README.md.
+- InfluxDB Line Protocol unescaping is now about 4% faster.
+- Batches recevied by the listener component will now have a newline
+  added if it is missing.
+- Fixed incorrect accounting of received batches for the UDP listener.
+- Fix potential issues with batch memory growth. Batch buffers now
+  grow by at least the maximum UDP packet size to ensure that there is
+  always sufficient memory available.
+
 # v2.1.0
 
 ## New downsampler component
