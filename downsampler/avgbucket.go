@@ -43,7 +43,7 @@ func (b *avgBucket) EndTime() time.Time {
 
 func (b *avgBucket) AddLine(line []byte) (errs []error) {
 	var keyBytes []byte
-	keyBytes, line = influx.Token(line, []byte(" "), false) // key = measurement + tags
+	keyBytes, line = influx.TokenEscaped(line, []byte(" ")) // key = measurement + tags
 	key := string(keyBytes)
 
 	// Assumption: tags are already ordered (filter does this).
@@ -98,7 +98,7 @@ func (fp *fieldPairs) update(raw []byte) (errs []error) {
 		}
 		raw = raw[1:] // remove leading comma or space
 		var nameBytes []byte
-		nameBytes, raw = influx.Token(raw, []byte("="), true)
+		nameBytes, raw = influx.TokenEscaped(raw, []byte("="))
 		if len(raw) == 0 || raw[0] != '=' {
 			errs = append(errs, errors.New("invalid field"))
 			return
@@ -130,7 +130,7 @@ func (fp *fieldPairs) update(raw []byte) (errs []error) {
 			}
 		} else {
 			// Other field
-			rawValue, raw = influx.Token(raw, []byte{','}, true)
+			rawValue, raw = influx.Token(raw, []byte{','})
 			value, exists := fp.fields[name]
 			if !exists {
 				fp.fields[name] = newFieldValue(rawValue)

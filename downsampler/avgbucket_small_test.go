@@ -190,6 +190,27 @@ func TestMeasurementAndTagsOnly(t *testing.T) {
 	), b.Bytes())
 }
 
+func TestEscapingInMeasurement(t *testing.T) {
+	b := newAvgBucket(now)
+
+	require.Nil(t, b.AddLine([]byte(`fo\,o bar=1i`)))
+	assertBytes(t, `fo\,o bar=1i`, b.Bytes())
+}
+
+func TestEscapingInTags(t *testing.T) {
+	b := newAvgBucket(now)
+
+	require.Nil(t, b.AddLine([]byte(`foo,ab\ cd=ef\=gh bar=123i`)))
+	assertBytes(t, `foo,ab\ cd=ef\=gh bar=123i`, b.Bytes())
+}
+
+func TestEscapingInFieldName(t *testing.T) {
+	b := newAvgBucket(now)
+
+	require.Nil(t, b.AddLine([]byte(`foo ab\ cd=123i`)))
+	assertBytes(t, `foo ab\ cd=123i`, b.Bytes())
+}
+
 func TestInvalidField(t *testing.T) {
 	b := newAvgBucket(now)
 	errs := b.AddLine([]byte(`foo x`))
