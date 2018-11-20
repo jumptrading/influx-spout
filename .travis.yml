@@ -1,8 +1,8 @@
 language: go
 
 go:
-  - "1.10.4"
-  - "1.11"
+  - "1.10.5"
+  - "1.11.2"
   - "master"  # find out if an upcoming change in Go is going to break us
 
 matrix:
@@ -35,4 +35,4 @@ deploy:
   script: make release
   on:
     tags: true
-    go: "1.11"
+    go: "1.11.2"
