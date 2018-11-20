@@ -151,7 +151,12 @@ $RECYCLE.BIN/
 *.lnk
 
 # End of https://www.gitignore.io/api/c,go,c++,linux,macos,windows
+
 *.bench
 /slowinfluxd
 /cmd/benchcheck/benchcheck
 /dist/
+
+# Files generated due to release deploys
+/do-goreleaser
+/latest-release-notes.md
