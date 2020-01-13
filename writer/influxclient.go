@@ -26,7 +26,7 @@ import (
 
 func newInfluxClient(c *config.Config) *influxClient {
 	return &influxClient{
-		url:      fmt.Sprintf("http://%s:%d/write?db=%s", c.InfluxDBAddress, c.InfluxDBPort, c.DBName),
+		url:      fmt.Sprintf("%s://%s:%d/write?db=%s", c.InfluxDBProtocol, c.InfluxDBAddress, c.InfluxDBPort, c.DBName),
 		username: c.InfluxDBUser,
 		password: c.InfluxDBPass,
 		debug:    c.Debug,
