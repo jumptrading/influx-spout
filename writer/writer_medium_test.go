@@ -49,6 +49,7 @@ func testConfig() *config.Config {
 		NATSSubject:        []string{"writer-test"},
 		NATSSubjectMonitor: "writer-test-monitor",
 		InfluxDBAddress:    "localhost",
+		InfluxDBProtocol:   "http",
 		InfluxDBPort:       influxPort,
 		DBName:             "metrics",
 		BatchMaxCount:      1,
