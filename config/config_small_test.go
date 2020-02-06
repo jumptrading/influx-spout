@@ -97,7 +97,7 @@ pprof_port = 5432
 	assert.Equal(t, 8086, conf.InfluxDBPort, "InfluxDB Port must match")
 	assert.Equal(t, "junk_nats", conf.DBName, "InfluxDB DBname must match")
 	assert.Equal(t, "localhost", conf.InfluxDBAddress, "InfluxDB address must match")
-	assert.Equal(t, "http", conf.InfluxDBProtocol, "InfluxDB protocol must match")
+	assert.Equal(t, "https", conf.InfluxDBProtocol, "InfluxDB protocol must match")
 
 	assert.Equal(t, "spout", conf.NATSSubject[0], "Subject must match")
 	assert.Equal(t, "spout-monitor", conf.NATSSubjectMonitor, "Monitor subject must match")
