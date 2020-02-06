@@ -51,7 +51,7 @@ nats_subject = ["spout"]
 nats_subject_monitor = "spout-monitor"
 
 influxdb_address = "localhost"
-influxdb_protocol = "http"
+influxdb_protocol = "https"
 influxdb_port = 8086
 influxdb_dbname = "junk_nats"
 
@@ -191,16 +191,6 @@ func TestInfluxAuth(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "user", conf.InfluxDBUser)
 	assert.Equal(t, "secret", conf.InfluxDBPass)
-}
-
-func TestInfluxHttps(t *testing.T) {
-	const influxHttps = `
-mode = "writer"
-influxdb_protocol = "https"
-`
-	conf, err := parseConfig(influxHttps)
-	require.NoError(t, err, "config should be parsed")
-	assert.Equal(t, "https", conf.InfluxDBProtocol)
 }
 
 func TestNoMode(t *testing.T) {
