@@ -51,6 +51,7 @@ nats_subject = ["spout"]
 nats_subject_monitor = "spout-monitor"
 
 influxdb_address = "localhost"
+influxdb_protocol = "https"
 influxdb_port = 8086
 influxdb_dbname = "junk_nats"
 
@@ -96,6 +97,7 @@ pprof_port = 5432
 	assert.Equal(t, 8086, conf.InfluxDBPort, "InfluxDB Port must match")
 	assert.Equal(t, "junk_nats", conf.DBName, "InfluxDB DBname must match")
 	assert.Equal(t, "localhost", conf.InfluxDBAddress, "InfluxDB address must match")
+	assert.Equal(t, "https", conf.InfluxDBProtocol, "InfluxDB protocol must match")
 
 	assert.Equal(t, "spout", conf.NATSSubject[0], "Subject must match")
 	assert.Equal(t, "spout-monitor", conf.NATSSubjectMonitor, "Monitor subject must match")
@@ -116,6 +118,7 @@ func TestAllDefaults(t *testing.T) {
 	assert.Equal(t, "influx-spout-monitor", conf.NATSSubjectMonitor)
 	assert.Equal(t, "influx-spout-junk", conf.NATSSubjectJunkyard)
 	assert.Equal(t, "localhost", conf.InfluxDBAddress)
+	assert.Equal(t, "http", conf.InfluxDBProtocol)
 	assert.Equal(t, 8086, conf.InfluxDBPort)
 	assert.Equal(t, "", conf.InfluxDBUser)
 	assert.Equal(t, "", conf.InfluxDBPass)
@@ -495,6 +498,12 @@ subject = "out"
 		`
 mode = "writer"
 nats_subject = []
+`,
+	}, {
+		"influxdb_protocol can only be http or https",
+		`
+mode = "writer"
+influxdb_protocol = "foo"
 `,
 	}, {
 		"influxdb_port out of range",

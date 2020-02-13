@@ -428,6 +428,9 @@ nats_subject = ["influx-spout"]
 # Address of the InfluxDB instance to write to.
 influxdb_address = "localhost"
 
+# Protocol of the InfluxDB instance to write to (http/https).
+influxdb_protocol = "http"
+
 # TCP port where the InfluxDB backend can be found.
 influxdb_port = 8086
 

@@ -43,6 +43,7 @@ type Config struct {
 	NATSSubjectMonitor  string            `toml:"nats_subject_monitor"`
 	NATSSubjectJunkyard string            `toml:"nats_subject_junkyard"`
 	InfluxDBAddress     string            `toml:"influxdb_address"`
+	InfluxDBProtocol    string            `toml:"influxdb_protocol"`
 	InfluxDBPort        int               `toml:"influxdb_port"`
 	InfluxDBUser        string            `toml:"-"`
 	InfluxDBPass        string            `toml:"-"`
@@ -83,6 +84,7 @@ func newDefaultConfig() *Config {
 		NATSSubjectMonitor:  "influx-spout-monitor",
 		NATSSubjectJunkyard: "influx-spout-junk",
 		InfluxDBAddress:     "localhost",
+		InfluxDBProtocol:    "http",
 		InfluxDBPort:        8086,
 		DBName:              "influx-spout-junk",
 		BatchMaxCount:       10,
@@ -196,6 +198,9 @@ func (c *Config) validateWriter() error {
 	}
 	if c.InfluxDBPort < 1 || c.InfluxDBPort > 65535 {
 		return errors.New("influxdb_port out of range")
+	}
+	if c.InfluxDBProtocol != "http" && c.InfluxDBProtocol != "https" {
+                return errors.New("influxdb_protocol can only be http or https")
 	}
 	if c.InfluxDBUser != "" && c.InfluxDBPass == "" {
 		return errors.New("$INFLUXDB_USER without $INFLUXDB_PASS")
