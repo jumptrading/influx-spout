@@ -43,17 +43,17 @@ docker: influx-spout influx-spout-tap
 
 .PHONY: test
 test:
-	cd v2; ../runtests -r small medium large
+	cd v2; ./runtests -r small medium large
 
 
 .PHONY: coverage
 coverage:
-	cd v2; ../runtests -c -r small medium large
+	cd v2; ./runtests -c -r small medium large
 
 
 .PHONY: benchmark
 benchmark:
-	cd v2; ../runtests -b -r small medium large
+	cd v2; ./runtests -b -r small medium large
 
 .PHONY: release
 release: latest-release-notes.md do-goreleaser
