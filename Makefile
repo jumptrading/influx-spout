@@ -30,11 +30,11 @@ influx-spout:
 	@export CGO_ENABLED=0
 
 	# Build a static version of influx-spout
-	go build -a -tags netgo -installsuffix netgo -v -x -ldflags '-X main.version=$(VERSION) -X main.builtOn=$(BUILT_ON) -w -extldflags "-static"' ./cmd/influx-spout
+	go build -a -tags netgo -installsuffix netgo -v -x -ldflags '-X main.version=$(VERSION) -X main.builtOn=$(BUILT_ON) -w -extldflags "-static"' ./v2/cmd/influx-spout
 	@ls -l influx-spout
 
 influx-spout-tap:
-	go build ./cmd/influx-spout-tap
+	go build ./v2/cmd/influx-spout-tap
 
 docker: influx-spout influx-spout-tap
 	$(info Building the docker image $(DOCKER_IMAGE) with $(PROJECT) $(VERSION))

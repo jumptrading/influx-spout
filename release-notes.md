@@ -1,4 +1,4 @@
-# Unreleased
+# v2.3.0 (Unreleased)
 
 - Migrated to Go modules
 - Upgraded NATS client to 1.10 and test server to NATS 2.1.4
