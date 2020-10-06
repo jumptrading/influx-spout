@@ -556,7 +556,7 @@ func subMonitor(t require.TestingT) (chan string, func()) {
 }
 
 func subscribe(t require.TestingT, subject string) (chan string, func()) {
-	nc, err := nats.Connect(natsAddress)
+	nc, err := nats.Connect(natsAddress, nats.Name("listenerTest"))
 	require.NoError(t, err)
 
 	msgCh := make(chan string, 10)

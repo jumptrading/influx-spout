@@ -71,7 +71,7 @@ func StartDownsampler(c *config.Config) (_ *Downsampler, err error) {
 		}
 	}()
 
-	ds.nc, err = nats.Connect(c.NATSAddress, nats.MaxReconnects(-1))
+	ds.nc, err = nats.Connect(c.NATSAddress, nats.MaxReconnects(-1), nats.Name(c.Name))
 	if err != nil {
 		return nil, fmt.Errorf("NATS Error: can't connect: %v", err)
 	}

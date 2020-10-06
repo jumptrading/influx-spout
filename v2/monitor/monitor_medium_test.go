@@ -126,7 +126,7 @@ func TestMonitor(t *testing.T) {
 func runGnatsd(t *testing.T) (*nats.Conn, func()) {
 	gnatsd := spouttest.RunGnatsd(natsPort)
 
-	nc, err := nats.Connect(natsAddress)
+	nc, err := nats.Connect(natsAddress, nats.Name("listenerTest"))
 	if err != nil {
 		gnatsd.Shutdown()
 		t.Fatalf("NATS connect failed: %v", err)

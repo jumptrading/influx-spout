@@ -75,7 +75,7 @@ func StartWriter(c *config.Config) (_ *Writer, err error) {
 		return nil, err
 	}
 
-	w.nc, err = nats.Connect(c.NATSAddress, nats.MaxReconnects(-1))
+	w.nc, err = nats.Connect(c.NATSAddress, nats.MaxReconnects(-1), nats.Name(c.Name))
 	if err != nil {
 		return nil, fmt.Errorf("NATS Error: can't connect: %v", err)
 	}
@@ -89,9 +89,17 @@ func StartWriter(c *config.Config) (_ *Writer, err error) {
 	// Subscribe the writer to the configured NATS subjects.
 	subs := make([]*nats.Subscription, 0, len(c.NATSSubject))
 	for _, subject := range c.NATSSubject {
-		sub, err := w.nc.Subscribe(subject, func(msg *nats.Msg) {
-			jobs <- msg
-		})
+		var sub *nats.Subscription
+		if c.QueueGroup == "" {
+			sub, err = w.nc.Subscribe(subject, func(msg *nats.Msg) {
+				jobs <- msg
+			})
+		} else {
+			sub, err = w.nc.QueueSubscribe(subject, c.QueueGroup, func(msg *nats.Msg) {
+				jobs <- msg
+			})
+		}
+
 		if err != nil {
 			return nil, fmt.Errorf("NATS: subscription for %q failed: %v", subject, err)
 		}

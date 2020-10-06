@@ -64,7 +64,7 @@ func TestFilterWorker(t *testing.T) {
 	filter := startFilter(t, conf)
 	defer filter.Stop()
 
-	nc, err := nats.Connect(conf.NATSAddress)
+	nc, err := nats.Connect(conf.NATSAddress, nats.Name("TestFilterWorker"))
 	require.NoError(t, err)
 	defer nc.Close()
 
@@ -133,7 +133,7 @@ func TestInvalidTimeStamps(t *testing.T) {
 	filter := startFilter(t, conf)
 	defer filter.Stop()
 
-	nc, err := nats.Connect(conf.NATSAddress)
+	nc, err := nats.Connect(conf.NATSAddress, nats.Name("TestInvalidTimeStamps"))
 	require.NoError(t, err)
 	defer nc.Close()
 
@@ -192,7 +192,7 @@ func TestTagSorting(t *testing.T) {
 	filter := startFilter(t, conf)
 	defer filter.Stop()
 
-	nc, err := nats.Connect(conf.NATSAddress)
+	nc, err := nats.Connect(conf.NATSAddress, nats.Name("TestTagSorting"))
 	require.NoError(t, err)
 	defer nc.Close()
 

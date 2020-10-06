@@ -67,7 +67,7 @@ func TestDownsampler(t *testing.T) {
 	ds := startDownsampler(t, conf)
 	defer ds.Stop()
 
-	nc, err := nats.Connect(conf.NATSAddress)
+	nc, err := nats.Connect(conf.NATSAddress, nats.Name("test"))
 	require.NoError(t, err)
 	defer nc.Close()
 

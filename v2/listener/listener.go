@@ -139,7 +139,7 @@ func newListener(c *config.Config) (*Listener, error) {
 		batch:  batch.New(int(c.BatchMaxSize.Bytes())),
 	}
 
-	nc, err := nats.Connect(l.c.NATSAddress, nats.MaxReconnects(-1))
+	nc, err := nats.Connect(l.c.NATSAddress, nats.MaxReconnects(-1), nats.Name(l.c.Name))
 	if err != nil {
 		return nil, err
 	}

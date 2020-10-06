@@ -410,7 +410,7 @@ type FatalTestingT interface {
 func runGnatsd(t FatalTestingT) (*nats.Conn, func()) {
 	gnatsd := spouttest.RunGnatsd(natsPort)
 
-	nc, err := nats.Connect(natsAddress)
+	nc, err := nats.Connect(natsAddress, nats.Name("runGnatsd"))
 	if err != nil {
 		gnatsd.Shutdown()
 		t.Fatalf("NATS connect failed: %v", err)
