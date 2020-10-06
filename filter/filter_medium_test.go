@@ -23,7 +23,7 @@ import (
 	"time"
 
 	"github.com/c2h5oh/datasize"
-	"github.com/nats-io/go-nats"
+	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/require"
 
 	"github.com/jumptrading/influx-spout/config"

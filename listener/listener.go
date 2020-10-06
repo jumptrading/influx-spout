@@ -34,7 +34,7 @@ import (
 	"github.com/jumptrading/influx-spout/influx"
 	"github.com/jumptrading/influx-spout/probes"
 	"github.com/jumptrading/influx-spout/stats"
-	nats "github.com/nats-io/go-nats"
+	nats "github.com/nats-io/nats.go"
 )
 
 const (

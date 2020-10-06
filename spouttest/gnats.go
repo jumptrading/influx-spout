@@ -18,8 +18,8 @@ import (
 	"log"
 	"time"
 
-	"github.com/nats-io/gnatsd/server"
-	"github.com/nats-io/gnatsd/test"
+	"github.com/nats-io/nats-server/server"
+	"github.com/nats-io/nats-server/test"
 )
 
 // RunGnatsd runs a gnatsd server on the specified port for testing

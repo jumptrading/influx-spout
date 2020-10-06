@@ -21,7 +21,7 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/nats-io/go-nats"
+	"github.com/nats-io/nats.go"
 
 	"github.com/jumptrading/influx-spout/config"
 	"github.com/jumptrading/influx-spout/probes"
