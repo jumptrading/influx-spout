@@ -8,7 +8,7 @@ RUN ["bash", "-c", "git clone --depth=1 https://github.com/jumptrading/influx-sp
 #COPY ./ ./
 
 #Build
-RUN ["bash", "-c", "make deps influx-spout influx-spout-tap"]
+RUN ["bash", "-c", "make influx-spout influx-spout-tap"]
 
 ##Use binaries and config in alpine production container
 FROM alpine:3
