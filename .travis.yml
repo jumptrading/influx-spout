@@ -1,8 +1,8 @@
 language: go
 
 go:
-  - "1.10.5"
-  - "1.11.2"
+  - "1.14.x"
+  - "1.15.x"
   - "master"  # find out if an upcoming change in Go is going to break us
 
 matrix:

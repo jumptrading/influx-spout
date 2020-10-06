@@ -1,3 +1,7 @@
+# Unreleased
+
+- Migrated to Go modules
+
 # v2.2.0
 
 ## Listener batch size handling
