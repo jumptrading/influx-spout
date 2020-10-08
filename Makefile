@@ -30,11 +30,11 @@ influx-spout:
 	@export CGO_ENABLED=0
 
 	# Build a static version of influx-spout
-	cd v2; go build -a -tags netgo -installsuffix netgo -v -x -ldflags '-X main.version=$(VERSION) -X main.builtOn=$(BUILT_ON) -w -extldflags "-static"' ./cmd/influx-spout ; mv influx-spout ..
+	go build -a -tags netgo -installsuffix netgo -v -x -ldflags '-X main.version=$(VERSION) -X main.builtOn=$(BUILT_ON) -w -extldflags "-static"' ./cmd/influx-spout
 	@ls -l influx-spout
 
 influx-spout-tap:
-	cd v2; go build ./cmd/influx-spout-tap ; mv influx-spout-tap ..
+	go build ./cmd/influx-spout-tap
 
 docker: influx-spout influx-spout-tap
 	$(info Building the docker image $(DOCKER_IMAGE) with $(PROJECT) $(VERSION))
@@ -43,17 +43,17 @@ docker: influx-spout influx-spout-tap
 
 .PHONY: test
 test:
-	cd v2; ./runtests -r small medium large
+	./runtests -r small medium large
 
 
 .PHONY: coverage
 coverage:
-	cd v2; ./runtests -c -r small medium large
+	./runtests -c -r small medium large
 
 
 .PHONY: benchmark
 benchmark:
-	cd v2; ./runtests -b -r small medium large
+	./runtests -b -r small medium large
 
 .PHONY: release
 release: latest-release-notes.md do-goreleaser
