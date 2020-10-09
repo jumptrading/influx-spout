@@ -32,9 +32,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jumptrading/influx-spout/config"
-	"github.com/jumptrading/influx-spout/spouttest"
-	"github.com/jumptrading/influx-spout/stats"
+	"github.com/jumptrading/influx-spout/v2/config"
+	"github.com/jumptrading/influx-spout/v2/spouttest"
+	"github.com/jumptrading/influx-spout/v2/stats"
 )
 
 const (

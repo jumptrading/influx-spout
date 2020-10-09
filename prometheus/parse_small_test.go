@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jumptrading/influx-spout/prometheus"
+	"github.com/jumptrading/influx-spout/v2/prometheus"
 )
 
 func TestParseBasic(t *testing.T) {

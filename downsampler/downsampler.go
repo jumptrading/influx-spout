@@ -20,12 +20,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nats-io/go-nats"
+	"github.com/nats-io/nats.go"
 
-	"github.com/jumptrading/influx-spout/batchsplitter"
-	"github.com/jumptrading/influx-spout/config"
-	"github.com/jumptrading/influx-spout/probes"
-	"github.com/jumptrading/influx-spout/stats"
+	"github.com/jumptrading/influx-spout/v2/batchsplitter"
+	"github.com/jumptrading/influx-spout/v2/config"
+	"github.com/jumptrading/influx-spout/v2/probes"
+	"github.com/jumptrading/influx-spout/v2/stats"
 )
 
 const (
@@ -71,7 +71,7 @@ func StartDownsampler(c *config.Config) (_ *Downsampler, err error) {
 		}
 	}()
 
-	ds.nc, err = nats.Connect(c.NATSAddress, nats.MaxReconnects(-1))
+	ds.nc, err = nats.Connect(c.NATSAddress, nats.MaxReconnects(-1), nats.Name(c.Name))
 	if err != nil {
 		return nil, fmt.Errorf("NATS Error: can't connect: %v", err)
 	}

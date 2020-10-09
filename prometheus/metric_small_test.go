@@ -21,7 +21,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/jumptrading/influx-spout/prometheus"
+	"github.com/jumptrading/influx-spout/v2/prometheus"
 )
 
 func TestToBytesMinimal(t *testing.T) {

@@ -18,7 +18,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/jumptrading/influx-spout/prometheus"
+	"github.com/jumptrading/influx-spout/v2/prometheus"
 )
 
 // NewLabels creates a new prometheus.Labels with the component and

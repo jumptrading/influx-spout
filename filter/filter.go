@@ -21,11 +21,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nats-io/go-nats"
+	"github.com/nats-io/nats.go"
 
-	"github.com/jumptrading/influx-spout/config"
-	"github.com/jumptrading/influx-spout/probes"
-	"github.com/jumptrading/influx-spout/stats"
+	"github.com/jumptrading/influx-spout/v2/config"
+	"github.com/jumptrading/influx-spout/v2/probes"
+	"github.com/jumptrading/influx-spout/v2/stats"
 )
 
 // Name for supported stats
@@ -113,7 +113,7 @@ func StartFilter(conf *config.Config) (_ *Filter, err error) {
 }
 
 func (f *Filter) natsConnect() (natsConn, error) {
-	nc, err := nats.Connect(f.c.NATSAddress, nats.MaxReconnects(-1))
+	nc, err := nats.Connect(f.c.NATSAddress, nats.MaxReconnects(-1), nats.Name(f.c.Name))
 	if err != nil {
 		return nil, fmt.Errorf("NATS: failed to connect: %v", err)
 	}

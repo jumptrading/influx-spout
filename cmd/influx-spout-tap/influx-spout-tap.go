@@ -21,10 +21,11 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"os"
 	"regexp"
 	"runtime"
 
-	"github.com/nats-io/go-nats"
+	"github.com/nats-io/nats.go"
 )
 
 func main() {
@@ -33,7 +34,11 @@ func main() {
 	var regexpString = flag.String("e", "", "Regexp to match")
 	var r *regexp.Regexp
 	flag.Parse()
-	natsConnection, _ := nats.Connect(*url)
+	hostname, err := os.Hostname()
+	if err != nil {
+		log.Printf("Hostname lookup failed")
+	}
+	natsConnection, _ := nats.Connect(*url, nats.Name("influx-spout-tap "+hostname))
 	log.Println("Connected to " + *url)
 	log.Printf("Subscribing to subject %s\n", *subject)
 

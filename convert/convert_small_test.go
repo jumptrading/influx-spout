@@ -22,7 +22,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/jumptrading/influx-spout/convert"
+	"github.com/jumptrading/influx-spout/v2/convert"
 )
 
 func TestToInt(t *testing.T) {

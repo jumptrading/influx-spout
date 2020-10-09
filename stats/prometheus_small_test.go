@@ -20,8 +20,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jumptrading/influx-spout/prometheus"
-	"github.com/jumptrading/influx-spout/stats"
+	"github.com/jumptrading/influx-spout/v2/prometheus"
+	"github.com/jumptrading/influx-spout/v2/stats"
 	"github.com/stretchr/testify/assert"
 )
 

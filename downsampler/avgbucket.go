@@ -21,8 +21,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/jumptrading/influx-spout/convert"
-	"github.com/jumptrading/influx-spout/influx"
+	"github.com/jumptrading/influx-spout/v2/convert"
+	"github.com/jumptrading/influx-spout/v2/influx"
 )
 
 func newAvgBucket(ts time.Time) bucket {

@@ -21,7 +21,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/jumptrading/influx-spout/config"
+	"github.com/jumptrading/influx-spout/v2/config"
 )
 
 func newInfluxClient(c *config.Config) *influxClient {

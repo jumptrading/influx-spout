@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jumptrading/influx-spout/influx"
+	"github.com/jumptrading/influx-spout/v2/influx"
 )
 
 // bucket defines the interface for some type which collects lines for

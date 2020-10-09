@@ -22,7 +22,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jumptrading/influx-spout/influx"
+	"github.com/jumptrading/influx-spout/v2/influx"
 	"github.com/stretchr/testify/assert"
 )
 

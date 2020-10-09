@@ -20,8 +20,8 @@ import (
 	"regexp"
 	"sort"
 
-	"github.com/jumptrading/influx-spout/config"
-	"github.com/jumptrading/influx-spout/influx"
+	"github.com/jumptrading/influx-spout/v2/config"
+	"github.com/jumptrading/influx-spout/v2/influx"
 )
 
 // Rule encapsulates a matching function and the NATS subject to send

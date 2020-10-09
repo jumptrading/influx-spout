@@ -19,7 +19,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/jumptrading/influx-spout/convert"
+	"github.com/jumptrading/influx-spout/v2/convert"
 )
 
 // ParseMetrics parses multiple Prometheus metric lines, returning a

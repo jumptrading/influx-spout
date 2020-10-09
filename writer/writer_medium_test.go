@@ -26,13 +26,13 @@ import (
 	"time"
 
 	"github.com/c2h5oh/datasize"
-	"github.com/nats-io/go-nats"
+	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jumptrading/influx-spout/config"
-	"github.com/jumptrading/influx-spout/spouttest"
-	"github.com/jumptrading/influx-spout/stats"
+	"github.com/jumptrading/influx-spout/v2/config"
+	"github.com/jumptrading/influx-spout/v2/spouttest"
+	"github.com/jumptrading/influx-spout/v2/stats"
 )
 
 const natsPort = 44200
@@ -410,7 +410,7 @@ type FatalTestingT interface {
 func runGnatsd(t FatalTestingT) (*nats.Conn, func()) {
 	gnatsd := spouttest.RunGnatsd(natsPort)
 
-	nc, err := nats.Connect(natsAddress)
+	nc, err := nats.Connect(natsAddress, nats.Name("runGnatsd"))
 	if err != nil {
 		gnatsd.Shutdown()
 		t.Fatalf("NATS connect failed: %v", err)

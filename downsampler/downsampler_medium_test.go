@@ -23,15 +23,15 @@ import (
 	"time"
 
 	"github.com/c2h5oh/datasize"
-	"github.com/nats-io/go-nats"
+	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jumptrading/influx-spout/config"
-	"github.com/jumptrading/influx-spout/influx"
-	"github.com/jumptrading/influx-spout/prometheus"
-	"github.com/jumptrading/influx-spout/spouttest"
-	"github.com/jumptrading/influx-spout/stats"
+	"github.com/jumptrading/influx-spout/v2/config"
+	"github.com/jumptrading/influx-spout/v2/influx"
+	"github.com/jumptrading/influx-spout/v2/prometheus"
+	"github.com/jumptrading/influx-spout/v2/spouttest"
+	"github.com/jumptrading/influx-spout/v2/stats"
 )
 
 const natsPort = 44500
@@ -67,7 +67,7 @@ func TestDownsampler(t *testing.T) {
 	ds := startDownsampler(t, conf)
 	defer ds.Stop()
 
-	nc, err := nats.Connect(conf.NATSAddress)
+	nc, err := nats.Connect(conf.NATSAddress, nats.Name("test"))
 	require.NoError(t, err)
 	defer nc.Close()
 

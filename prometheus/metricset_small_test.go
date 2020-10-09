@@ -19,7 +19,7 @@ package prometheus_test
 import (
 	"testing"
 
-	"github.com/jumptrading/influx-spout/prometheus"
+	"github.com/jumptrading/influx-spout/v2/prometheus"
 	"github.com/stretchr/testify/assert"
 )
 

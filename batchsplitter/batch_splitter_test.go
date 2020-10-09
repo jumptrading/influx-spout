@@ -20,7 +20,7 @@ import (
 	"testing"
 
 	"github.com/c2h5oh/datasize"
-	"github.com/jumptrading/influx-spout/batchsplitter"
+	"github.com/jumptrading/influx-spout/v2/batchsplitter"
 	"github.com/stretchr/testify/assert"
 )
 

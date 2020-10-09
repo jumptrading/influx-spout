@@ -22,7 +22,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/jumptrading/influx-spout/convert"
+	"github.com/jumptrading/influx-spout/v2/convert"
 )
 
 const (

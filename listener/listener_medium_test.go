@@ -26,13 +26,13 @@ import (
 	"time"
 
 	"github.com/c2h5oh/datasize"
-	"github.com/nats-io/go-nats"
+	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jumptrading/influx-spout/config"
-	"github.com/jumptrading/influx-spout/spouttest"
-	"github.com/jumptrading/influx-spout/stats"
+	"github.com/jumptrading/influx-spout/v2/config"
+	"github.com/jumptrading/influx-spout/v2/spouttest"
+	"github.com/jumptrading/influx-spout/v2/stats"
 )
 
 const (
@@ -556,7 +556,7 @@ func subMonitor(t require.TestingT) (chan string, func()) {
 }
 
 func subscribe(t require.TestingT, subject string) (chan string, func()) {
-	nc, err := nats.Connect(natsAddress)
+	nc, err := nats.Connect(natsAddress, nats.Name("listenerTest"))
 	require.NoError(t, err)
 
 	msgCh := make(chan string, 10)

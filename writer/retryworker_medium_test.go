@@ -21,8 +21,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jumptrading/influx-spout/config"
-	"github.com/jumptrading/influx-spout/spouttest"
+	"github.com/jumptrading/influx-spout/v2/config"
+	"github.com/jumptrading/influx-spout/v2/spouttest"
 	"github.com/stretchr/testify/assert"
 )
 

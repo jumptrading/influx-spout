@@ -24,12 +24,12 @@ import (
 	// Profiling support
 	_ "net/http/pprof"
 
-	"github.com/jumptrading/influx-spout/config"
-	"github.com/jumptrading/influx-spout/downsampler"
-	"github.com/jumptrading/influx-spout/filter"
-	"github.com/jumptrading/influx-spout/listener"
-	"github.com/jumptrading/influx-spout/monitor"
-	"github.com/jumptrading/influx-spout/writer"
+	"github.com/jumptrading/influx-spout/v2/config"
+	"github.com/jumptrading/influx-spout/v2/downsampler"
+	"github.com/jumptrading/influx-spout/v2/filter"
+	"github.com/jumptrading/influx-spout/v2/listener"
+	"github.com/jumptrading/influx-spout/v2/monitor"
+	"github.com/jumptrading/influx-spout/v2/writer"
 )
 
 // These are set at build time.

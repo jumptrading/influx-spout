@@ -19,7 +19,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jumptrading/influx-spout/config"
+	"github.com/jumptrading/influx-spout/v2/config"
 )
 
 type dbWriter interface {

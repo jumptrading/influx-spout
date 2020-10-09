@@ -21,8 +21,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jumptrading/influx-spout/influx"
-	"github.com/jumptrading/influx-spout/stats"
+	"github.com/jumptrading/influx-spout/v2/influx"
+	"github.com/jumptrading/influx-spout/v2/stats"
 )
 
 type worker struct {

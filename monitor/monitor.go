@@ -21,11 +21,11 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/nats-io/go-nats"
+	"github.com/nats-io/nats.go"
 
-	"github.com/jumptrading/influx-spout/config"
-	"github.com/jumptrading/influx-spout/probes"
-	"github.com/jumptrading/influx-spout/prometheus"
+	"github.com/jumptrading/influx-spout/v2/config"
+	"github.com/jumptrading/influx-spout/v2/probes"
+	"github.com/jumptrading/influx-spout/v2/prometheus"
 )
 
 // Start initialises, starts and returns a new Monitor instance based
@@ -100,7 +100,7 @@ func (m *Monitor) Stop() {
 }
 
 func (m *Monitor) natsConnect() (*nats.Conn, error) {
-	nc, err := nats.Connect(m.c.NATSAddress, nats.MaxReconnects(-1))
+	nc, err := nats.Connect(m.c.NATSAddress, nats.MaxReconnects(-1), nats.Name(m.c.Name))
 	if err != nil {
 		return nil, fmt.Errorf("NATS: failed to connect: %v", err)
 	}

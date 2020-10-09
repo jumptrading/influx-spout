@@ -67,6 +67,7 @@ type Config struct {
 	Debug               bool              `toml:"debug"`
 	DownsamplePeriod    Duration          `toml:"downsample_period"`
 	DownsampleSuffix    string            `toml:"downsample_suffix"`
+	QueueGroup          string            `toml:"queue_group"`
 }
 
 // Rule contains the configuration for a single filter rule.
@@ -101,6 +102,7 @@ func newDefaultConfig() *Config {
 		StatsInterval:       NewDuration(3 * time.Second),
 		ProbePort:           0,
 		PprofPort:           0,
+		QueueGroup:          "",
 	}
 }
 
@@ -200,7 +202,7 @@ func (c *Config) validateWriter() error {
 		return errors.New("influxdb_port out of range")
 	}
 	if c.InfluxDBProtocol != "http" && c.InfluxDBProtocol != "https" {
-                return errors.New("influxdb_protocol can only be http or https")
+		return errors.New("influxdb_protocol can only be http or https")
 	}
 	if c.InfluxDBUser != "" && c.InfluxDBPass == "" {
 		return errors.New("$INFLUXDB_USER without $INFLUXDB_PASS")

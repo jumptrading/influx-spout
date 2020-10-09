@@ -28,13 +28,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jumptrading/influx-spout/batch"
-	"github.com/jumptrading/influx-spout/batchsplitter"
-	"github.com/jumptrading/influx-spout/config"
-	"github.com/jumptrading/influx-spout/influx"
-	"github.com/jumptrading/influx-spout/probes"
-	"github.com/jumptrading/influx-spout/stats"
-	nats "github.com/nats-io/go-nats"
+	"github.com/jumptrading/influx-spout/v2/batch"
+	"github.com/jumptrading/influx-spout/v2/batchsplitter"
+	"github.com/jumptrading/influx-spout/v2/config"
+	"github.com/jumptrading/influx-spout/v2/influx"
+	"github.com/jumptrading/influx-spout/v2/probes"
+	"github.com/jumptrading/influx-spout/v2/stats"
+	nats "github.com/nats-io/nats.go"
 )
 
 const (
@@ -139,7 +139,7 @@ func newListener(c *config.Config) (*Listener, error) {
 		batch:  batch.New(int(c.BatchMaxSize.Bytes())),
 	}
 
-	nc, err := nats.Connect(l.c.NATSAddress, nats.MaxReconnects(-1))
+	nc, err := nats.Connect(l.c.NATSAddress, nats.MaxReconnects(-1), nats.Name(l.c.Name))
 	if err != nil {
 		return nil, err
 	}
