@@ -51,6 +51,7 @@ type Config struct {
 	BatchMaxCount       int               `toml:"batch_max_count"`
 	BatchMaxSize        datasize.ByteSize `toml:"batch_max_size"`
 	BatchMaxAge         Duration          `toml:"batch_max_age"`
+	BatchSplitter       bool              `toml:"batch_splitter"`
 	Port                int               `toml:"port"`
 	Workers             int               `toml:"workers"`
 	WriteTimeout        Duration          `toml:"write_timeout"`
@@ -90,6 +91,7 @@ func newDefaultConfig() *Config {
 		DBName:              "influx-spout-junk",
 		BatchMaxCount:       10,
 		BatchMaxAge:         NewDuration(5 * time.Minute),
+		BatchSplitter:       true,
 		Workers:             8,
 		WriteTimeout:        NewDuration(30 * time.Second),
 		WriterRetryBatches:  1,

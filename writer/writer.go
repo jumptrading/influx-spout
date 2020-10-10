@@ -183,30 +183,41 @@ func (w *Writer) worker(jobs <-chan *nats.Msg) {
 		if w.shouldSend(batch) {
 			w.stats.Inc(statWriteRequests)
 
-			// It is possible for the batch to end up being slightly
-			// larger than the configured maximum batch size because
-			// inbound messages will almost never align exactly with
-			// the maximum batch size. Split up the batch if required.
-			splitter := batchsplitter.New(batch.Bytes(), w.c.BatchMaxSize)
-			for splitter.Next() {
-				chunk := splitter.Chunk()
-				if err := dbClient.Write(chunk); err != nil {
-					w.stats.Inc(statFailedWrites)
-					log.Printf("Error: %v", err)
-					if retryCh != nil {
-						// Copy the bytes because the underlying batch
-						// buffer will be reused. A copy is relatively
-						// expensive but is only made in the (hopefully)
-						// rare case of a retry.
-						retryChunk := make([]byte, len(chunk))
-						copy(retryChunk, chunk)
-						retryCh <- retryChunk
-					}
+			if w.c.BatchSplitter {
+				// It is possible for the batch to end up being slightly
+				// larger than the configured maximum batch size because
+				// inbound messages will almost never align exactly with
+				// the maximum batch size. Split up the batch if required.
+				// When dealing with high data volumes it is recommended
+				// to disable this to avoid small writes.
+
+				splitter := batchsplitter.New(batch.Bytes(), w.c.BatchMaxSize)
+				for splitter.Next() {
+					chunk := splitter.Chunk()
+					w.writeWithRetry(chunk, dbClient, retryCh)
 				}
+			} else {
+				w.writeWithRetry(batch.Bytes(), dbClient, retryCh)
 			}
 
 			// Reset buffer on success or error; batch will not be sent again.
 			batch.Reset()
+		}
+	}
+}
+
+func (w *Writer) writeWithRetry(chunk []byte, dbClient *influxClient, retryCh chan []byte) {
+	if err := dbClient.Write(chunk); err != nil {
+		w.stats.Inc(statFailedWrites)
+		log.Printf("Error: %v", err)
+		if retryCh != nil {
+			// Copy the bytes because the underlying batch
+			// buffer will be reused. A copy is relatively
+			// expensive but is only made in the (hopefully)
+			// rare case of a retry.
+			retryChunk := make([]byte, len(chunk))
+			copy(retryChunk, chunk)
+			retryCh <- retryChunk
 		}
 	}
 }
