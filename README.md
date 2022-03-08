@@ -1,3 +1,7 @@
+**NOTE: This project is no longer maintained and has been archived.**
+
+---
+
 # influx-spout [![Build Status](https://travis-ci.org/jumptrading/influx-spout.svg?branch=master)](https://travis-ci.org/jumptrading/influx-spout) [![Go Report Card](https://goreportcard.com/badge/github.com/jumptrading/influx-spout)](https://goreportcard.com/report/github.com/jumptrading/influx-spout)
 
 ## Overview
